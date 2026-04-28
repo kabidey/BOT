@@ -94,11 +94,17 @@ async def call_hub_ai(messages: List[Dict[str, str]], model: str) -> Dict[str, A
 
 
 async def chat_with_fallback(messages: List[Dict[str, str]]) -> Dict[str, Any]:
-    """Try each model in MODEL_CANDIDATES until one returns 2xx."""
+    """Try each model in MODEL_CANDIDATES until one returns 2xx.
+    Caches the last-successful model on the function to avoid repeating known-failed
+    provider permission checks (~2s saved per request)."""
+    # Promote last successful model to the front of the chain
+    cached = getattr(chat_with_fallback, "_last_ok", None)
+    chain = [cached] + [m for m in MODEL_CANDIDATES if m != cached] if cached else list(MODEL_CANDIDATES)
     last_err: Optional[Exception] = None
-    for model in MODEL_CANDIDATES:
+    for model in chain:
         try:
             data = await call_hub_ai(messages, model)
+            chat_with_fallback._last_ok = model  # type: ignore[attr-defined]
             return {"data": data, "model": model}
         except httpx.HTTPStatusError as e:
             body = e.response.text[:300] if e.response is not None else ""
