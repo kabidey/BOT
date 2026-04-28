@@ -201,8 +201,10 @@ async def _persist_chunks(db, chunks: List[Dict[str, Any]], embeddings: np.ndarr
             "text": chunk["text"],
             "embedding": vec.tolist(),
             "created_at": now,
+            "source": "seed",
         })
-    await db.doc_chunks.delete_many({})
+    # Only delete seed chunks — preserve any uploads
+    await db.doc_chunks.delete_many({"source": {"$ne": "upload"}})
     if docs:
         await db.doc_chunks.insert_many(docs)
 
@@ -257,6 +259,60 @@ async def reingest(db) -> Dict[str, Any]:
     doc_count = len({c["doc_id"] for c in chunks})
     logger.info("RAG reingest done: docs=%d chunks=%d embedder=%s", doc_count, len(chunks), kind)
     return {"docs": doc_count, "chunks": len(chunks), "embedder": kind}
+
+
+async def ingest_extra_chunks(db, chunks: List[Dict[str, Any]], *, source: str = "upload",
+                              filename: Optional[str] = None) -> int:
+    """Embed and persist additional chunks (e.g. uploaded files) without wiping
+    the seed corpus. Updates the in-memory index in-place. Returns chunk count."""
+    if not chunks:
+        return 0
+    texts = [c["text"] for c in chunks]
+    vecs, _ = await embed_texts(texts)
+    now = datetime.now(timezone.utc).isoformat()
+    docs = []
+    for chunk, vec in zip(chunks, vecs):
+        chunk_id = hashlib.sha1(
+            f"{chunk['doc_id']}::{chunk['section']}::{chunk['text'][:64]}".encode()
+        ).hexdigest()
+        docs.append({
+            "_id": chunk_id,
+            "doc_id": chunk["doc_id"],
+            "doc_title": chunk["doc_title"],
+            "section": chunk["section"],
+            "text": chunk["text"],
+            "embedding": vec.tolist(),
+            "created_at": now,
+            "uploaded_at": now,
+            "source": source,
+            "filename": filename,
+        })
+    # Upsert by id so re-uploads of the same file overwrite cleanly
+    if docs:
+        # Remove existing chunks for the same doc_id (handles re-upload)
+        doc_id_set = {c["doc_id"] for c in chunks}
+        await db.doc_chunks.delete_many({"doc_id": {"$in": list(doc_id_set)}})
+        await db.doc_chunks.insert_many(docs)
+    # Rebuild in-memory index from DB (simpler than incremental)
+    await reload_index_from_db(db)
+    return len(docs)
+
+
+async def reload_index_from_db(db) -> int:
+    """Rebuild the in-memory index from the persisted doc_chunks collection."""
+    global _index_matrix, _index_meta, EMBEDDER_KIND
+    mat, meta = await _load_index_from_db(db)
+    async with _index_lock:
+        if mat is None:
+            _index_matrix = None
+            _index_meta = []
+        else:
+            _index_matrix = mat
+            _index_meta = meta
+            if EMBEDDER_KIND is None:
+                EMBEDDER_KIND = "local" if mat.shape[1] == 384 else "hub_ai"
+        _query_cache.clear()
+    return len(_index_meta)
 
 
 async def search(query: str, top_k: int = 5) -> List[Dict[str, Any]]:

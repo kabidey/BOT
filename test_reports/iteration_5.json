@@ -1,0 +1,58 @@
+{
+  "summary": "Phase 4 SMIFS Admin Console end-to-end tested. Backend pytest suite (new test_smifs_phase4_admin.py): 16/16 passed (100%). Auth gate verified: GET /api/admin/cost without token → 401; with wrong token → 401; with correct 'smifs-admin-2026' → 200. /admin/cost returns balance_inr=9972.89, today_inr=2.40 (11 calls), week_inr=2.40, month_inr=2.40, by_model populated with gpt-4o-mini-2024-07-18, by_task non-empty, daily_series exactly 7 entries. /admin/insights?range=7d returns totals.{sessions,messages,verified_clients} populated; intent_distribution non-empty; escalation_rate is float in [0,1]. Range chips 1d/7d/30d all return 200. /admin/leads?status=all returns 8 leads (>=5 from Phase 2); ?status=new filter works. /admin/leads/{lid} includes 'transcript' array. PATCH /admin/leads/{lid} {status:'contacted', notes:'called by phase4 test'} updates lead and persists (verified via subsequent GET). /admin/docs returns >=8 seed docs grouped by doc_id with chunks count and source='seed'. DELETE seed doc → 400 'Cannot delete seed documents — upload to override.' POST /admin/reingest with .md upload → docs_added=1, chunks_added>=1, files=[{filename, doc_id:'upload_<stem>', chunks, status:'ok'}]; subsequent GET /admin/docs shows new doc with source='upload'; DELETE upload doc returns {ok:true}; doc disappears from listing. Reingest with .exe → status='skipped', reason contains 'unsupported'. Reingest with 11MB .md → status='skipped', reason contains 'too large'. TTL indexes confirmed via direct pymongo query: db.sessions has TTL on updated_at_dt (expireAfterSeconds=86400); db.llm_calls has TTL on created_at_dt (expireAfterSeconds=7776000). Frontend (Chrome 1920x1080): admin-gate visible on cold load; wrong token surfaces error 'Token rejected. Please re-authenticate.' (with one webpack-dev-server overlay artifact — see issue #1); correct token renders admin-shell. All 5 tabs render (admin-tab-overview/leads/cost/insights/kb → admin-content-{id}). Overview shows kpi-grid + 7-day spark + intent bars. Leads tab shows 8 lead-row-{id}, clicking opens lead-drawer with status pills + notes textarea + lead-save button. Cost Ledger shows wallet ₹9972.89, by-model and by-task tables visible with 'gpt-4o-mini' real model. Insights tab shows 3 range chips and 62 bar elements; clicking 30d re-fetches. KB tab shows 8 seed kb-row-{doc_id}; uploading a small .md via file input triggers /admin/reingest, new upload row appears with kb-delete-upload_{stem}; clicking delete (auto-confirm dialog) removes the row. Sign-out returns to admin-gate. Public chat at / is unchanged: SMIFS Wealth Advisor heading, no admin links visible, zero /api/admin/* calls fired from /.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Admin.jsx token-validation effect / OverviewTab initial fetch",
+        "issue": "When a wrong X-Admin-Token is submitted, the resulting 401 from /admin/cost (and any other tab's initial fetch) bubbles up as an uncaught axios rejection that triggers the React webpack-dev-server runtime error overlay (only in dev mode — would not show in prod build). The error toast 'Token rejected. Please re-authenticate.' DOES render correctly underneath, but the overlay momentarily blocks pointer events. Root cause: the axios response interceptor in Admin.jsx returns Promise.reject(err) after clearing the token, but the calling code in the useEffect uses .then().catch() which swallows it. However each tab component (OverviewTab, etc.) also fires its own queries on mount and its catches do not always swallow silently. Recommend: add a .catch(()=>{}) at the top-level token-validation effect AND ensure each tab catches 401s without re-throwing.",
+        "selector": "[data-testid='admin-token-input']",
+        "priority": "LOW"
+      },
+      {
+        "component": "KnowledgeBaseTab kb-toast",
+        "issue": "Toast auto-dismisses after 4s. In Playwright tests with slower upload+embedding (≈8s round trip), the toast may already be gone by the time the test queries it. Suggest extending the toast duration to 8s or making it sticky until the next user action, and/or rendering the toast OUTSIDE the conditional and only updating its text — easier to assert. Functional flow itself is correct (upload succeeded, new kb-row-upload_* appeared, deletion removed it).",
+        "selector": "[data-testid='kb-toast']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Admin Overview / KPI grid / Cost Ledger",
+        "issues": ["Layout, spacing, navy+gold palette, status pills (new/contacted/qualified/closed) all render cleanly. Wallet balance ₹9972.89 displayed at large size as expected. No contrast issues observed at 1920x1080. KB drop-zone visible and clickable. Lead drawer popover positions correctly."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_smifs_phase4_admin.py",
+    "/app/test_reports/pytest/phase4_results.xml"
+  ],
+  "action_items": [
+    "(LOW) Tighten error swallowing in Admin.jsx token-validation effect and in each tab component so wrong-token 401s never surface to React's webpack overlay in dev mode. Production builds are unaffected.",
+    "(LOW) Extend kb-toast duration from 4s to 8s (or keep until next interaction) so success/failure feedback is visible during slow embeddings."
+  ],
+  "critical_code_review_comments": [
+    "admin.py /admin/cost: balance_inr is read from the most recent llm_calls row with balance_inr_after>0. If the Hub AI ever returns a row with balance=0 (e.g. errored call), the lookup still works because of $gt:0 filter — good. But consider also storing wallet_balance separately on a dedicated ledger doc for atomic reads.",
+    "admin.py /admin/insights: low_confidence_intents is hardcoded to []. If router confidence is captured in conversations.messages[*].trace[*], surface a top-N here for ops visibility. Currently the field is dead-weight in the response.",
+    "admin.py _extract_text: catches ImportError but swallows other extraction failures only inside reingest — fine. However for PDFs with image-only pages, .extract_text() returns empty and the file would be skipped silently with reason 'No extractable text'. Consider logging this so admins know why a PDF was rejected.",
+    "admin.py /admin/reingest: if `files` list is empty AND reset_seeds=false, returns docs_added=0 with empty files[] — silently a no-op. Consider 400 'No files provided and reset_seeds=false'.",
+    "admin.py LeadStatusUpdate model lives at module level but is unused outside build_admin_router — fine but consider moving into the factory for locality.",
+    "Admin.jsx: the axios interceptor mutates module state (localStorage + setToken) on 401, but is created via useMemo([]) — no stale closure on setToken reference because React preserves the setter identity. Still, a comment would help future readers.",
+    "KnowledgeBaseTab.jsx: window.confirm() blocks the React event loop and is non-customisable. Replace with the existing smifs-popover/modal pattern for consistency with the rest of the admin UI."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_smifs_phase4_admin.py (new, 16 cases across 5 test classes)",
+    "/app/test_reports/pytest/phase4_results.xml (new, JUnit output)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% on all critical Phase 4 flows (gate, all 5 tabs, leads drawer, cost data, insights chips, KB upload+delete, signout, public chat unaffected)"},
+  "test_credentials": "X-Admin-Token: smifs-admin-2026. Mock client codes (case-insensitive answers, partial-match): SMIFS001 → 1978/Mumbai (Aarav), SMIFS002 → 1982/Bengaluru (Priya), SMIFS003 → 1990/Delhi, SMIFS004 → 1975/Hyderabad, SMIFS005 → 1985/Pune.",
+  "seed_data_creation": "Created one TEST_ lead via /api/leads (TEST_Phase4 Tester / +919876500000 / test_phase4@example.com / NCD) for the PATCH-status test. Patched its status to 'contacted'. Uploaded then deleted a tiny .md upload doc (upload_phase4_smoke and upload_tmp*_uismoke) to verify reingest+delete round trip.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 4 backend regression suite is /app/backend/tests/test_smifs_phase4_admin.py (16 cases). Run with `pytest /app/backend/tests/test_smifs_phase4_admin.py -v --junitxml=/app/test_reports/pytest/phase4_results.xml`. Admin token is in /app/backend/.env as ADMIN_TOKEN=smifs-admin-2026. Frontend testids: admin-gate, admin-token-input, admin-token-submit, admin-token-err, admin-shell, admin-tab-{overview|leads|cost|insights|kb}, admin-content-{id}, admin-signout, kpi-grid, leads-table, lead-row-{id}, lead-drawer, lead-save, kb-table, kb-row-{doc_id}, kb-dropzone, kb-file-input, kb-delete-{doc_id}, kb-toast, insights-range-{1d|7d|30d}. localStorage key 'smifs_admin_token'. Webpack dev overlay can briefly intercept clicks after a 401 — call `document.getElementById('webpack-dev-server-client-overlay')?.remove()` between assertions in tests. Active LLM is gpt-4o-mini-2024-07-18; wallet balance is real (read from latest llm_calls.balance_inr_after>0). Public chat at / does not call /api/admin/*.",
+  "rca_of_the_issue": "N/A — no functional bugs found. The two LOW-priority frontend issues are dev-only (webpack overlay) and test-timing-related (toast TTL), neither blocks production usage."
+}

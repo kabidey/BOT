@@ -21,7 +21,8 @@ load_dotenv(ROOT_DIR / '.env')
 import rag
 import mocks
 from agents import orchestrator
-from agents.llm import call_with_fallback, extract_reply, last_ok
+from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db
+from admin import build_admin_router
 
 # MongoDB
 mongo_url = os.environ['MONGO_URL']
@@ -137,11 +138,6 @@ async def health():
             status="ok", llm_reachable=False, detail=str(e)[:200],
             rag_chunks=chunk_count, embedder=rag.EMBEDDER_KIND,
         )
-
-
-@api_router.post("/admin/reingest")
-async def admin_reingest(_: bool = Depends(require_admin)):
-    return await rag.reingest(db)
 
 
 @api_router.post("/rag/search")
@@ -325,6 +321,8 @@ async def session_signout(session_id: str):
 
 # ---------------- App wiring ----------------
 app.include_router(api_router)
+app.include_router(build_admin_router(db))
+bind_llm_db(db)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -347,6 +345,14 @@ async def startup_event():
             await rag.ensure_index_loaded(db)
         # 2. Mock data seeding (idempotent)
         await mocks.seed_if_empty(db)
+        # 3. TTL indexes (Phase 4) — work on real ISODate fields (created_at_dt / updated_at_dt)
+        try:
+            await db.sessions.create_index("updated_at_dt", expireAfterSeconds=86400, name="ttl_updated_at_dt")
+            await db.llm_calls.create_index("created_at_dt", expireAfterSeconds=90 * 86400, name="ttl_created_at_dt")
+            await db.llm_calls.create_index([("created_at", -1)], name="created_at_desc")
+            await db.leads.create_index([("created_at", -1)], name="leads_created_at_desc")
+        except Exception:
+            logger.exception("TTL index creation failed (non-fatal)")
     except Exception:
         logger.exception("Startup initialization failed.")
 

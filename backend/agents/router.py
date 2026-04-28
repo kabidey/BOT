@@ -73,6 +73,7 @@ async def classify(message: str, history: List[Dict[str, str]]) -> Dict[str, Any
             temperature=0.0,
             max_tokens=200,
             response_format={"type": "json_object"},
+            intent="ROUTER",
         )
         raw = extract_reply(result["data"])
         parsed = _safe_json_parse(raw)

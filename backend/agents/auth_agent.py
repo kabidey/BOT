@@ -37,7 +37,8 @@ async def get_or_create_session_row(db, session_id: str) -> Dict[str, Any]:
     Also auto-resets a locked session whose lockout has expired."""
     row = await db.sessions.find_one({"_id": session_id})
     if row is None:
-        now_iso = _now().isoformat()
+        now_dt = _now()
+        now_iso = now_dt.isoformat()
         row = {
             "_id": session_id,
             "session_id": session_id,
@@ -49,6 +50,7 @@ async def get_or_create_session_row(db, session_id: str) -> Dict[str, Any]:
             "locked_until": None,
             "created_at": now_iso,
             "updated_at": now_iso,
+            "updated_at_dt": now_dt,
         }
         await db.sessions.insert_one(row)
         return row
@@ -71,7 +73,9 @@ async def get_or_create_session_row(db, session_id: str) -> Dict[str, Any]:
 
 
 async def _update(db, session_id: str, **fields) -> None:
-    fields["updated_at"] = _now().isoformat()
+    now_dt = _now()
+    fields["updated_at"] = now_dt.isoformat()
+    fields["updated_at_dt"] = now_dt  # real ISODate for TTL
     await db.sessions.update_one({"_id": session_id}, {"$set": fields})
 
 

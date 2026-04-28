@@ -1,0 +1,495 @@
+/* ============================================================ */
+/* Phase 4 — Admin Console                                       */
+/* ============================================================ */
+
+/* ---- Token gate ---- */
+.smifs-admin-gate {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+.smifs-admin-gate-card {
+  position: relative;
+  z-index: 2;
+  width: min(420px, 92vw);
+  padding: 36px 32px;
+  border-radius: 18px;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, rgba(20,43,65,0.92) 0%, rgba(11,27,43,0.92) 100%);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
+  text-align: left;
+  animation: fade-up 0.4s ease both;
+}
+.smifs-admin-gate-icon {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(201,168,106,0.12);
+  color: var(--gold);
+  border: 1px solid var(--line-strong);
+}
+.smifs-admin-gate-eyebrow {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.smifs-admin-gate-title {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 500;
+  font-size: 28px;
+  color: #f3ecd8;
+}
+.smifs-admin-gate-body {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+.smifs-admin-gate-input {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 200ms ease, background-color 200ms ease;
+}
+.smifs-admin-gate-input:focus { border-color: var(--gold); background: rgba(201,168,106,0.06); }
+.smifs-admin-gate-err {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: #f6c8c1;
+}
+.smifs-admin-gate-submit {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  background: var(--gold);
+  color: var(--navy-900);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 200ms ease, transform 200ms ease;
+}
+.smifs-admin-gate-submit:hover { background: var(--gold-soft); transform: translateY(-1px); }
+
+/* ---- Shell + sidebar ---- */
+.smifs-admin-shell {
+  position: relative;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  background: radial-gradient(900px 600px at 90% -10%, #14304a 0%, transparent 55%),
+              radial-gradient(900px 700px at -10% 110%, #0a1f33 0%, transparent 60%),
+              var(--navy-900);
+  color: var(--ink);
+  overflow: hidden;
+}
+.smifs-admin-side {
+  position: relative;
+  z-index: 2;
+  padding: 24px 18px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: rgba(8, 18, 30, 0.4);
+  backdrop-filter: blur(6px);
+}
+.smifs-admin-brand { display: flex; align-items: center; gap: 12px; padding: 0 6px 6px; }
+.smifs-admin-brand-eyebrow {
+  margin: 0; font-size: 9px; letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--gold);
+}
+.smifs-admin-brand-title {
+  margin: 2px 0 0; font-family: "Cormorant Garamond", serif;
+  font-weight: 500; font-size: 18px; color: #f3ecd8;
+}
+
+.smifs-admin-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.smifs-admin-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  padding: 10px 12px;
+  text-align: left;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+.smifs-admin-tab:hover { color: var(--ink); background: rgba(255,255,255,0.025); }
+.smifs-admin-tab--on {
+  color: var(--gold);
+  background: rgba(201,168,106,0.08);
+  border-color: var(--line-strong);
+}
+.smifs-admin-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: color 200ms ease, border-color 200ms ease;
+}
+.smifs-admin-signout:hover { color: var(--gold); border-color: var(--gold); }
+
+.smifs-admin-main {
+  position: relative;
+  z-index: 2;
+  padding: 32px 36px 48px;
+  overflow-y: auto;
+  height: 100vh;
+}
+
+.smifs-admin-loading {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  padding: 40px 0;
+}
+
+.smifs-admin-page { display: flex; flex-direction: column; gap: 24px; }
+.smifs-admin-page-head { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.smifs-admin-eyebrow {
+  margin: 0; font-size: 10px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: var(--gold);
+}
+.smifs-admin-title {
+  margin: 2px 0 0;
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 500;
+  font-size: 30px;
+  letter-spacing: 0.005em;
+  color: #f3ecd8;
+}
+
+.smifs-admin-filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.smifs-admin-filter {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, background-color 180ms ease;
+}
+.smifs-admin-filter:hover { color: var(--ink); border-color: var(--line-strong); }
+.smifs-admin-filter--on {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: rgba(201,168,106,0.08);
+}
+
+/* ---- Cards / KPIs ---- */
+.smifs-admin-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0) 100%);
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.smifs-admin-card-head { display: flex; flex-direction: column; gap: 2px; }
+.smifs-admin-card-title {
+  margin: 0; font-family: "Cormorant Garamond", serif; font-weight: 500;
+  font-size: 18px; color: #f3ecd8;
+}
+.smifs-admin-2col {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+}
+
+.smifs-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.smifs-kpi {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.smifs-kpi--feature {
+  border-color: var(--line-strong);
+  background: linear-gradient(180deg, rgba(201,168,106,0.1), rgba(201,168,106,0.02));
+}
+.smifs-kpi-head { display: flex; align-items: center; gap: 8px; color: var(--gold); }
+.smifs-kpi-icon { display: inline-grid; place-items: center; }
+.smifs-kpi-label {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.smifs-kpi-value {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 500;
+  font-size: 26px;
+  color: #f3ecd8;
+  line-height: 1.05;
+  letter-spacing: 0.005em;
+}
+.smifs-kpi-value--xl { font-size: 36px; }
+.smifs-kpi-sub {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+/* ---- Sparkline / bars ---- */
+.smifs-spark {
+  display: flex; align-items: flex-end; gap: 12px; height: 140px;
+  padding: 10px 4px 0;
+}
+.smifs-spark-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.smifs-spark-bar {
+  display: block;
+  width: 100%; min-width: 10px; max-width: 36px;
+  background: linear-gradient(180deg, var(--gold), rgba(201,168,106,0.35));
+  border-radius: 4px;
+}
+.smifs-spark-label {
+  font-size: 10px;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
+
+.smifs-bars { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.smifs-bar {
+  display: grid;
+  grid-template-columns: 140px 1fr 36px;
+  gap: 12px;
+  align-items: center;
+}
+.smifs-bar-label {
+  font-size: 12px;
+  text-transform: capitalize;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.smifs-bar-track {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+.smifs-bar-fill {
+  display: block; height: 100%;
+  background: linear-gradient(90deg, var(--gold-deep) 0%, var(--gold) 100%);
+  transition: width 360ms ease;
+}
+.smifs-bar-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-align: right;
+}
+
+/* ---- Tables ---- */
+.smifs-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.018);
+}
+.smifs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.smifs-table thead th {
+  text-align: left;
+  padding: 12px 14px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
+  font-weight: 500;
+}
+.smifs-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  vertical-align: top;
+}
+.smifs-table tbody tr:last-child td { border-bottom: none; }
+.smifs-table-row { cursor: pointer; transition: background-color 180ms ease; }
+.smifs-table-row:hover { background: rgba(201,168,106,0.04); }
+.smifs-mono-cell { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--ink-muted); }
+.smifs-table-cell-2 { line-height: 1.4; }
+.smifs-table-cell-sub { font-size: 11px; color: var(--ink-dim); }
+.smifs-table-action {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  display: inline-grid; place-items: center;
+  cursor: pointer;
+  transition: color 180ms ease, border-color 180ms ease;
+}
+.smifs-table-action:hover { color: #e9a098; border-color: rgba(233,160,152,0.4); }
+
+/* ---- Status pill ---- */
+.smifs-status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+.smifs-status-pill--new        { color: var(--ink-muted); border-color: var(--line-strong); background: rgba(255,255,255,0.03); }
+.smifs-status-pill--contacted  { color: var(--gold); border-color: rgba(201,168,106,0.5); background: rgba(201,168,106,0.08); }
+.smifs-status-pill--qualified  { color: #9bd3a3; border-color: rgba(155,211,163,0.5); background: rgba(155,211,163,0.08); }
+.smifs-status-pill--closed     { color: var(--ink-dim); border-color: var(--line); background: rgba(255,255,255,0.02); }
+
+.smifs-empty {
+  padding: 18px 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
+
+/* ---- Lead drawer ---- */
+.smifs-lead-drawer { width: min(540px, 96vw); }
+.smifs-lead-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;
+  margin-bottom: 18px;
+}
+.smifs-lead-field { display: flex; flex-direction: column; gap: 4px; }
+.smifs-lead-value { color: var(--ink); font-size: 13px; }
+.smifs-lead-section {
+  margin: 18px 0 8px;
+  font-family: "Cormorant Garamond", serif;
+  font-weight: 500;
+  font-size: 16px;
+  color: #f3ecd8;
+}
+.smifs-lead-notes {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  background: rgba(255,255,255,0.025);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  outline: none;
+  margin-bottom: 10px;
+}
+.smifs-lead-notes:focus { border-color: var(--gold); background: rgba(201,168,106,0.06); }
+
+.smifs-transcript {
+  list-style: none; padding: 0; margin: 8px 0 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.smifs-transcript-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: rgba(255,255,255,0.018);
+}
+.smifs-transcript-row--user { border-color: var(--line-strong); }
+.smifs-transcript-role {
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--gold);
+}
+.smifs-transcript-text { font-size: 12px; color: var(--ink); line-height: 1.45; }
+
+/* ---- KB drop zone ---- */
+.smifs-kb-drop {
+  border: 1.5px dashed var(--line-strong);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: pointer;
+  background: rgba(255,255,255,0.018);
+  transition: border-color 200ms ease, background-color 200ms ease;
+  color: var(--ink-muted);
+}
+.smifs-kb-drop:hover { border-color: var(--gold); background: rgba(201,168,106,0.04); }
+.smifs-kb-drop svg { color: var(--gold); }
+.smifs-kb-drop-title {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-size: 18px;
+  color: #f3ecd8;
+  font-weight: 500;
+}
+.smifs-kb-drop-sub { margin: 0; font-size: 12px; color: var(--ink-dim); }
+.smifs-kb-uploading {
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.smifs-toast {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  border: 1px solid;
+  border-radius: 999px;
+  width: fit-content;
+}
+.smifs-toast--ok  { color: #9bd3a3; border-color: rgba(155,211,163,0.45); background: rgba(155,211,163,0.06); }
+.smifs-toast--err { color: #f6c8c1; border-color: rgba(224,122,110,0.45); background: rgba(224,122,110,0.06); }
+
+@media (max-width: 900px) {
+  .smifs-admin-shell { grid-template-columns: 1fr; }
+  .smifs-admin-side { order: 2; border-right: none; border-top: 1px solid var(--line); flex-direction: row; flex-wrap: wrap; }
+  .smifs-admin-nav { flex-direction: row; flex-wrap: wrap; flex: none; }
+  .smifs-admin-2col { grid-template-columns: 1fr; }
+  .smifs-lead-grid { grid-template-columns: 1fr; }
+}
