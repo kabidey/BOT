@@ -1,26 +1,35 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle, FileText, Sparkles, BookOpen } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, Sparkles } from "lucide-react";
+
+import TextBlock from "@/components/blocks/TextBlock";
+import FormBlock from "@/components/blocks/FormBlock";
+import MarketCardBlock from "@/components/blocks/MarketCardBlock";
+import ClientCardBlock from "@/components/blocks/ClientCardBlock";
+import EscalationBlock from "@/components/blocks/EscalationBlock";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 const STORAGE_KEY = "smifs_session_id";
 
 const SUGGESTIONS = [
-  "What's the minimum ticket size for an AIF?",
-  "How are NCDs taxed in India?",
-  "What is the difference between PMS and mutual funds?",
+  "What is the minimum ticket size for an AIF?",
+  "What's the price of RELIANCE?",
+  "I'm interested in investing in NCDs",
 ];
 
 export default function Chat() {
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(STORAGE_KEY) || null);
+  // messages: [{role, blocks?, content?, citations?, error?, intent?, model?}]
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [health, setHealth] = useState(null);
   const [activeCitation, setActiveCitation] = useState(null); // { msgIdx, citIdx }
   const listRef = useRef(null);
+  const abortRef = useRef(null);
 
   // Health ping on mount
   useEffect(() => {
@@ -33,68 +42,115 @@ export default function Chat() {
         if (!cancelled) setHealth({ status: "down", llm_reachable: false, detail: e.message });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   // Auto-scroll
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
-  }, [messages, sending]);
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [messages, streaming, statusLabel]);
 
-  // Close popover on Escape
+  // Escape closes popover
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") setActiveCitation(null); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const send = async (textOverride) => {
-    const text = (textOverride ?? input).trim();
-    if (!text || sending) return;
+  /** Manual SSE parser over fetch+ReadableStream — EventSource doesn't support POST. */
+  const sendStreaming = useCallback(async (text) => {
     setErrorMsg("");
-    setInput("");
     setActiveCitation(null);
-    const userMsg = { role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
-    setSending(true);
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setStreaming(true);
+    setStatusLabel("Routing your question…");
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const { data } = await axios.post(`${API}/chat`, {
-        session_id: sessionId,
-        message: text,
+      const resp = await fetch(`${API}/agent/turn/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message: text }),
+        signal: controller.signal,
       });
-      if (data.session_id && data.session_id !== sessionId) {
-        setSessionId(data.session_id);
-        localStorage.setItem(STORAGE_KEY, data.session_id);
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${errText.slice(0, 200)}`);
       }
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.reply,
-          model: data.model,
-          grounded: data.grounded,
-          citations: data.citations || [],
-        },
-      ]);
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult = null;
+      let hadError = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        // Split on double-newline (SSE event delimiter)
+        let idx;
+        while ((idx = buffer.indexOf("\n\n")) !== -1) {
+          const raw = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          if (!raw.trim() || raw.startsWith(":")) continue; // comment / heartbeat
+          let eventName = "message";
+          let dataLines = [];
+          for (const line of raw.split("\n")) {
+            if (line.startsWith("event:")) eventName = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+          }
+          let data = null;
+          if (dataLines.length) {
+            try { data = JSON.parse(dataLines.join("\n")); } catch (_) { data = dataLines.join("\n"); }
+          }
+          if (eventName === "status") {
+            if (data?.label) setStatusLabel(`${data.label}…`);
+          } else if (eventName === "result") {
+            finalResult = data;
+          } else if (eventName === "error") {
+            hadError = data?.detail || "Stream error";
+          }
+        }
+      }
+
+      if (hadError) throw new Error(hadError);
+      if (!finalResult) throw new Error("Stream ended without a result");
+
+      if (finalResult.session_id && finalResult.session_id !== sessionId) {
+        setSessionId(finalResult.session_id);
+        localStorage.setItem(STORAGE_KEY, finalResult.session_id);
+      }
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        blocks: finalResult.blocks || [],
+        citations: finalResult.citations || [],
+        intent: finalResult.intent,
+        model: finalResult.model,
+        trace: finalResult.trace,
+      }]);
     } catch (e) {
-      const detail = e?.response?.data?.detail || e.message || "Unknown error";
+      if (e.name === "AbortError") return;
+      const detail = e.message || "Unknown error";
       setErrorMsg(detail);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "I'm momentarily unable to reach the advisory engine. Please try again shortly.",
-          error: true,
-        },
-      ]);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        error: true,
+        blocks: [{ type: "text", text: "I'm momentarily unable to reach the advisory engine. Please try again shortly." }],
+      }]);
     } finally {
-      setSending(false);
+      setStreaming(false);
+      setStatusLabel("");
+      abortRef.current = null;
     }
+  }, [sessionId]);
+
+  const send = (textOverride) => {
+    const text = (textOverride ?? input).trim();
+    if (!text || streaming) return;
+    setInput("");
+    sendStreaming(text);
   };
 
   const onKey = (e) => {
@@ -105,11 +161,50 @@ export default function Chat() {
   };
 
   const resetThread = () => {
+    if (abortRef.current) abortRef.current.abort();
     localStorage.removeItem(STORAGE_KEY);
     setSessionId(null);
     setMessages([]);
     setErrorMsg("");
     setActiveCitation(null);
+  };
+
+  const onCitationClick = (msgIdx, citIdx) => {
+    setActiveCitation((cur) =>
+      cur && cur.msgIdx === msgIdx && cur.citIdx === citIdx ? null : { msgIdx, citIdx }
+    );
+  };
+
+  const requestCallback = () => {
+    if (streaming) return;
+    sendStreaming("Please call me back at your earliest convenience.");
+  };
+
+  const renderBlock = (block, bi, msgIdx, msg) => {
+    const key = `${msgIdx}-${bi}`;
+    switch (block.type) {
+      case "text":
+        return (
+          <TextBlock
+            key={key}
+            block={block}
+            citations={msg.citations}
+            onCitationClick={onCitationClick}
+            msgIdx={msgIdx}
+            activeCitationKey={activeCitation ? `${activeCitation.msgIdx}-${activeCitation.citIdx}` : null}
+          />
+        );
+      case "form":
+        return <FormBlock key={key} block={block} sessionId={sessionId} msgIdx={msgIdx} />;
+      case "market_card":
+        return <MarketCardBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "client_card":
+        return <ClientCardBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "escalation_card":
+        return <EscalationBlock key={key} block={block} msgIdx={msgIdx} onRequestCallback={requestCallback} />;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -118,22 +213,20 @@ export default function Chat() {
       <div className="smifs-bg-blob smifs-bg-blob--teal" aria-hidden />
       <div className="smifs-grain" aria-hidden />
 
-      {/* Header */}
       <header className="smifs-header">
         <div className="smifs-brand">
           <div className="smifs-mono" aria-hidden>S</div>
           <div>
             <h1 className="smifs-title" data-testid="smifs-title">SMIFS Wealth Advisor</h1>
-            <p className="smifs-subtitle">Lead Wealth-Engagement Agent · Phase 1 · Grounded</p>
+            <p className="smifs-subtitle">Lead Wealth-Engagement Agent · Phase 2 · Multi-agent</p>
           </div>
         </div>
-
         <div className="smifs-status" data-testid="health-pill">
           {health?.llm_reachable ? (
             <>
               <ShieldCheck size={14} strokeWidth={2.25} />
               <span>
-                Engine online{health?.model ? ` · ${health.model}` : ""}
+                Engine online{health?.last_chat_model ? ` · ${health.last_chat_model}` : ""}
                 {health?.rag_chunks ? ` · ${health.rag_chunks} chunks` : ""}
               </span>
             </>
@@ -146,18 +239,16 @@ export default function Chat() {
         </div>
       </header>
 
-      {/* Conversation */}
       <main className="smifs-main">
         <div className="smifs-thread" ref={listRef} data-testid="message-list">
           {messages.length === 0 && (
             <div className="smifs-welcome" data-testid="welcome-card">
               <p className="smifs-eyebrow">Private advisory · Confidential</p>
-              <h2 className="smifs-welcome-title">
-                A considered conversation about your wealth.
-              </h2>
+              <h2 className="smifs-welcome-title">A considered conversation about your wealth.</h2>
               <p className="smifs-welcome-body">
-                Ask about NCDs, AIFs, PMS, mutual funds, IPOs, KYC, or our advisory approach —
-                replies are grounded in our internal SMIFS knowledge base with traceable citations.
+                Our multi-agent advisor routes your question to the right specialist —
+                research, market data, your account, or our human team — and grounds every
+                product fact in our internal SMIFS knowledge base.
               </p>
               <div className="smifs-suggestions">
                 {SUGGESTIONS.map((s, i) => (
@@ -175,75 +266,42 @@ export default function Chat() {
             </div>
           )}
 
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`smifs-msg ${m.role === "user" ? "smifs-msg--user" : "smifs-msg--bot"} ${
-                m.error ? "smifs-msg--error" : ""
-              }`}
-              data-testid={`msg-${m.role}-${i}`}
-            >
-              <div className="smifs-msg-meta">
-                {m.role === "user" ? "You" : "Advisor"}
-                {m.model ? <span className="smifs-msg-model"> · {m.model}</span> : null}
-              </div>
-              <div className="smifs-msg-bubble">{m.content}</div>
-
-              {m.role === "assistant" && !m.error && (
-                <div className="smifs-msg-foot">
-                  {m.grounded ? (
-                    <span
-                      className="smifs-grounded smifs-grounded--on"
-                      data-testid={`grounded-on-${i}`}
-                      title="This reply is grounded in the SMIFS knowledge base."
-                    >
-                      <Sparkles size={11} strokeWidth={2.25} />
-                      Knowledge grounded
-                    </span>
-                  ) : (
-                    <span
-                      className="smifs-grounded smifs-grounded--off"
-                      data-testid={`grounded-off-${i}`}
-                      title="No confident match in the SMIFS knowledge base."
-                    >
-                      <BookOpen size={11} strokeWidth={2.25} />
-                      Outside knowledge base
-                    </span>
-                  )}
-                  {m.citations && m.citations.length > 0 && (
-                    <div className="smifs-cites" data-testid={`citations-${i}`}>
-                      {m.citations.map((c, ci) => {
-                        const isActive = activeCitation?.msgIdx === i && activeCitation?.citIdx === ci;
-                        return (
-                          <button
-                            key={ci}
-                            type="button"
-                            className={`smifs-cite ${isActive ? "smifs-cite--active" : ""}`}
-                            onClick={() =>
-                              setActiveCitation(isActive ? null : { msgIdx: i, citIdx: ci })
-                            }
-                            data-testid={`citation-${i}-${ci}`}
-                            title={`Score ${c.score.toFixed(2)} — click to view passage`}
-                          >
-                            <FileText size={11} strokeWidth={2.25} />
-                            <span className="smifs-cite-doc">{c.doc_title}</span>
-                            <span className="smifs-cite-sep">·</span>
-                            <span className="smifs-cite-sec">§{c.section}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+          {messages.map((m, i) => {
+            if (m.role === "user") {
+              return (
+                <div key={i} className="smifs-msg smifs-msg--user" data-testid={`msg-user-${i}`}>
+                  <div className="smifs-msg-meta">You</div>
+                  <div className="smifs-msg-bubble">{m.content}</div>
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            }
+            // assistant
+            return (
+              <div
+                key={i}
+                className={`smifs-msg smifs-msg--bot ${m.error ? "smifs-msg--error" : ""}`}
+                data-testid={`msg-assistant-${i}`}
+                data-intent={m.intent || ""}
+              >
+                <div className="smifs-msg-meta">
+                  Advisor
+                  {m.intent ? <span className="smifs-msg-intent" data-testid={`msg-intent-${i}`}> · {m.intent.replace(/_/g, " ").toLowerCase()}</span> : null}
+                  {m.model ? <span className="smifs-msg-model"> · {m.model}</span> : null}
+                </div>
+                <div className="smifs-blocks">
+                  {(m.blocks || []).map((b, bi) => renderBlock(b, bi, i, m))}
+                </div>
+              </div>
+            );
+          })}
 
-          {sending && (
-            <div className="smifs-msg smifs-msg--bot" data-testid="typing-indicator">
+          {streaming && (
+            <div className="smifs-msg smifs-msg--bot" data-testid="streaming-status">
               <div className="smifs-msg-meta">Advisor</div>
-              <div className="smifs-msg-bubble smifs-typing">
-                <span /><span /><span />
+              <div className="smifs-msg-bubble smifs-streaming">
+                <Sparkles size={13} strokeWidth={2.25} />
+                <span className="smifs-streaming-label" data-testid="streaming-label">{statusLabel || "Thinking…"}</span>
+                <span className="smifs-streaming-dots"><span /><span /><span /></span>
               </div>
             </div>
           )}
@@ -255,7 +313,6 @@ export default function Chat() {
           </div>
         )}
 
-        {/* Composer */}
         <div className="smifs-composer">
           <textarea
             value={input}
@@ -269,7 +326,7 @@ export default function Chat() {
           <button
             className="smifs-send"
             onClick={() => send()}
-            disabled={!input.trim() || sending}
+            disabled={!input.trim() || streaming}
             data-testid="send-button"
             aria-label="Send message"
           >
@@ -317,9 +374,7 @@ export default function Chat() {
                   onClick={() => setActiveCitation(null)}
                   data-testid="citation-popover-close"
                   aria-label="Close passage"
-                >
-                  ×
-                </button>
+                >×</button>
               </div>
               <div className="smifs-popover-body">{c.text}</div>
             </aside>
