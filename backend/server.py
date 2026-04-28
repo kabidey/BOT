@@ -270,6 +270,61 @@ async def get_conversation(session_id: str):
     return doc
 
 
+# --- Phase 3 session endpoints ---
+@api_router.get("/sessions/{session_id}")
+async def get_session(session_id: str):
+    """Returns auth_state + verified client info (if any) + full conversation history.
+    Used by the frontend on mount to rehydrate the chat thread."""
+    from agents import auth_agent
+    convo = await db.conversations.find_one({"session_id": session_id}, {"_id": 0})
+    if not convo:
+        raise HTTPException(status_code=404, detail="Session not found")
+    auth_row = await auth_agent.get_or_create_session_row(db, session_id)
+    client_info = None
+    if auth_row.get("auth_state") == "verified" and auth_row.get("client_code"):
+        client = await db.mock_clients.find_one(
+            {"code": auth_row["client_code"]},
+            {"_id": 0, "verify_questions": 0, "phone": 0},
+        )
+        if client:
+            client_info = {"name": client.get("name"), "code": client.get("code")}
+    # Strip MongoDB-internal _id from auth row (already excluded above) and shape history
+    history = []
+    for m in convo.get("messages", []):
+        entry = {"role": m.get("role"), "ts": m.get("ts")}
+        if m.get("role") == "user":
+            entry["text"] = m.get("content", "")
+        else:
+            entry["blocks"] = m.get("blocks") or [{"type": "text", "text": m.get("content", "")}]
+            entry["citations"] = m.get("citations") or []
+            entry["intent"] = m.get("intent")
+            entry["model"] = m.get("model")
+        history.append(entry)
+    return {
+        "session_id": session_id,
+        "auth_state": auth_row.get("auth_state"),
+        "client": client_info,
+        "history": history,
+        "created_at": convo.get("created_at"),
+        "updated_at": convo.get("updated_at"),
+    }
+
+
+@api_router.post("/sessions/{session_id}/signout")
+async def session_signout(session_id: str):
+    from agents import auth_agent
+    convo = await db.conversations.find_one({"session_id": session_id}, {"_id": 0})
+    if not convo:
+        raise HTTPException(status_code=404, detail="Session not found")
+    row = await auth_agent.signout(db, session_id)
+    return {
+        "session_id": session_id,
+        "auth_state": row.get("auth_state", "anonymous"),
+        "client": None,
+        "message": "Signed out. You may continue as a prospect.",
+    }
+
+
 # ---------------- App wiring ----------------
 app.include_router(api_router)
 app.add_middleware(

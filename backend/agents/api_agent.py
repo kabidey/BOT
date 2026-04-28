@@ -49,7 +49,7 @@ def extract_market_query(message: str, fallback_subject: Optional[str] = None) -
 
 # ---------- DB lookups ----------
 async def lookup_client(db, identifier: str) -> Dict[str, Any]:
-    """Find a mock client by code or phone. Returns {found, ...}."""
+    """Find a mock client by code or phone. Returns {found, ...} (without verify_questions)."""
     ident = identifier.strip()
     code_query = {"code": ident.upper()}
     phone_clean = re.sub(r"[\s\-]", "", ident)
@@ -57,6 +57,22 @@ async def lookup_client(db, identifier: str) -> Dict[str, Any]:
     doc = await db.mock_clients.find_one(
         {"$or": [code_query, phone_query]},
         {"_id": 0, "verify_questions": 0},  # never expose verify Qs in lookup result
+    )
+    if not doc:
+        return {"found": False, "identifier": identifier}
+    return {"found": True, **doc}
+
+
+async def lookup_client_with_questions(db, identifier: str) -> Dict[str, Any]:
+    """Same lookup as `lookup_client`, but returns `verify_questions` for the auth flow.
+    Use only inside the auth agent — never in user-facing payloads."""
+    ident = identifier.strip()
+    code_query = {"code": ident.upper()}
+    phone_clean = re.sub(r"[\s\-]", "", ident)
+    phone_query = {"phone": phone_clean}
+    doc = await db.mock_clients.find_one(
+        {"$or": [code_query, phone_query]},
+        {"_id": 0},
     )
     if not doc:
         return {"found": False, "identifier": identifier}

@@ -1,11 +1,15 @@
-"""Phase 2 multi-agent orchestrator.
+"""Phase 3 orchestrator — auth-aware multi-agent flow.
 
-Run-turn flow:
+Per-turn flow:
   1. Persist user message
-  2. Router → intent
-  3. Branch to specialist; emit status events along the way
-  4. Assemble blocks[] (text, form, market_card, client_card, escalation_card)
-  5. Persist assistant turn (with blocks + citations + intent)
+  2. Auth pre-check:
+       - Auto-clear expired lockouts
+       - If locked → return locked response
+       - If awaiting q1/q2 → consume message as the answer (skip Router)
+       - If anonymous AND message contains a client identifier → begin verification
+  3. Otherwise: Router → specialist branch
+  4. Inject CLIENT_CONTEXT into LLM-using branches when session is verified
+  5. Persist assistant turn (blocks + intent + citations)
 """
 from __future__ import annotations
 import logging
@@ -13,8 +17,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from .llm import chat_with_fallback, extract_reply
-from . import api_agent, form_agent, rag_agent
+from .llm import call_with_fallback, extract_reply
+from . import api_agent, auth_agent, form_agent, rag_agent
 from .router import classify
 
 logger = logging.getLogger(__name__)
@@ -59,11 +63,18 @@ SMALL_TALK_PROMPT = (
 )
 
 
-async def _branch_small_talk(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
-    msgs = [{"role": "system", "content": SMALL_TALK_PROMPT}]
+def _maybe_inject_context(system_prompt: str, client_ctx: Optional[Dict[str, Any]]) -> str:
+    if client_ctx:
+        return system_prompt + auth_agent.client_context_block(client_ctx)
+    return system_prompt
+
+
+async def _branch_small_talk(message: str, history: List[Dict[str, Any]],
+                             client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    msgs = [{"role": "system", "content": _maybe_inject_context(SMALL_TALK_PROMPT, client_ctx)}]
     msgs += [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
     msgs.append({"role": "user", "content": message})
-    result = await chat_with_fallback(msgs, temperature=0.5, max_tokens=200)
+    result = await call_with_fallback(msgs, task="chat", temperature=0.5, max_tokens=200)
     return {
         "blocks": [{"type": "text", "text": extract_reply(result["data"])}],
         "citations": [],
@@ -71,31 +82,24 @@ async def _branch_small_talk(message: str, history: List[Dict[str, Any]]) -> Dic
     }
 
 
-async def _branch_knowledge(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
-    out = await rag_agent.answer(message, history)
+async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
+                            client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    out = await rag_agent.answer(message, history, client_context=client_ctx)
     blocks: List[Dict[str, Any]] = [{
         "type": "text",
         "text": out["reply_text"],
         "grounded": out["grounded"],
     }]
-    return {
-        "blocks": blocks,
-        "citations": out["citations"],
-        "model": out["model"],
-    }
+    return {"blocks": blocks, "citations": out["citations"], "model": out["model"]}
 
 
-async def _branch_lead_capture(message: str, subject: Optional[str], history: List[Dict[str, Any]]) -> Dict[str, Any]:
-    # Confirmation prose from LLM grounded in RAG (so the lead-in mentions the product correctly)
-    rag_out = await rag_agent.answer(message, history)
+async def _branch_lead_capture(message: str, subject: Optional[str], history: List[Dict[str, Any]],
+                               client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    rag_out = await rag_agent.answer(message, history, client_context=client_ctx)
     schema = form_agent.lead_capture_form(asset_class=subject)
-    intro = rag_out["reply_text"].strip()
-    # Append a one-liner inviting form
-    closing = (
-        "\n\nIf you'd like to take this forward, share a few details below and a senior advisor will reach out shortly."
-    )
+    closing = "\n\nIf you'd like to take this forward, share a few details below and a senior advisor will reach out shortly."
     blocks: List[Dict[str, Any]] = [
-        {"type": "text", "text": intro + closing, "grounded": rag_out["grounded"]},
+        {"type": "text", "text": rag_out["reply_text"].strip() + closing, "grounded": rag_out["grounded"]},
         {"type": "form", "schema": schema},
     ]
     return {"blocks": blocks, "citations": rag_out["citations"], "model": rag_out["model"]}
@@ -115,21 +119,14 @@ async def _branch_market(db, message: str, subject: Optional[str], history: List
     if not query:
         text = "Could you share the specific stock symbol or fund name you'd like a quote on?"
         return {"blocks": [{"type": "text", "text": text}], "citations": [], "model": None}
-
     record = await api_agent.fetch_market_data(db, query)
     if record:
         intro = (
             f"Here is the latest indicative quote for {record.get('name', record.get('symbol'))}. "
-            f"Note: prices shown are illustrative and updated periodically; for live execution, please confirm with our dealing desk."
+            "Note: prices shown are illustrative and updated periodically; for live execution, please confirm with our dealing desk."
         )
-        return {
-            "blocks": [
-                {"type": "text", "text": intro},
-                {"type": "market_card", "data": record},
-            ],
-            "citations": [],
-            "model": None,
-        }
+        return {"blocks": [{"type": "text", "text": intro}, {"type": "market_card", "data": record}],
+                "citations": [], "model": None}
     available = await api_agent.list_available_market_symbols(db, limit=6)
     text = (
         f"I couldn't locate a live quote for '{query}' in our coverage right now. "
@@ -139,8 +136,29 @@ async def _branch_market(db, message: str, subject: Optional[str], history: List
     return {"blocks": [{"type": "text", "text": text}], "citations": [], "model": None}
 
 
-async def _branch_client_lookup(db, message: str, subject: Optional[str]) -> Dict[str, Any]:
-    identifier = api_agent.extract_client_identifier(message) or (subject if subject and subject.upper().startswith("SMIFS") else None)
+async def _branch_client_lookup(db, session_id: str, message: str, subject: Optional[str],
+                                row: Dict[str, Any], client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Phase 3: this branch is reached only when the session is anonymous (verified
+    sessions with portfolio questions are answered by KNOWLEDGE branch with context).
+    Either kick off verification (if a code was provided) or ask for one."""
+    # If verified, surface the client_card directly with the holdings summary.
+    if client_ctx:
+        return {
+            "blocks": [
+                {"type": "text", "text": f"Here's your account summary, {client_ctx['name'].split()[0]}."},
+                {"type": "client_card", "data": {
+                    "code": client_ctx["code"],
+                    "name": client_ctx["name"],
+                    "holdings_summary": client_ctx["holdings_summary"],
+                    "verified": True,
+                }},
+            ],
+            "citations": [], "model": None,
+        }
+
+    identifier = api_agent.extract_client_identifier(message) or (
+        subject if subject and subject.upper().startswith("SMIFS") else None
+    )
     if not identifier:
         text = (
             "To pull up your portfolio I'll need to verify your identity. "
@@ -148,38 +166,8 @@ async def _branch_client_lookup(db, message: str, subject: Optional[str]) -> Dic
         )
         return {"blocks": [{"type": "text", "text": text}], "citations": [], "model": None}
 
-    res = await api_agent.lookup_client(db, identifier)
-    if not res.get("found"):
-        text = (
-            f"I couldn't find an SMIFS account matching '{identifier}'. "
-            "If you believe this is an error, please ask to be connected with a human advisor."
-        )
-        return {
-            "blocks": [
-                {"type": "text", "text": text},
-                {"type": "escalation_card", "data": {"reason": "client_not_found", "identifier": identifier}},
-            ],
-            "citations": [],
-            "model": None,
-        }
-    # Phase 2: we have the record, but Phase 3 will gate full holdings behind verification.
-    text = (
-        "I see your record on file. For your security, I'll need to verify your identity before sharing portfolio details — "
-        "we'll add this step in the next interaction. In the meantime, here's a high-level summary."
-    )
-    return {
-        "blocks": [
-            {"type": "text", "text": text},
-            {"type": "client_card", "data": {
-                "code": res.get("code"),
-                "name": res.get("name"),
-                "holdings_summary": res.get("holdings_summary"),
-                "verified": False,
-            }},
-        ],
-        "citations": [],
-        "model": None,
-    }
+    # Begin the verification flow.
+    return await auth_agent.begin_verification(db, session_id, identifier)
 
 
 async def _branch_escalation(message: str) -> Dict[str, Any]:
@@ -196,44 +184,77 @@ async def _branch_escalation(message: str) -> Dict[str, Any]:
 # ---------- main orchestrator ----------
 async def run_turn(db, session_id: Optional[str], message: str,
                    emit_status: StatusEmitter = None) -> Dict[str, Any]:
-    session = await _get_or_create_session(db, session_id)
-    sid = session["session_id"]
-    history = session.get("messages", [])
+    convo = await _get_or_create_session(db, session_id)
+    sid = convo["session_id"]
+    history = convo.get("messages", [])
+    auth_row = await auth_agent.get_or_create_session_row(db, sid)
+    state = auth_row.get("auth_state", "anonymous")
+    trace: List[Dict[str, Any]] = []
+    intent: Optional[str] = None
 
-    await _emit(emit_status, {"step": "router", "label": "Routing your question"})
-    routing = await classify(message, history)
-    intent = routing["intent"]
-    subject = routing.get("subject")
-    trace: List[Dict[str, Any]] = [{"step": "router", "intent": intent, "confidence": routing["confidence"], "rationale": routing["rationale"], "subject": subject}]
+    # ---- 1) Auth pre-check ----
+    if state == "locked":
+        await _emit(emit_status, {"step": "auth", "label": "Verification temporarily locked"})
+        out = await auth_agent.locked_response()
+        intent = "AUTH_LOCKED"
+        trace.append({"step": "auth", "auth_state": "locked"})
+    elif state in {"awaiting_q1", "awaiting_q2"}:
+        await _emit(emit_status, {"step": "auth", "label": "Verifying your identity"})
+        out = await auth_agent.handle_answer(db, sid, auth_row, message)
+        # After the answer, the row may now be verified/locked/awaiting_q2
+        new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
+        intent = "AUTH_VERIFIED" if new_row.get("auth_state") == "verified" else (
+            "AUTH_LOCKED" if new_row.get("auth_state") == "locked" else "AUTH_CHALLENGE"
+        )
+        trace.append({"step": "auth", "from": state, "to": new_row.get("auth_state")})
+    else:
+        # Anonymous — check for a client code in the message; begin verification immediately.
+        ident = api_agent.extract_client_identifier(message)
+        if ident:
+            await _emit(emit_status, {"step": "auth", "label": "Looking up your record"})
+            out = await auth_agent.begin_verification(db, sid, ident)
+            new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
+            intent = "AUTH_CHALLENGE" if new_row.get("auth_state") == "awaiting_q1" else "AUTH_NOT_FOUND"
+            trace.append({"step": "auth", "identifier": ident, "to": new_row.get("auth_state")})
+        else:
+            # ---- 2) Router → specialist ----
+            await _emit(emit_status, {"step": "router", "label": "Routing your question"})
+            routing = await classify(message, history)
+            intent = routing["intent"]
+            subject = routing.get("subject")
+            trace.append({
+                "step": "router", "intent": intent, "confidence": routing["confidence"],
+                "rationale": routing["rationale"], "subject": subject,
+            })
+            label_for = {
+                "KNOWLEDGE": "Consulting the Research Assistant",
+                "MARKET_DATA": "Pulling market data",
+                "CLIENT_LOOKUP": "Looking up your record",
+                "LEAD_CAPTURE": "Preparing your form",
+                "CALLBACK_REQUEST": "Preparing callback details",
+                "ESCALATION": "Connecting a human advisor",
+                "SMALL_TALK": "Drafting a reply",
+            }
+            await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
+            client_ctx = await auth_agent.get_verified_client(db, sid)
 
-    label_for = {
-        "KNOWLEDGE": "Consulting the Research Assistant",
-        "MARKET_DATA": "Pulling market data",
-        "CLIENT_LOOKUP": "Looking up your record",
-        "LEAD_CAPTURE": "Preparing your form",
-        "CALLBACK_REQUEST": "Preparing callback details",
-        "ESCALATION": "Connecting a human advisor",
-        "SMALL_TALK": "Drafting a reply",
-    }
-    await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
+            if intent == "KNOWLEDGE":
+                out = await _branch_knowledge(message, history, client_ctx)
+            elif intent == "LEAD_CAPTURE":
+                out = await _branch_lead_capture(message, subject, history, client_ctx)
+            elif intent == "CALLBACK_REQUEST":
+                out = await _branch_callback(message, history)
+            elif intent == "MARKET_DATA":
+                out = await _branch_market(db, message, subject, history)
+            elif intent == "CLIENT_LOOKUP":
+                out = await _branch_client_lookup(db, sid, message, subject, auth_row, client_ctx)
+            elif intent == "ESCALATION":
+                out = await _branch_escalation(message)
+            else:  # SMALL_TALK
+                out = await _branch_small_talk(message, history, client_ctx)
+            trace.append({"step": "specialist", "intent": intent, "status": "ok"})
 
-    if intent == "KNOWLEDGE":
-        out = await _branch_knowledge(message, history)
-    elif intent == "LEAD_CAPTURE":
-        out = await _branch_lead_capture(message, subject, history)
-    elif intent == "CALLBACK_REQUEST":
-        out = await _branch_callback(message, history)
-    elif intent == "MARKET_DATA":
-        out = await _branch_market(db, message, subject, history)
-    elif intent == "CLIENT_LOOKUP":
-        out = await _branch_client_lookup(db, message, subject)
-    elif intent == "ESCALATION":
-        out = await _branch_escalation(message)
-    else:  # SMALL_TALK
-        out = await _branch_small_talk(message, history)
-
-    trace.append({"step": "specialist", "intent": intent, "status": "ok"})
-
+    # Persist
     payload = {
         "session_id": sid,
         "trace": trace,
@@ -242,8 +263,6 @@ async def run_turn(db, session_id: Optional[str], message: str,
         "model": out.get("model"),
         "intent": intent,
     }
-
-    # Persist
     await _append_messages(db, sid, [
         {"role": "user", "content": message},
         {
@@ -255,12 +274,10 @@ async def run_turn(db, session_id: Optional[str], message: str,
             "model": out.get("model"),
         },
     ])
-
     return payload
 
 
 def _flatten_text(blocks: List[Dict[str, Any]]) -> str:
-    """Plain-text rendering of a block list — used for legacy /api/chat reply field."""
     parts: List[str] = []
     for b in blocks:
         if b.get("type") == "text":

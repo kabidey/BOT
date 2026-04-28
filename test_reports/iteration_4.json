@@ -1,0 +1,54 @@
+{
+  "summary": "Phase 3 SMIFS in-chat verification + session rehydration end-to-end tested. Backend pytest (new test_smifs_phase3.py): 9/10 passed (90%). All state-machine transitions verified via /api/agent/turn: anonymous → AUTH_CHALLENGE on code (text contains '1 of 2' and 'Year of birth'); wrong Q1 stays in AUTH_CHALLENGE with '1/3 attempts used' counter; correct Q1=1978 → '2 of 2 — City of registration?'; correct Q2=Mumbai → AUTH_VERIFIED with [text + client_card] blocks (verified=true, name='Aarav Mehta', holdings_summary contains '₹1.2 Cr'). Lockout: SMIFS003 with 3 wrong answers → 3rd reply intent=AUTH_LOCKED with escalation_card; subsequent message stays AUTH_LOCKED. Unknown code SMIFS999 → AUTH_NOT_FOUND with 'couldn't find' text and GET /api/sessions/{sid}.auth_state=='anonymous' (no penalty). GET /api/sessions/{sid}: 404 for unknown sid; verified session returns {session_id, auth_state:'verified', client:{name,code}, history[]} with alternating user/assistant entries, assistant entries carry intent (AUTH_VERIFIED found). POST /api/sessions/{sid}/signout returns auth_state:'anonymous', client:null and a subsequent GET confirms reset. Phase 0/1/2 unbroken: anonymous KNOWLEDGE returns aif_overview citations; MARKET_DATA returns RELIANCE card; LEAD_CAPTURE returns NCD form; legacy /api/chat returns {session_id, reply, model, grounded, citations} with no 'blocks' key. Frontend (Chrome 1440x900) full Phase 3 happy path passes: initial state has no verified-chip and no localStorage smifs_session_id; typing code → year-of-birth prompt; '1978' → city prompt; 'Mumbai' → verified-chip 'Aarav · VERIFIED' with sign-out-button visible AND client-card rendered AND localStorage smifs_session_id stored. Page reload preserves sid in localStorage, rehydrates 9 messages including the client_card, and verified-chip remains. Sign-out button: clicking it removes the chip, clears all messages, removes localStorage smifs_session_id, and returns to welcome state. Stale localStorage sid: setting a bogus sid then reloading → backend 404 is silently swallowed by frontend, localStorage cleared, welcome state shown.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/agent/turn (KNOWLEDGE post-verification with personalization)",
+        "issue": "After verifying SMIFS001, the reply to 'How does taxation work for the asset classes I currently hold?' correctly enumerates exactly the holdings from the seeded summary (NCDs, AIF Cat II, Equity Mutual Funds) — confirming client_context_block injection is wired correctly — but it does NOT address the user as 'Aarav' by first name. The system prompt says 'Address them by their first name where natural' but the LLM (gpt-4o-mini) interprets 'where natural' loosely on tax-style answers and skips the salutation. The agent_to_agent_context_note states this works for Priya/SMIFS002 — so the behavior is non-deterministic across clients. Suggestion: strengthen the prompt to a hard requirement, e.g. 'Begin your response with the client's first name (e.g. Aarav,)' instead of a soft 'where natural'."
+      },
+      {
+        "endpoint": "Pre-existing tests (NOT a Phase 3 regression)",
+        "issue": "4 previously-passing tests in /app/backend/tests/test_smifs_phase2.py and test_smifs_chat.py now fail. (1) test_client_lookup_with_code — sends 'My client code is SMIFS001' expecting intent=CLIENT_LOOKUP, but per Phase 3 spec the auth agent now runs BEFORE the router when an identifier is detected, returning AUTH_CHALLENGE. The Phase 2 test is obsolete and should be retired or updated. (2) test_health_ok_and_llm_reachable expects model name to contain 'gemma' or be 'auto'; current model is 'gpt-4o-mini-2024-07-18'. Stale assertion. (3) test_chat_continues_session_with_memory expects the bot to recall 'Aakash' from legacy /api/chat; with Phase 3, the legacy endpoint now also goes through auth — the bot first asks for a client code instead of recalling the name. Test needs Phase-3-aware rewrite. (4) test_conversation_includes_grounded_metadata asserts msg['grounded'] but server stores grounded inside msg['blocks'][i]['grounded']. Pre-existing format mismatch (not introduced by Phase 3)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Verified chip header",
+        "issues": ["Visual is correct (gold-bordered pill with avatar circle, first name 'Aarav', VERIFIED badge, and sign-out icon). Layout, contrast, and spacing all good. No issues."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_smifs_phase3.py",
+    "/app/test_reports/pytest/phase3_results.xml"
+  ],
+  "action_items": [
+    "Strengthen the personalization prompt in auth_agent.client_context_block (or in the rag_agent system message) to make first-name salutation a hard requirement so the post-verification reply reliably opens with the client's first name. Current LLM behavior is non-deterministic across clients (works for Priya, omits for Aarav).",
+    "Retire or update the now-stale Phase 2 tests: test_smifs_phase2.py::test_client_lookup_with_code (expects CLIENT_LOOKUP, now AUTH_CHALLENGE), test_smifs_chat.py::test_chat_continues_session_with_memory (legacy /chat now auth-gated). These are not regressions — they reflect the intended Phase 3 behavior change. Suggest moving them under an xfail mark or rewriting to use a verified session.",
+    "Pre-existing (not Phase 3): test_smifs_chat.py::test_health_ok_and_llm_reachable model assertion is stale (expects 'gemma' or 'auto', current is gpt-4o-mini). And test_conversation_includes_grounded_metadata asserts the wrong key (top-level msg['grounded'] vs. nested blocks[i].grounded). Both should be fixed in a hygiene pass."
+  ],
+  "critical_code_review_comments": [
+    "auth_agent.client_context_block uses 'Address them by their first name where natural' — too soft. Hard requirement (e.g. 'Open the response with the client's first name as a salutation') would make personalization deterministic.",
+    "server.py /api/sessions/{sid}: history is built by mapping role==user → text, role==assistant → blocks/citations/intent/model. Looks correct, but consider including the assistant message's grounded flag explicitly at the top level so frontend renderers do not have to drill into blocks[i].grounded — would also fix the stale test_conversation_includes_grounded_metadata assertion.",
+    "server.py /api/sessions/{sid}/signout: returns 404 if conversation doc is missing, but a session row could exist without a conversation doc on edge cases. Consider being defensive — sign out should be idempotent and safe to call on any sid (returning 200 with auth_state:'anonymous' even if nothing to do).",
+    "auth_agent.get_or_create_session_row inserts a session row whenever GET /api/sessions/{sid} is called, including for the bogus stale-sid case. The 404 from the conversations check (in server.py) prevents this from being a leak, BUT the orchestrator path also calls get_or_create_session_row, so any HTTP probe to /api/agent/turn with a random sid will spawn a sessions row. Consider TTL-indexing the sessions collection (e.g. updated_at + 24h) to prevent unbounded growth.",
+    "orchestrator persists conversation messages BEFORE auth handling, so even messages sent during locked state are stored. This is by design per the spec but worth a one-line comment in the code so a future reader does not 'fix' it.",
+    "The personalization injection appears in _branch_knowledge / _branch_lead_capture / _branch_small_talk but NOT in _branch_market_data — verify whether MARKET_DATA replies should also reference the verified client (e.g. 'Aarav, RELIANCE is currently…')."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_smifs_phase3.py (new, 10 cases)",
+    "/app/test_reports/pytest/phase3_results.xml (new, JUnit output)"
+  ],
+  "success_rate": {"backend": "90% (9/10 new Phase 3 cases; the 1 failure is an LLM prompt-strength issue, not a wiring bug — context injection demonstrably works)", "frontend": "100% (all Phase 3 flows: verification, rehydration, sign-out, stale-sid handling)"},
+  "test_credentials": "Mock client codes (case-insensitive answers, partial-match): SMIFS001 → 1978/Mumbai (Aarav Mehta), SMIFS002 → 1982/Bengaluru (Priya Iyer), SMIFS003 → 1990/Delhi (Rohan Sharma), SMIFS004 → 1975/Hyderabad (Anaya Reddy), SMIFS005 → 1985/Pune (Vikram Joshi). X-Admin-Token: smifs-admin-2026.",
+  "seed_data_creation": "Tests created throwaway sessions in MongoDB 'sessions' and 'conversations' collections (each test verifies a different SMIFS00x to avoid cross-test interference). No /api/leads writes in this suite. Mock seed data unchanged.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 3 backend regression suite is /app/backend/tests/test_smifs_phase3.py (10 cases). Run with `pytest /app/backend/tests/test_smifs_phase3.py -v --junitxml=/app/test_reports/pytest/phase3_results.xml`. The 1 known soft failure is the personalization first-name assertion (LLM determinism). Note: with Phase 3, sending 'My client code is SMIFSxxx' on /api/agent/turn or /api/chat now triggers AUTH_CHALLENGE rather than CLIENT_LOOKUP — the auth agent runs BEFORE the router whenever an identifier pattern is detected OR session is mid-verification. Use different SMIFS codes across tests to avoid lockout interference (lockout is per-session, but verifying the same client across overlapping sessions still works). Frontend testids: verified-chip, sign-out-button, chat-input, send-button, client-card-N, msg-{user,assistant}-N. localStorage key is 'smifs_session_id'. Rehydration on mount calls GET /api/sessions/{sid}; on 404 the frontend silently clears localStorage. The header health pill takes 2-5s to populate on cold load — wait for 'ENGINE ONLINE' before assertions. Active LLM is gpt-4o-mini-2024-07-18.",
+  "rca_of_the_personalization_miss": "Backend correctly fetches verified client and constructs client_context_block (verified by the holdings appearing verbatim in the LLM reply: 'NCDs', 'AIF Cat II', 'Equity Mutual Funds' all match SMIFS001's seeded summary). The wiring is sound. The miss is purely on the soft prompt phrase 'Address them by their first name where natural' — gpt-4o-mini's tax-answer response style omits a salutation when the question is structural (taxation, mechanics) vs. conversational. Mitigation: change to 'Begin your response with the client's first name as a salutation, then answer the question.' This is a one-line fix in auth_agent.client_context_block."
+}

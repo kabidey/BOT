@@ -1,7 +1,7 @@
 """RAG specialist agent — wraps Phase 1 retrieval + grounded generation."""
 from __future__ import annotations
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import rag
 
@@ -32,7 +32,8 @@ UNGROUNDED_INSTR = (
 )
 
 
-async def answer(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
+async def answer(message: str, history: List[Dict[str, Any]],
+                 client_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Returns {reply_text, citations, grounded, model}."""
     hits = await rag.search(message, top_k=RAG_TOP_K)
     grounded = bool(hits) and any(h["score"] >= RAG_MIN_SCORE for h in hits)
@@ -45,6 +46,11 @@ async def answer(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
         system_content = BASE_PROMPT + GROUNDED_INSTR + "\n\n--- KNOWLEDGE BASE ---\n" + kb_block + "\n--- END KNOWLEDGE BASE ---"
     else:
         system_content = BASE_PROMPT + UNGROUNDED_INSTR
+
+    if client_context:
+        # Inline import to avoid a circular dep at import time.
+        from .auth_agent import client_context_block
+        system_content = system_content + client_context_block(client_context)
 
     trimmed = history[-(RAG_HISTORY_TURNS * 2):]
     history_msgs = [{"role": m["role"], "content": m["content"]} for m in trimmed]

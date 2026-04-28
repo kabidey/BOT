@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle, Sparkles } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User } from "lucide-react";
 
 import TextBlock from "@/components/blocks/TextBlock";
 import FormBlock from "@/components/blocks/FormBlock";
@@ -28,6 +28,8 @@ export default function Chat() {
   const [errorMsg, setErrorMsg] = useState("");
   const [health, setHealth] = useState(null);
   const [activeCitation, setActiveCitation] = useState(null); // { msgIdx, citIdx }
+  const [client, setClient] = useState(null); // {name, code} when verified
+  const [hydrating, setHydrating] = useState(false);
   const listRef = useRef(null);
   const abortRef = useRef(null);
 
@@ -43,6 +45,42 @@ export default function Chat() {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // Rehydrate chat thread on mount if a session_id is present in localStorage
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    (async () => {
+      setHydrating(true);
+      try {
+        const { data } = await axios.get(`${API}/sessions/${sessionId}`);
+        if (cancelled) return;
+        if (data.client) setClient(data.client);
+        else setClient(null);
+        const restored = (data.history || []).map((h) => {
+          if (h.role === "user") return { role: "user", content: h.text };
+          return {
+            role: "assistant",
+            blocks: h.blocks || [],
+            citations: h.citations || [],
+            intent: h.intent,
+            model: h.model,
+          };
+        });
+        setMessages(restored);
+      } catch (e) {
+        // 404 → stale localStorage, clear it
+        if (e?.response?.status === 404) {
+          localStorage.removeItem(STORAGE_KEY);
+          setSessionId(null);
+        }
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-scroll
@@ -122,6 +160,16 @@ export default function Chat() {
         setSessionId(finalResult.session_id);
         localStorage.setItem(STORAGE_KEY, finalResult.session_id);
       }
+      // Refresh verified client info if intent indicates an auth state change
+      if (finalResult.intent && finalResult.intent.startsWith("AUTH_")) {
+        try {
+          const sid = finalResult.session_id || sessionId;
+          if (sid) {
+            const { data: sess } = await axios.get(`${API}/sessions/${sid}`);
+            setClient(sess.client || null);
+          }
+        } catch (_) { /* non-fatal */ }
+      }
       setMessages((prev) => [...prev, {
         role: "assistant",
         blocks: finalResult.blocks || [],
@@ -166,6 +214,20 @@ export default function Chat() {
     setSessionId(null);
     setMessages([]);
     setErrorMsg("");
+    setActiveCitation(null);
+    setClient(null);
+  };
+
+  const signOut = async () => {
+    if (!sessionId) return;
+    try {
+      await axios.post(`${API}/sessions/${sessionId}/signout`);
+    } catch (_) { /* still proceed with local clear */ }
+    setClient(null);
+    // Also clear thread for a clean slate
+    localStorage.removeItem(STORAGE_KEY);
+    setSessionId(null);
+    setMessages([]);
     setActiveCitation(null);
   };
 
@@ -221,27 +283,59 @@ export default function Chat() {
             <p className="smifs-subtitle">Lead Wealth-Engagement Agent · Phase 2 · Multi-agent</p>
           </div>
         </div>
-        <div className="smifs-status" data-testid="health-pill">
-          {health?.llm_reachable ? (
-            <>
-              <ShieldCheck size={14} strokeWidth={2.25} />
-              <span>
-                Engine online{health?.last_chat_model ? ` · ${health.last_chat_model}` : ""}
-                {health?.rag_chunks ? ` · ${health.rag_chunks} chunks` : ""}
-              </span>
-            </>
-          ) : (
-            <>
-              <AlertCircle size={14} strokeWidth={2.25} />
-              <span>{health ? "Engine unreachable" : "Checking engine…"}</span>
-            </>
+        <div className="smifs-header-right">
+          {client && (
+            <div className="smifs-client-chip" data-testid="verified-chip">
+              <div className="smifs-client-chip-avatar" aria-hidden>
+                <User size={12} strokeWidth={2.5} />
+              </div>
+              <div className="smifs-client-chip-text">
+                <span className="smifs-client-chip-name">{client.name?.split(" ")[0] || "Client"}</span>
+                <span className="smifs-client-chip-state">
+                  <ShieldCheck size={10} strokeWidth={2.5} />
+                  Verified
+                </span>
+              </div>
+              <button
+                type="button"
+                className="smifs-client-chip-out"
+                onClick={signOut}
+                data-testid="sign-out-button"
+                aria-label="Sign out"
+                title="Sign out"
+              >
+                <LogOut size={12} strokeWidth={2.25} />
+              </button>
+            </div>
           )}
+          <div className="smifs-status" data-testid="health-pill">
+            {health?.llm_reachable ? (
+              <>
+                <ShieldCheck size={14} strokeWidth={2.25} />
+                <span>
+                  Engine online{health?.last_chat_model ? ` · ${health.last_chat_model}` : ""}
+                  {health?.rag_chunks ? ` · ${health.rag_chunks} chunks` : ""}
+                </span>
+              </>
+            ) : (
+              <>
+                <AlertCircle size={14} strokeWidth={2.25} />
+                <span>{health ? "Engine unreachable" : "Checking engine…"}</span>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
       <main className="smifs-main">
         <div className="smifs-thread" ref={listRef} data-testid="message-list">
-          {messages.length === 0 && (
+          {hydrating && messages.length === 0 && (
+            <div className="smifs-hydrating" data-testid="hydrating">
+              <Sparkles size={14} strokeWidth={2.25} />
+              <span>Restoring your conversation…</span>
+            </div>
+          )}
+          {messages.length === 0 && !hydrating && (
             <div className="smifs-welcome" data-testid="welcome-card">
               <p className="smifs-eyebrow">Private advisory · Confidential</p>
               <h2 className="smifs-welcome-title">A considered conversation about your wealth.</h2>
