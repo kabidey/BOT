@@ -50,16 +50,14 @@ export default function Admin() {
     return inst;
   }, []);
 
-  // On mount: validate stored token
+  // On mount: validate stored token (silently — interceptor handles 401)
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
     setAuthChecking(true);
-    adminApi.get("/admin/cost").then(() => {
-      if (!cancelled) setAuthChecking(false);
-    }).catch(() => {
-      if (!cancelled) setAuthChecking(false);
-    });
+    adminApi.get("/admin/cost")
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setAuthChecking(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);

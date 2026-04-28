@@ -22,7 +22,7 @@ export default function KnowledgeBaseTab({ api }) {
 
   const showToast = (kind, msg) => {
     setToast({ kind, msg });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 8000);
   };
 
   const upload = async (fileList) => {
