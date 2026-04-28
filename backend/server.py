@@ -312,10 +312,8 @@ async def get_session(session_id: str):
 
 @api_router.post("/sessions/{session_id}/signout")
 async def session_signout(session_id: str):
+    """Idempotent — safe to call on any session_id, even if no row exists."""
     from agents import auth_agent
-    convo = await db.conversations.find_one({"session_id": session_id}, {"_id": 0})
-    if not convo:
-        raise HTTPException(status_code=404, detail="Session not found")
     row = await auth_agent.signout(db, session_id)
     return {
         "session_id": session_id,

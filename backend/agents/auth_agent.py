@@ -76,7 +76,11 @@ async def _update(db, session_id: str, **fields) -> None:
 
 
 async def signout(db, session_id: str) -> Dict[str, Any]:
-    """Reset auth state to anonymous; keep the session row + conversation history."""
+    """Reset auth state to anonymous; idempotent — creates the row if missing."""
+    row = await db.sessions.find_one({"_id": session_id})
+    if row is None:
+        # Insert an anonymous row so the response is consistent
+        await get_or_create_session_row(db, session_id)
     await _update(
         db, session_id,
         client_code=None,
@@ -86,7 +90,7 @@ async def signout(db, session_id: str) -> Dict[str, Any]:
         verified_at=None,
         locked_until=None,
     )
-    return await db.sessions.find_one({"_id": session_id}) or {}
+    return await db.sessions.find_one({"_id": session_id}) or {"auth_state": "anonymous"}
 
 
 # ---------- branches consumed by the orchestrator ----------
@@ -283,13 +287,16 @@ async def get_verified_client(db, session_id: str) -> Optional[Dict[str, Any]]:
 
 def client_context_block(client: Dict[str, Any]) -> str:
     """The string injected into the system prompt of LLM-using branches when verified."""
+    first = (client.get("name") or "").split()[0] or "the client"
     return (
         "\n\n--- VERIFIED CLIENT CONTEXT ---\n"
         f"Name: {client.get('name')}\n"
+        f"First name: {first}\n"
         f"Code: {client.get('code')}\n"
         f"Holdings summary: {client.get('holdings_summary')}\n"
-        "Use this context when the client asks about their portfolio, holdings, or personalized recommendations. "
-        "Address them by their first name where natural. Do NOT invent additional holdings or numbers beyond the summary; "
-        "for specifics outside the summary, offer to involve a human advisor."
+        f"PERSONALIZATION RULE: Open every reply with the client's first name as a salutation "
+        f"(e.g. start with '{first},'). Use this context whenever the client asks about their "
+        f"portfolio, holdings, or personalised recommendations. Do NOT invent additional holdings "
+        f"or numbers beyond the summary; for specifics outside the summary, offer to involve a human advisor."
         "\n--- END CLIENT CONTEXT ---"
     )
