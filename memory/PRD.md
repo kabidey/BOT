@@ -1,77 +1,104 @@
 # SMIFS Lead Wealth-Engagement Agent — PRD
 
 ## Original problem statement
-Premium multi-agent chat for SMIFS Management Services Limited. Stack: FARM (FastAPI + React + MongoDB).
-Future phases will add a Router → RAG / API / Form / Auth orchestrator.
-LLM provider: Hub AI (OpenAI-compatible) at `https://ai.superclue.io/api/v1`.
+Premium multi-agent chat for SMIFS Management Services Limited (FARM stack).
+LLM: Hub AI (OpenAI-compatible) at `https://ai.superclue.io/api/v1`.
 
-## Phase 0 — Delivered (2026-02-28)
-Minimal premium chat backed by Hub AI. All 5 acceptance criteria pass.
-- `/api/health`, `/api/chat` (with multi-turn memory), `/api/conversations/{sid}`, `/api/docs`
-- Hub AI key only allows the `auto` route (resolves to gemma4-local / groq llama models).
-  Explicit openai/anthropic models 403 — fallback chain handles it, last-successful is cached.
-- React UI on `/`: navy #0B1B2B + gold #C9A86A, Cormorant Garamond serif, localStorage session_id.
+## Phase 0 — Delivered (2026-02-28) ✅
+Minimal premium chat with Hub AI. `/api/health`, `/api/chat`, `/api/conversations/{sid}`, `/api/docs`. Multi-turn memory, localStorage session_id, navy+gold premium UI.
 
-## Phase 1 — Delivered (2026-02-28)
-RAG pipeline + grounded answers with inline citations. All 6 acceptance criteria pass (19/19 backend + all frontend tests).
+## Phase 1 — Delivered (2026-02-28) ✅
+RAG over 8 SMIFS markdown docs (53 chunks, sentence-transformers all-MiniLM-L6-v2 local fallback since Hub AI `/embeddings` 404). `/api/admin/reingest`, `/api/rag/search`. Citation chips + grounded indicator + side popover. LRU query-embedding cache.
 
-### What's been built
-- **Seed corpus** (`backend/seed_docs/*.md`): 8 SMIFS-themed markdown docs (NCDs, AIFs, PMS, Mutual Funds, IPOs, KYC/Compliance, About SMIFS, Risk Disclosure)
-- **`rag.py`** module:
-  - Chunker: split markdown by `##` headings, then ~400-token windows with 50-token overlap → 53 chunks
-  - Embedder: probes Hub AI `/embeddings` first; falls back to local `sentence-transformers all-MiniLM-L6-v2` (384-dim). Hub AI returned 404, so **local** is the active path.
-  - Vector store: chunks + embeddings persisted in MongoDB collection `doc_chunks`. In-memory L2-normalised numpy matrix for cosine search.
-  - LRU query-embedding cache (256 entries) — 140ms for repeat queries vs ~600ms cold.
-- **New endpoints**:
-  - `POST /api/admin/reingest` — gated by `X-Admin-Token` header (env `ADMIN_TOKEN=smifs-admin-2026`). Returns `{docs, chunks, embedder}`.
-  - `POST /api/rag/search` — `{query, top_k}` → top hits with score (debug helper).
-  - Auto-ingestion on startup if `doc_chunks` is empty.
-- **`/api/chat` updated**:
-  - Retrieves top-5 chunks; if any score ≥ `RAG_MIN_SCORE` (0.25) injects them into the system prompt with grounded instructions.
-  - If all below threshold → out-of-KB instructions (no fabrication, offer human escalation).
-  - Returns `grounded: bool` and `citations: [{doc_id, doc_title, section, score, text}]` (top 3 above threshold).
-  - Last 10 turns of history preserved per session.
-- **Frontend** (`Chat.jsx` + `App.css`):
-  - Citation chips below each grounded reply: `📄 doc_title · §section`
-  - "Knowledge grounded" / "Outside knowledge base" indicator pills
-  - Right-side popover (with scrim, ESC + click-out close) showing the full passage
-  - Updated suggestion chips to RAG-friendly questions (AIF ticket, NCD tax, PMS vs MFs)
-  - Header pill now also shows chunk count: `Engine online · gemma-4-E4B · 53 chunks`
+## Phase 2 — Delivered (2026-02-28) ✅
+Multi-agent orchestrator with rich block payloads.
+
+### Hub AI model probe (Feb 2026)
+30 text models exposed via `/api/v1/models`. Working chain (all 200 OK):
+- `gpt-4o-mini` (real OpenAI — primary)
+- `claude-haiku-4-5-20251001` (real Anthropic Haiku 4.5)
+- `claude-3-5-sonnet-20241022` (Hub silently re-routes to llama)
+- `llama-3.3-70b-versatile` (real groq)
+- `gemma-4-E4B` (local fallback)
+- `auto`
+
+Per-task caching: `ROUTER_CHAIN` (gpt-4o-mini + Haiku first, prefer structured-JSON capable models) and `CHAT_CHAIN` (broader chain for prose). Caches separately so router's preferred model doesn't invalidate chat's, and vice versa.
 
 ### Architecture
 ```
-Client (React)
-  ↓ axios POST /api/chat
-FastAPI (server.py)
-  ↓ rag.search(query, top_k=5)              ← embeds query, in-memory cosine over MongoDB
-  ↓ build system prompt with KB block
-  ↓ chat_with_fallback(messages)            ← Hub AI with model "auto" (cached)
-  ↓ persist user+assistant to MongoDB
-  ↓ return {reply, grounded, citations}
+Client (React, manual SSE parser)
+  ↓ POST /api/agent/turn or /api/agent/turn/stream
+FastAPI orchestrator.run_turn(db, sid, msg, emit_status?)
+  ├── Router (LLM, response_format=json_object)
+  │     └── intent ∈ {KNOWLEDGE, MARKET_DATA, CLIENT_LOOKUP,
+  │                    LEAD_CAPTURE, CALLBACK_REQUEST, ESCALATION, SMALL_TALK}
+  ├── Specialist branch:
+  │     KNOWLEDGE       → RAG agent → text block + citations
+  │     LEAD_CAPTURE    → RAG intro + form_agent.lead_capture_form(asset_class)
+  │     CALLBACK_REQUEST→ form_agent.callback_form()
+  │     MARKET_DATA     → api_agent.fetch_market_data → market_card
+  │     CLIENT_LOOKUP   → api_agent.lookup_client → client_card or escalation
+  │     ESCALATION      → escalation_card
+  │     SMALL_TALK      → light LLM reply (small-talk system prompt)
+  ├── Persist user + assistant turn (with intent/blocks/citations)
+  └── Return {session_id, trace, blocks, citations, model, intent}
 ```
 
-### Acceptance criteria (all PASS)
+### Endpoints (Phase 2 additions)
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/agent/turn`         | New primary chat: returns block payload |
+| POST | `/api/agent/turn/stream`  | SSE: status events + final result |
+| POST | `/api/leads`              | Persist lead_capture / callback submissions |
+| GET  | `/api/health`             | Now also returns `last_chat_model`, `last_router_model` |
+| POST | `/api/chat`               | Backward-compat (legacy {reply, grounded, citations}) |
+
+### Block types (frontend renderers)
+- `text` — markdown-ish (bold + bullets), with citations chips + grounded indicator
+- `form` — inline private-bank styled form, validation, submits to `/api/leads`, success state with reference id
+- `market_card` — symbol + name + large serif price + colored ±change pill + "as of" timestamp
+- `client_card` — verified-or-locked badge, name, code, holdings summary masked when not verified
+- `escalation_card` — gold-bordered "Connect to Human Advisor" CTA that triggers a CALLBACK_REQUEST follow-up
+
+### Mock seed (auto on startup)
+- `mock_clients` × 5: SMIFS001 Aarav Mehta … SMIFS005 Vikram Joshi (with verify_questions for Phase 3)
+- `mock_market` × 10: RELIANCE, HDFCBANK, TCS, INFY, ITC + 5 mutual funds (SBI/ICICI/Axis/HDFC/Mirae)
+
+### Acceptance criteria (all 10 PASS)
 | # | Criterion | Result |
 |---|---|---|
-| 1 | Startup auto-ingests; doc_chunks > 30 | ✅ 53 chunks |
-| 2 | `rag/search` "What is an NCD?" → ncds_overview score > 0.5 | ✅ 0.545 |
-| 3 | `chat` "AIF minimum ticket" mentions ₹1 crore + cites aif_overview | ✅ |
-| 4 | Off-topic "weather Mumbai" → low confidence + escalation | ✅ grounded:false, citations:[] |
-| 5 | Citation chips render, hover/click reveals chunk text | ✅ |
-| 6 | `/api/docs` updated with new endpoints | ✅ |
+| 1 | KNOWLEDGE turn — text + citations | ✅ aif_overview cited |
+| 2 | LEAD_CAPTURE — text + form, asset_class=NCD | ✅ NCDs→NCD normalized |
+| 3 | MARKET_DATA RELIANCE — market_card | ✅ ₹2,842.55 +1.24% |
+| 4 | CALLBACK_REQUEST — text + callback form | ✅ |
+| 5 | CLIENT_LOOKUP no code — asks for code | ✅ |
+| 6 | `/api/leads` persists, returns lead_id | ✅ |
+| 7 | SSE streams status events + result | ✅ |
+| 8 | Inline form submission → success state | ✅ |
+| 9 | Market card with price + change | ✅ |
+| 10 | Phase 0+1 unchanged (citations, off-topic, session) | ✅ |
 
-## Phase 2+ — Backlog (per user direction)
-- **Phase 2**: Multi-agent orchestrator (Router → RAG / API / Form / Auth) per master brief
-- **Phase 3**: Conversation rehydration on reload (call `/api/conversations/{sid}` on mount)
-- **Phase 4**: Cost-ledger admin view (Hub AI returns `cost.cost_inr` + `balance_inr` per response — surface as ops telemetry)
-- Streaming responses (SSE)
-- Rate-limit on `/api/chat` and `/api/admin/reingest`
-- Lifespan handlers (replace deprecated `@app.on_event`)
-- Multi-worker safety: replace module-level globals (`EMBEDDER_KIND`, `_index_matrix`, `_query_cache`) with a process-shared cache or a lazy per-worker init
+### Testing
+- iter 1 (Phase 0): 8/8 backend + 12/12 Playwright = 100%
+- iter 2 (Phase 1): 19/19 backend + all Playwright = 100%
+- iter 3 (Phase 2): 21/21 backend + 100% frontend (after router-prompt tightening)
+
+## Phase 3 — Backlog (P0)
+- Real client identification flow with verify_questions (gate `client_card.holdings_summary` behind correct answers)
+- Conversation rehydration on reload (call `/api/conversations/{sid}` on mount)
+- Multi-step Q&A within a session (carry verification state)
+
+## Phase 4 — Backlog
+- Cost-ledger admin view (Hub AI returns cost.cost_inr + balance_inr per call)
+- PDF/DOCX upload for `/api/admin/reingest` (let SMIFS compliance team feed in real product memorandums)
+- Streaming token-by-token responses for KNOWLEDGE branch
+- Rate-limiting on `/api/chat`, `/api/agent/turn`, `/api/leads`
 
 ## Notes for future agents
-- Do NOT remove `auto` from `MODEL_CANDIDATES` — explicit OpenAI/Anthropic models 403 on this key.
-- Hub AI `/embeddings` returns 404 — the local sentence-transformers fallback is the active path.
-  First chat after a cold restart takes ~5-6s for model warm-up; subsequent calls 700ms-1.5s.
-- `RAG_MIN_SCORE = 0.25` in `server.py` — anything below means out-of-KB.
-- Admin token: `smifs-admin-2026` (in `.env`).
+- Hub AI `/api/v1/models` lists 30 text models. Per-task chains in `agents/llm.py`. Don't remove `auto` from the chain.
+- Hub AI `/embeddings` is 404 — local sentence-transformers is active; embeddings cached in MongoDB.
+- The lead-capture branch makes an LLM call (RAG intro) — adds ~2s; consider caching by intent+asset_class for landing-page conversion.
+- SSE: comments starting with `:` are heartbeats; strip them in any client-side parser.
+- `msg-assistant-N` testid uses the full messages-array index (1, 3, 5…); pick the largest numeric suffix when targeting the latest message.
+- Suggestion chips disappear after the first message (welcome card is replaced); subsequent flows must type into chat-input.
+- Admin token: `smifs-admin-2026` (env `ADMIN_TOKEN`). RAG_MIN_SCORE=0.25.

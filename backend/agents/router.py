@@ -28,7 +28,7 @@ Classify the LATEST user message into EXACTLY ONE of these intents:
 - LEAD_CAPTURE: user expresses concrete interest in investing in a SMIFS product (e.g. "I want to invest in NCDs", "interested in the AIF").
 - CALLBACK_REQUEST: user explicitly asks to be called back, to speak to an advisor, or to schedule a meeting.
 - ESCALATION: user is frustrated, asks for highly personalised advice that requires a human, or topic is clearly out-of-scope for a wealth advisor.
-- SMALL_TALK: greetings, thanks, social chit-chat with no advisory content.
+- SMALL_TALK: greetings, thanks, social chit-chat with no advisory content (e.g. "Hello", "Thanks", "Good morning"). NOTE: a question asking for any factual external real-world information (weather, sports scores, news, geopolitics, definitions of unrelated concepts) is NOT SMALL_TALK — classify those as KNOWLEDGE so the RAG agent can correctly return grounded=false.
 
 If a message has both knowledge AND lead-capture (e.g. "Tell me about NCDs and I want to invest"), prefer LEAD_CAPTURE.
 If a message asks about the user's own portfolio without providing a code, prefer CLIENT_LOOKUP.
