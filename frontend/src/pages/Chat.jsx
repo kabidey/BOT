@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, FileText, Sparkles, BookOpen } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 const STORAGE_KEY = "smifs_session_id";
 
 const SUGGESTIONS = [
-  "I'm exploring wealth management for the first time.",
-  "How do you approach tax-efficient portfolio construction?",
-  "I have ₹2 Cr to deploy — where would we begin?",
+  "What's the minimum ticket size for an AIF?",
+  "How are NCDs taxed in India?",
+  "What is the difference between PMS and mutual funds?",
 ];
 
 export default function Chat() {
@@ -19,6 +19,7 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [health, setHealth] = useState(null);
+  const [activeCitation, setActiveCitation] = useState(null); // { msgIdx, citIdx }
   const listRef = useRef(null);
 
   // Health ping on mount
@@ -44,11 +45,19 @@ export default function Chat() {
     }
   }, [messages, sending]);
 
+  // Close popover on Escape
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") setActiveCitation(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const send = async (textOverride) => {
     const text = (textOverride ?? input).trim();
     if (!text || sending) return;
     setErrorMsg("");
     setInput("");
+    setActiveCitation(null);
     const userMsg = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setSending(true);
@@ -63,7 +72,13 @@ export default function Chat() {
       }
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply, model: data.model },
+        {
+          role: "assistant",
+          content: data.reply,
+          model: data.model,
+          grounded: data.grounded,
+          citations: data.citations || [],
+        },
       ]);
     } catch (e) {
       const detail = e?.response?.data?.detail || e.message || "Unknown error";
@@ -94,11 +109,11 @@ export default function Chat() {
     setSessionId(null);
     setMessages([]);
     setErrorMsg("");
+    setActiveCitation(null);
   };
 
   return (
     <div className="smifs-shell" data-testid="smifs-chat-shell">
-      {/* Ambient gradient blobs */}
       <div className="smifs-bg-blob smifs-bg-blob--gold" aria-hidden />
       <div className="smifs-bg-blob smifs-bg-blob--teal" aria-hidden />
       <div className="smifs-grain" aria-hidden />
@@ -109,7 +124,7 @@ export default function Chat() {
           <div className="smifs-mono" aria-hidden>S</div>
           <div>
             <h1 className="smifs-title" data-testid="smifs-title">SMIFS Wealth Advisor</h1>
-            <p className="smifs-subtitle">Lead Wealth-Engagement Agent · Phase 0</p>
+            <p className="smifs-subtitle">Lead Wealth-Engagement Agent · Phase 1 · Grounded</p>
           </div>
         </div>
 
@@ -117,7 +132,10 @@ export default function Chat() {
           {health?.llm_reachable ? (
             <>
               <ShieldCheck size={14} strokeWidth={2.25} />
-              <span>Engine online{health?.model ? ` · ${health.model}` : ""}</span>
+              <span>
+                Engine online{health?.model ? ` · ${health.model}` : ""}
+                {health?.rag_chunks ? ` · ${health.rag_chunks} chunks` : ""}
+              </span>
             </>
           ) : (
             <>
@@ -138,8 +156,8 @@ export default function Chat() {
                 A considered conversation about your wealth.
               </h2>
               <p className="smifs-welcome-body">
-                Share your goals, time horizon, or a question — your dedicated agent will
-                respond with the precision of a senior wealth manager.
+                Ask about NCDs, AIFs, PMS, mutual funds, IPOs, KYC, or our advisory approach —
+                replies are grounded in our internal SMIFS knowledge base with traceable citations.
               </p>
               <div className="smifs-suggestions">
                 {SUGGESTIONS.map((s, i) => (
@@ -170,6 +188,54 @@ export default function Chat() {
                 {m.model ? <span className="smifs-msg-model"> · {m.model}</span> : null}
               </div>
               <div className="smifs-msg-bubble">{m.content}</div>
+
+              {m.role === "assistant" && !m.error && (
+                <div className="smifs-msg-foot">
+                  {m.grounded ? (
+                    <span
+                      className="smifs-grounded smifs-grounded--on"
+                      data-testid={`grounded-on-${i}`}
+                      title="This reply is grounded in the SMIFS knowledge base."
+                    >
+                      <Sparkles size={11} strokeWidth={2.25} />
+                      Knowledge grounded
+                    </span>
+                  ) : (
+                    <span
+                      className="smifs-grounded smifs-grounded--off"
+                      data-testid={`grounded-off-${i}`}
+                      title="No confident match in the SMIFS knowledge base."
+                    >
+                      <BookOpen size={11} strokeWidth={2.25} />
+                      Outside knowledge base
+                    </span>
+                  )}
+                  {m.citations && m.citations.length > 0 && (
+                    <div className="smifs-cites" data-testid={`citations-${i}`}>
+                      {m.citations.map((c, ci) => {
+                        const isActive = activeCitation?.msgIdx === i && activeCitation?.citIdx === ci;
+                        return (
+                          <button
+                            key={ci}
+                            type="button"
+                            className={`smifs-cite ${isActive ? "smifs-cite--active" : ""}`}
+                            onClick={() =>
+                              setActiveCitation(isActive ? null : { msgIdx: i, citIdx: ci })
+                            }
+                            data-testid={`citation-${i}-${ci}`}
+                            title={`Score ${c.score.toFixed(2)} — click to view passage`}
+                          >
+                            <FileText size={11} strokeWidth={2.25} />
+                            <span className="smifs-cite-doc">{c.doc_title}</span>
+                            <span className="smifs-cite-sep">·</span>
+                            <span className="smifs-cite-sec">§{c.section}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
 
@@ -225,6 +291,41 @@ export default function Chat() {
           </span>
         </div>
       </main>
+
+      {/* Citation popover */}
+      {activeCitation && (() => {
+        const m = messages[activeCitation.msgIdx];
+        const c = m?.citations?.[activeCitation.citIdx];
+        if (!c) return null;
+        return (
+          <>
+            <div
+              className="smifs-popover-scrim"
+              onClick={() => setActiveCitation(null)}
+              data-testid="citation-popover-scrim"
+            />
+            <aside className="smifs-popover" data-testid="citation-popover" role="dialog">
+              <div className="smifs-popover-head">
+                <div>
+                  <p className="smifs-popover-eyebrow">Knowledge base passage</p>
+                  <h3 className="smifs-popover-title">{c.doc_title}</h3>
+                  <p className="smifs-popover-section">§{c.section} · relevance {c.score.toFixed(2)}</p>
+                </div>
+                <button
+                  type="button"
+                  className="smifs-popover-close"
+                  onClick={() => setActiveCitation(null)}
+                  data-testid="citation-popover-close"
+                  aria-label="Close passage"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="smifs-popover-body">{c.text}</div>
+            </aside>
+          </>
+        );
+      })()}
     </div>
   );
 }
