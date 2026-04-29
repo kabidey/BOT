@@ -18,6 +18,13 @@ auth flow.
 - **Employee** — `@smifs.com` email + PAN verification; auto-consent to RAG ingestion
 - **Client** — UCC + PAN verification; explicit consent required for RAG ingestion
 
+## Implemented (Phase 8 — Apr 2026)
+- Live OrgLens tool-calling for verified employees: 9 `directory_*` tools registered on the Router dynamically (only when session_type=employee & verified). Tools: `directory_lookup_employee`, `directory_search_employees`, `directory_my_team`, `directory_my_reporting_chain`, `directory_departments`, `directory_locations`, `directory_designations`, `directory_org_stats`, `directory_org_tree`. All dispatched via a single `DIRECTORY_QUERY` intent and executed by `agents/directory_agent.py` (5-min TTL cache).
+- 4 new structured FE blocks: `DirectoryCardBlock`, `DirectoryListBlock`, `OrgStatsCardBlock`, `ReportingChainCardBlock`. Guardrail: non-employee sessions politely declined (no directory leakage).
+- Persistence-time PII scrub extended from PAN-only to PAN + email + phone. `identity.redact_pii_in_text` applied to user messages before `conversations.history[]` insert. Archives inherit automatically.
+- `GET /api/sessions/{sid}` now exposes top-level `lifecycle` field.
+- Tests: `tests/test_phase8_directory.py` (12 cases) — all green.
+
 ## Implemented (Phase 7 — Apr 2026)
 - `lifecycle.py` — strict 2-minute idle expiry + identity-keyed rehydration
 - Sessions are **frozen** (`lifecycle="expired"`), not deleted; 30-day TTL on `sessions.updated_at_dt`
