@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mackertich ONE Widget — Embed Test Host</title>
+  <style>
+    body { font-family: Georgia, serif; background: #f6f4ee; color: #16263a; margin: 0; padding: 0; }
+    .wrap { max-width: 720px; margin: 60px auto; padding: 40px; background: white; border-radius: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    h1 { font-size: 2rem; margin-bottom: 6px; color: #0B1B2B; }
+    .eyebrow { letter-spacing: 0.18em; font-size: 0.7rem; color: #8a7a52; text-transform: uppercase; }
+    p { line-height: 1.65; color: #3a3a3a; }
+    code { background: #efece4; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="eyebrow">Pretend smifs.com page</p>
+    <h1>Mackertich ONE — embed widget smoke test</h1>
+    <p>This page exists at <code>/embed_test.html</code> on our preview host. It loads <code>/widget.js</code>
+       (also from this host) and is the manual end-to-end test for the floating chat bubble.</p>
+    <p>You should see a gold-bordered circular bubble in the bottom-right corner.
+       Click it to open the iframe-mounted chat. Send a message, then click the × button
+       in the chat header to minimise back to the bubble — your conversation should
+       persist when you re-open it.</p>
+    <p>To test the left-side variant, append <code>?left=1</code> to the URL.</p>
+  </div>
+
+  <script>
+    // Mirror script-tag attribute pickup so we can demo data-position from the URL
+    (function () {
+      var s = document.createElement("script");
+      s.src = "/widget.js";
+      s.defer = true;
+      if (location.search.indexOf("left") !== -1) s.setAttribute("data-position", "bottom-left");
+      if (location.search.indexOf("debug") !== -1) s.setAttribute("data-debug", "");
+      document.head.appendChild(s);
+    })();
+  </script>
+</body>
+</html>

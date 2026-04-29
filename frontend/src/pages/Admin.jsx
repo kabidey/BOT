@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle } from "lucide-react";
+import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode } from "lucide-react";
 
 import OverviewTab from "@/components/admin/OverviewTab";
 import LeadsTab from "@/components/admin/LeadsTab";
 import CostLedgerTab from "@/components/admin/CostLedgerTab";
 import InsightsTab from "@/components/admin/InsightsTab";
 import KnowledgeBaseTab from "@/components/admin/KnowledgeBaseTab";
+import WidgetTab from "@/components/admin/WidgetTab";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -18,6 +19,7 @@ const TABS = [
   { id: "cost", label: "Cost Ledger", icon: Wallet },
   { id: "insights", label: "Insights", icon: BarChart3 },
   { id: "kb", label: "Knowledge Base", icon: FileStack },
+  { id: "widget", label: "Widget", icon: MessageSquareCode },
 ];
 
 export default function Admin() {
@@ -119,6 +121,7 @@ export default function Admin() {
     activeTab === "leads"    ? LeadsTab :
     activeTab === "cost"     ? CostLedgerTab :
     activeTab === "insights" ? InsightsTab :
+    activeTab === "widget"   ? WidgetTab :
     KnowledgeBaseTab;
 
   return (

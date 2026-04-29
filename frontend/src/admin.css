@@ -493,3 +493,41 @@
   .smifs-admin-2col { grid-template-columns: 1fr; }
   .smifs-lead-grid { grid-template-columns: 1fr; }
 }
+
+
+/* ---------------- Widget tab (Phase 5) ---------------- */
+.smifs-widget-tab .smifs-admin-tabhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.smifs-widget-actions { display: flex; gap: 8px; }
+.smifs-widget-snippet { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin-bottom: 22px; }
+.smifs-widget-snippet pre { background: #0B1B2B; color: #C9A86A; padding: 12px 14px; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 6px 0 10px; }
+.smifs-widget-snippet code { background: transparent; color: inherit; }
+.smifs-widget-steps { padding-left: 22px; color: #4a4a4a; font-size: 0.88rem; line-height: 1.6; margin: 8px 0 0; }
+.smifs-widget-steps code { background: #efece4; padding: 1px 5px; border-radius: 3px; font-size: 0.82rem; }
+.smifs-widget-grid { display: grid; gap: 22px; grid-template-columns: 1fr 1fr; }
+.smifs-widget-form fieldset { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px 18px; margin: 0 0 18px; }
+.smifs-widget-form legend { padding: 0 6px; font-size: 0.78rem; letter-spacing: 0.16em; text-transform: uppercase; color: #8a7a52; }
+.smifs-widget-form label { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; font-size: 0.85rem; color: #16263a; }
+.smifs-widget-form input[type=text], .smifs-widget-form input[type=email], .smifs-widget-form textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-family: inherit; font-size: 0.9rem; background: #fafafa; }
+.smifs-widget-form textarea { resize: vertical; }
+.smifs-widget-radio-row { display: flex; gap: 14px; align-items: center; margin: 8px 0; font-size: 0.88rem; }
+.smifs-widget-radio-row .smifs-form-label { font-weight: 600; color: #16263a; }
+.smifs-widget-checkbox { flex-direction: row !important; align-items: center; gap: 8px; }
+.smifs-widget-colors { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+.smifs-widget-color label { gap: 0; }
+.smifs-widget-color span { display: block; }
+.smifs-widget-color-hint { font-size: 0.7rem; color: #8a8a8a; }
+.smifs-widget-color-controls { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.smifs-widget-color-controls input[type=color] { width: 40px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 4px; }
+.smifs-widget-hex { font-family: ui-monospace, monospace !important; width: 100px; }
+.smifs-widget-chip-row { display: flex; gap: 8px; margin: 6px 0; align-items: center; }
+.smifs-widget-chip-row input { flex: 1; }
+.smifs-btn--icon { padding: 6px 10px; }
+.smifs-widget-preview { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; position: sticky; top: 16px; align-self: flex-start; max-height: calc(100vh - 80px); overflow: auto; }
+.smifs-widget-mocksite { position: relative; height: 360px; border-radius: 8px; padding: 24px; overflow: hidden; border: 1px solid #e6e2d6; margin: 8px 0; }
+.smifs-widget-mocksite-content h3 { margin: 6px 0 10px; color: #16263a; font-size: 1.4rem; }
+.smifs-widget-preview-bubble { position: absolute; bottom: 14px; width: 56px; height: 56px; border-radius: 999px; border: 2px solid; display: flex; align-items: center; justify-content: center; color: white; font-size: 22px; box-shadow: 0 8px 20px rgba(11,27,43,0.25); }
+.smifs-widget-preview-bubble-text { position: absolute; bottom: 22px; padding: 6px 10px; border-radius: 6px; font-size: 0.72rem; display: flex; flex-direction: column; gap: 2px; }
+.smifs-widget-preview-bubble-text strong { font-size: 0.82rem; }
+.smifs-widget-jsonpreview { margin-top: 12px; font-size: 0.8rem; }
+.smifs-widget-jsonpreview pre { background: #f6f4ee; color: #16263a; padding: 10px; border-radius: 6px; max-height: 240px; overflow: auto; }
+@media (max-width: 980px) { .smifs-widget-grid { grid-template-columns: 1fr; } .smifs-widget-preview { position: static; } }

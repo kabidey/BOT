@@ -8,6 +8,7 @@ Falls back to the legacy JSON-output classifier if the chosen model
 returns no `tool_calls` (e.g. plain greeting that doesn't fit any tool).
 """
 from __future__ import annotations
+import asyncio
 import json
 import logging
 import os
@@ -242,12 +243,26 @@ async def _classify_via_tools(message: str, history: List[Dict[str, Any]]) -> Op
             "tool_choice": "auto",
         }
         try:
-            async with httpx.AsyncClient(timeout=30.0) as http:
-                resp = await http.post(url, headers=headers, json=payload)
-                if resp.status_code != 200:
-                    logger.warning("Router tools [%s] HTTP %s — %s", model, resp.status_code, resp.text[:200])
-                    continue
-                data = resp.json()
+            from . import llm as _llm
+            sem = _llm._get_hub_semaphore()
+            async with sem:
+                async with httpx.AsyncClient(timeout=30.0) as http:
+                    # Retry transient errors with backoff
+                    resp = None
+                    for attempt in range(3):
+                        resp = await http.post(url, headers=headers, json=payload)
+                        if resp.status_code == 200:
+                            break
+                        if resp.status_code in (429, 502, 503, 504) and attempt < 2:
+                            await asyncio.sleep(0.4 * (2 ** attempt))
+                            continue
+                        break
+                    if resp is None or resp.status_code != 200:
+                        logger.warning("Router tools [%s] HTTP %s — %s",
+                                       model, resp.status_code if resp else "?",
+                                       resp.text[:200] if resp else "")
+                        continue
+                    data = resp.json()
         except httpx.RequestError as e:
             logger.warning("Router tools [%s] network error: %s", model, e)
             last_err = e

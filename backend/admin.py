@@ -340,6 +340,29 @@ def build_admin_router(db) -> APIRouter:
 
         return result
 
+    # ---------- Phase 5 widget config (admin-gated) ----------
+    @router.get("/widget/config")
+    async def admin_get_widget_config():
+        import widget_config as _wc
+        cfg = await _wc.get(force_refresh=True)
+        return _wc._strip_id(cfg)
+
+    @router.put("/widget/config")
+    async def admin_put_widget_config(payload: Dict[str, Any],
+                                      x_admin_token: str = Header(default="")):
+        import widget_config as _wc
+        try:
+            updated = await _wc.update(payload, updated_by=_wc.admin_token_fingerprint(x_admin_token))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return _wc._strip_id(updated)
+
+    @router.post("/widget/reset")
+    async def admin_reset_widget_config(x_admin_token: str = Header(default="")):
+        import widget_config as _wc
+        fresh = await _wc.reset(updated_by=_wc.admin_token_fingerprint(x_admin_token))
+        return _wc._strip_id(fresh)
+
     return router
 
 

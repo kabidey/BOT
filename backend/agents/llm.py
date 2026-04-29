@@ -4,6 +4,7 @@ Per-task fallback chains, per-task last-successful caching, AND cost-ledger
 recording on every successful call (Phase 4).
 """
 from __future__ import annotations
+import asyncio
 import logging
 import os
 import time
@@ -47,6 +48,20 @@ def hint_for(task: str) -> Optional[Dict[str, Any]]:
     if task == "router":
         return HUB_HINT_ROUTER
     return HUB_HINT_CHAT
+
+
+# Global concurrency cap on Hub AI calls — Hub rate-limits at 60 req/min upstream.
+# Capping in-flight requests at this gate smooths bursts (e.g. 20 simultaneous
+# chat sessions each issuing router+chat+embed calls) into a steady stream.
+HUB_CONCURRENCY = int(os.environ.get("HUB_CONCURRENCY", "12"))
+_hub_sem: Optional[asyncio.Semaphore] = None
+
+
+def _get_hub_semaphore() -> asyncio.Semaphore:
+    global _hub_sem
+    if _hub_sem is None:
+        _hub_sem = asyncio.Semaphore(HUB_CONCURRENCY)
+    return _hub_sem
 
 CHAT_CHAIN = [
     "auto",
@@ -94,14 +109,25 @@ async def _post(messages: List[Dict[str, str]], model: str, temperature: float,
         payload["response_format"] = response_format
     if context_chunks:
         payload["context_chunks"] = context_chunks
-    # Hub honours routing_hint:{"prefer":"fast"} only when model=="auto" — see HUB_AI_CAPABILITIES.md.
-    # Sending it on a named model is harmless (silently echoed back as routing_resolved).
     if routing_hint and model == "auto":
         payload[HUB_HINT_FIELD] = routing_hint
-    async with httpx.AsyncClient(timeout=30.0) as http:
-        resp = await http.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        return resp.json()
+    sem = _get_hub_semaphore()
+    async with sem:
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            # Auto-retry transient 429 / 5xx with exponential backoff.
+            last_resp: Optional[httpx.Response] = None
+            for attempt in range(3):
+                resp = await http.post(url, headers=headers, json=payload)
+                last_resp = resp
+                if resp.status_code == 200:
+                    return resp.json()
+                if resp.status_code in (429, 502, 503, 504) and attempt < 2:
+                    await asyncio.sleep(0.4 * (2 ** attempt))
+                    continue
+                break
+            assert last_resp is not None
+            last_resp.raise_for_status()
+            return last_resp.json()
 
 
 async def call_with_fallback(

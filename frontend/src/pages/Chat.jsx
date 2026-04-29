@@ -10,15 +10,17 @@ import EscalationBlock from "@/components/blocks/EscalationBlock";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-const STORAGE_KEY = "smifs_session_id";
+const STORAGE_KEY_DEFAULT = "smifs_session_id";
+const STORAGE_KEY_EMBED = "mackertich_embed_session_id";
 
-const SUGGESTIONS = [
+const DEFAULT_SUGGESTIONS = [
   "Tell me about Mackertich ONE",
   "What is the minimum ticket size for an AIF?",
   "I'm interested in investing in NCDs",
 ];
 
-export default function Chat() {
+export default function Chat({ embedded = false }) {
+  const STORAGE_KEY = embedded ? STORAGE_KEY_EMBED : STORAGE_KEY_DEFAULT;
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(STORAGE_KEY) || null);
   // messages: [{role, blocks?, content?, citations?, error?, intent?, model?}]
   const [messages, setMessages] = useState([]);
@@ -30,8 +32,53 @@ export default function Chat() {
   const [activeCitation, setActiveCitation] = useState(null); // { msgIdx, citIdx }
   const [client, setClient] = useState(null); // {name, code} when verified
   const [hydrating, setHydrating] = useState(false);
+  const [widgetCfg, setWidgetCfg] = useState(null); // /api/widget/config response (embed mode)
   const listRef = useRef(null);
   const abortRef = useRef(null);
+  const SUGGESTIONS = (widgetCfg && widgetCfg.suggestion_chips && widgetCfg.suggestion_chips.length)
+    ? widgetCfg.suggestion_chips
+    : DEFAULT_SUGGESTIONS;
+
+  // Embed mode: fetch widget config to apply theme + branding
+  useEffect(() => {
+    if (!embedded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await axios.get(`${API}/widget/config`);
+        if (!cancelled) setWidgetCfg(data);
+      } catch (e) { /* fall back to defaults */ }
+    })();
+    return () => { cancelled = true; };
+  }, [embedded]);
+
+  // Apply theme via CSS vars on the document root when embedded
+  useEffect(() => {
+    if (!embedded || !widgetCfg) return;
+    const root = document.documentElement;
+    const t = widgetCfg.theme || {};
+    const setVar = (k, v) => v && root.style.setProperty(k, v);
+    setVar("--smifs-bg-primary", t.primary);
+    setVar("--smifs-accent", t.accent);
+    setVar("--smifs-bg-paper", t.background);
+    setVar("--smifs-user-bubble", t.user_bubble);
+    setVar("--smifs-asst-bubble", t.assistant_bubble);
+    setVar("--smifs-text", t.text);
+    setVar("--smifs-header-bg", t.header_bg);
+    setVar("--smifs-header-text", t.header_text);
+    document.body.classList.add("smifs-embed-body");
+    return () => { document.body.classList.remove("smifs-embed-body"); };
+  }, [embedded, widgetCfg]);
+
+  // Notify parent (widget.js) when a new assistant message arrives, for unread badge
+  useEffect(() => {
+    if (!embedded) return;
+    if (!messages.length) return;
+    const last = messages[messages.length - 1];
+    if (last && last.role === "assistant" && !last.streaming) {
+      try { window.parent.postMessage({ type: "mackertich:assistant_message" }, "*"); } catch (_) {}
+    }
+  }, [embedded, messages]);
 
   // Health ping on mount
   useEffect(() => {
@@ -323,17 +370,17 @@ export default function Chat() {
   };
 
   return (
-    <div className="smifs-shell" data-testid="smifs-chat-shell">
-      <div className="smifs-bg-blob smifs-bg-blob--gold" aria-hidden />
-      <div className="smifs-bg-blob smifs-bg-blob--teal" aria-hidden />
-      <div className="smifs-grain" aria-hidden />
+    <div className={`smifs-shell ${embedded ? "smifs-shell--embed" : ""}`} data-testid="smifs-chat-shell">
+      {!embedded && <div className="smifs-bg-blob smifs-bg-blob--gold" aria-hidden />}
+      {!embedded && <div className="smifs-bg-blob smifs-bg-blob--teal" aria-hidden />}
+      {!embedded && <div className="smifs-grain" aria-hidden />}
 
-      <header className="smifs-header">
+      <header className={`smifs-header ${embedded ? "smifs-header--embed" : ""}`}>
         <div className="smifs-brand">
-          <div className="smifs-mono" aria-hidden>M1</div>
+          <div className="smifs-mono" aria-hidden>{embedded && widgetCfg?.bubble_icon ? widgetCfg.bubble_icon.slice(0, 2) : "M1"}</div>
           <div>
-            <h1 className="smifs-title" data-testid="smifs-title">Mackertich ONE Advisor</h1>
-            <p className="smifs-subtitle">Wealth Management · SMIFS Ltd</p>
+            <h1 className="smifs-title" data-testid="smifs-title">{embedded ? (widgetCfg?.brand_name || "Mackertich ONE Advisor") : "Mackertich ONE Advisor"}</h1>
+            <p className="smifs-subtitle">{embedded ? (widgetCfg?.subtitle || "Wealth Management · SMIFS Ltd") : "Wealth Management · SMIFS Ltd"}</p>
           </div>
         </div>
         <div className="smifs-header-right">
@@ -377,6 +424,14 @@ export default function Chat() {
               </>
             )}
           </div>
+          {embedded && (
+            <button
+              className="smifs-embed-close"
+              data-testid="embed-close-button"
+              onClick={() => { try { window.parent.postMessage({ type: "mackertich:close" }, "*"); } catch (_) {} }}
+              aria-label="Close chat"
+            >×</button>
+          )}
         </div>
       </header>
 
@@ -391,12 +446,14 @@ export default function Chat() {
           {messages.length === 0 && !hydrating && (
             <div className="smifs-welcome" data-testid="welcome-card">
               <p className="smifs-eyebrow">Private advisory · Confidential</p>
-              <h2 className="smifs-welcome-title">A considered conversation about your wealth.</h2>
-              <p className="smifs-welcome-body">
-                Our multi-agent advisor routes your question to the right specialist —
-                research, market data, your account, or our human team — and grounds every
-                product fact in the Mackertich ONE knowledge base.
-              </p>
+              <h2 className="smifs-welcome-title">{embedded && widgetCfg?.welcome_message ? widgetCfg.welcome_message : "A considered conversation about your wealth."}</h2>
+              {!embedded && (
+                <p className="smifs-welcome-body">
+                  Our multi-agent advisor routes your question to the right specialist —
+                  research, market data, your account, or our human team — and grounds every
+                  product fact in the Mackertich ONE knowledge base.
+                </p>
+              )}
               <div className="smifs-suggestions">
                 {SUGGESTIONS.map((s, i) => (
                   <button

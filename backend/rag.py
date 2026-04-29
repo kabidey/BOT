@@ -45,9 +45,10 @@ _index_meta: List[Dict[str, Any]] = []  # parallel list of {doc_title, section, 
 
 
 # ---------------------- Embedder ----------------------
-async def _try_hub_ai_embed(texts: List[str]) -> Optional[np.ndarray]:
+async def _try_hub_ai_embed(texts: List[str], retries: int = 2) -> Optional[np.ndarray]:
     """Try Hub AI /embeddings. Returns float32 array (N, dim) or None if unavailable.
-    Sends in batches of HUB_EMBED_BATCH to keep payloads modest."""
+    Sends in batches of HUB_EMBED_BATCH. On transient 429s, retries with exponential
+    backoff up to `retries` times before giving up."""
     if not LLMHUB_API_KEY or not LLMHUB_BASE_URL:
         return None
     url = f"{LLMHUB_BASE_URL}/embeddings"
@@ -61,9 +62,22 @@ async def _try_hub_ai_embed(texts: List[str]) -> Optional[np.ndarray]:
             for start in range(0, len(texts), HUB_EMBED_BATCH):
                 batch = texts[start:start + HUB_EMBED_BATCH]
                 payload = {"model": HUB_EMBED_MODEL, "input": batch}
-                resp = await http.post(url, headers=headers, json=payload)
-                if resp.status_code != 200:
-                    logger.warning("Hub AI embeddings non-200: %s — %s", resp.status_code, resp.text[:200])
+                last_status: Optional[int] = None
+                last_body: Optional[str] = None
+                for attempt in range(retries + 1):
+                    resp = await http.post(url, headers=headers, json=payload)
+                    if resp.status_code == 200:
+                        last_status = 200
+                        break
+                    last_status = resp.status_code
+                    last_body = resp.text[:200]
+                    # Retry only transient errors (rate-limit / upstream 5xx)
+                    if resp.status_code in (429, 500, 502, 503, 504) and attempt < retries:
+                        await asyncio.sleep(0.4 * (2 ** attempt))
+                        continue
+                    break
+                if last_status != 200:
+                    logger.warning("Hub AI embeddings non-200: %s — %s", last_status, last_body)
                     return None
                 data = resp.json()
                 items = data.get("data") or []
@@ -96,10 +110,15 @@ def _local_embed(texts: List[str]) -> np.ndarray:
 
 async def embed_texts(texts: List[str]) -> Tuple[np.ndarray, str]:
     """Returns (embeddings (N, dim) float32, embedder_kind 'hub_ai'|'local').
-    Caches the choice in EMBEDDER_KIND to avoid probing on every call."""
+
+    Concurrency-critical: once an index has been built with one embedder, the SAME
+    embedder MUST be used for query-time vectors. Otherwise dim-mismatches cause
+    matmul errors during search. We therefore pin to whichever embedder the
+    persisted index was built with (probed at startup) and only fall back to local
+    if Hub itself is permanently unreachable AND the index dim is also 384."""
     global EMBEDDER_KIND
     if EMBEDDER_KIND is None:
-        # First-call probe
+        # First-call probe — only happens before any index exists.
         hub_vecs = await _try_hub_ai_embed(texts[:1])
         if hub_vecs is not None:
             EMBEDDER_KIND = "hub_ai"
@@ -107,13 +126,17 @@ async def embed_texts(texts: List[str]) -> Tuple[np.ndarray, str]:
             EMBEDDER_KIND = "local"
             logger.info("Hub AI embeddings unavailable; using local sentence-transformers.")
     if EMBEDDER_KIND == "hub_ai":
-        vecs = await _try_hub_ai_embed(texts)
+        # Query-time: retry Hub up to 4x to ride out transient 429s. Do NOT silently
+        # downgrade to 384-dim local — the index is 1536-dim and matmul would crash.
+        vecs = await _try_hub_ai_embed(texts, retries=4)
         if vecs is not None:
             return vecs, "hub_ai"
-        # If a subsequent call fails, switch to local for the rest of the process lifetime.
-        EMBEDDER_KIND = "local"
-        logger.warning("Hub AI embeddings became unavailable; switching to local.")
-    # Run blocking encode in a thread.
+        # All retries exhausted. Surface the failure rather than corrupt the search.
+        raise RuntimeError(
+            "Hub AI embeddings unavailable and the index is Hub-embedded (1536-dim). "
+            "Cannot fall back to local 384-dim without rebuilding the index — please retry."
+        )
+    # EMBEDDER_KIND == "local" — index is 384-dim, local embedder is correct dim.
     vecs = await asyncio.to_thread(_local_embed, texts)
     return vecs, "local"
 

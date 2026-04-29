@@ -10,6 +10,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Chat />} />
+          <Route path="/embed" element={<Chat embedded />} />
           <Route path="/admin" element={<Admin />} />
         </Routes>
       </BrowserRouter>

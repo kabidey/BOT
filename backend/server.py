@@ -20,6 +20,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 import rag
 import mocks
+import widget_config
 from agents import orchestrator, router as router_agent
 from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db, ROUTER_CHAIN, CHAT_CHAIN, reset_cache as reset_llm_cache
 from admin import build_admin_router
@@ -331,10 +332,54 @@ async def session_signout(session_id: str):
     }
 
 
+# --- Phase 5 public widget config (CORS-friendly, no auth) ---
+@api_router.get("/widget/config")
+async def public_widget_config(request: Request):
+    """Public endpoint consumed by the embeddable widget on host pages.
+    Reads the active config from MongoDB (cache-warmed) and applies the
+    per-doc allowed_origins allowlist via Access-Control-Allow-Origin."""
+    cfg = await widget_config.get()
+    origin = request.headers.get("origin")
+    if not widget_config.origin_allowed(origin, cfg):
+        # Origin is set AND not in the allowlist — reject.
+        raise HTTPException(status_code=403, detail="Origin not permitted")
+    public = widget_config._public_view(cfg)
+    headers: Dict[str, str] = {
+        "Cache-Control": "public, max-age=60",
+        "Vary": "Origin",
+    }
+    if origin:
+        headers["Access-Control-Allow-Origin"] = origin
+    else:
+        headers["Access-Control-Allow-Origin"] = "*"
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=public, headers=headers)
+
+
+@api_router.options("/widget/config")
+async def widget_config_preflight(request: Request):
+    """CORS preflight for the public widget config endpoint."""
+    cfg = await widget_config.get()
+    origin = request.headers.get("origin")
+    headers = {
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": "600",
+        "Vary": "Origin",
+    }
+    if widget_config.origin_allowed(origin, cfg) and origin:
+        headers["Access-Control-Allow-Origin"] = origin
+    else:
+        headers["Access-Control-Allow-Origin"] = "*"
+    from fastapi.responses import Response
+    return Response(status_code=204, headers=headers)
+
+
 # ---------------- App wiring ----------------
 app.include_router(api_router)
 app.include_router(build_admin_router(db))
 bind_llm_db(db)
+widget_config.bind_db(db)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -382,6 +427,13 @@ async def startup_event():
         # Reset the per-task cache so the chain head is tried first after a config change.
         reset_llm_cache()
         logger.info("LLM chains active — CHAT_CHAIN=%s ROUTER_CHAIN=%s", CHAT_CHAIN, ROUTER_CHAIN)
+        # 5. Warm the widget_config cache (auto-seeds the doc if missing).
+        try:
+            cfg = await widget_config.get(force_refresh=True)
+            logger.info("widget_config loaded — brand=%s allowed_origins=%s",
+                        cfg.get("brand_name"), cfg.get("allowed_origins"))
+        except Exception:
+            logger.exception("widget_config init failed (non-fatal)")
         try:
             probe = await router_agent.classify("What is an AIF?", history=[])
             logger.info(
