@@ -151,6 +151,43 @@ def redact_pan_in_text(text: str) -> str:
     return _PAN_SCRUB_RE.sub(lambda m: mask_pan(m.group(1).upper()), text)
 
 
+# Phase 8 — email + phone redaction for persisted conversation text
+_PHONE_SCRUB_RE = re.compile(r"(?<!\d)(\+?\d{1,3}[-\s]?)?(\d{10})(?!\d)")
+
+
+def _email_mask_cb(m: re.Match) -> str:
+    local = m.group(1)
+    domain = m.group(2)
+    # Preserve first 2 chars of local + full domain → "aa***@smifs.com"
+    head = local[:2] if len(local) >= 2 else local
+    return f"{head}***@{domain}"
+
+
+def _phone_mask_cb(m: re.Match) -> str:
+    cc = (m.group(1) or "").strip()
+    ten = m.group(2)
+    return f"{cc}*****{ten[-4:]}"
+
+
+def redact_email_in_text(text: str) -> str:
+    if not text:
+        return text
+    return re.sub(r"\b([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})\b", _email_mask_cb, text)
+
+
+def redact_phone_in_text(text: str) -> str:
+    if not text:
+        return text
+    return _PHONE_SCRUB_RE.sub(_phone_mask_cb, text)
+
+
+def redact_pii_in_text(text: str) -> str:
+    """Run all persistence-time PII scrubs: PAN, email, phone."""
+    if not text:
+        return text
+    return redact_phone_in_text(redact_email_in_text(redact_pan_in_text(text)))
+
+
 def sanitize_for_log(text: str) -> str:
     """Aggressive scrub for log lines: any PAN-shaped token → XXXXX####X."""
     if not text:

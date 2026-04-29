@@ -23,6 +23,7 @@ from .llm import (
     call_with_fallback,
     extract_reply,
 )
+from .directory_agent import DIRECTORY_TOOLS, DIRECTORY_TOOL_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +176,11 @@ TOOL_TO_INTENT: Dict[str, str] = {
     "escalate": "ESCALATION",
     "chitchat": "SMALL_TALK",
 }
+# Phase 8 — all directory_* tools map to a single intent carrying tool_name + args.
+for _t in DIRECTORY_TOOLS:
+    TOOL_TO_INTENT[_t["function"]["name"]] = "DIRECTORY_QUERY"
+
+INTENTS.add("DIRECTORY_QUERY")
 
 ROUTER_SYSTEM_TOOLS = (
     "You are the intent router for the Mackertich ONE Advisor (Mackertich ONE is the wealth-management vertical of SMIFS Ltd). "
@@ -182,6 +188,17 @@ ROUTER_SYSTEM_TOOLS = (
     "If the user expresses interest in investing in a product, prefer capture_lead over answer_from_knowledge_base. "
     "If the user asks about their own portfolio without sharing a code, call lookup_client with no arguments. "
     "Do not call multiple tools. Always call exactly one."
+)
+
+ROUTER_SYSTEM_TOOLS_EMPLOYEE = ROUTER_SYSTEM_TOOLS + (
+    "\n\nThe verified user is an SMIFS EMPLOYEE. You also have LIVE access to the SMIFS staff "
+    "directory via the directory_* tools. For any question about colleagues, teams, departments, "
+    "locations, headcount, designations, reporting structure, or 'who reports to me / who do I report to', "
+    "you MUST invoke the appropriate directory_* tool. Do NOT answer from memory. Do NOT paraphrase "
+    "what you already know about the user. Prefer directory_my_team / directory_my_reporting_chain "
+    "when the user talks about themselves ('my team', 'my manager', 'who reports to me'). Use "
+    "directory_lookup_employee when they name a specific person, directory_search_employees for "
+    "filtered lists, directory_org_stats for overall headcount numbers."
 )
 
 # Legacy JSON-output classifier prompt — kept as a fallback for cases where the
@@ -212,11 +229,28 @@ def _extract_subject(tool_name: str, args: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-async def _classify_via_tools(message: str, history: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+async def _classify_via_tools(message: str, history: List[Dict[str, Any]],
+                              session_context: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     """Try each tool-capable model in ROUTER_TOOL_CHAIN until one returns a usable tool_call.
-    Returns {intent, confidence, rationale, subject, model} or None if all candidates failed."""
+    Returns {intent, confidence, rationale, subject, model, tool_name, tool_args} or None if all candidates failed.
+
+    When `session_context.session_type == 'employee'` and auth_state == 'verified',
+    the directory_* tools are added to the palette and the system prompt is extended.
+    """
     if not LLMHUB_API_KEY or not LLMHUB_BASE_URL:
         return None
+
+    # Phase 8 — dynamic tool palette
+    is_verified_employee = bool(
+        session_context
+        and session_context.get("session_type") == "employee"
+        and session_context.get("auth_state") == "verified"
+    )
+    tools = list(INTENT_TOOLS)
+    system_prompt = ROUTER_SYSTEM_TOOLS
+    if is_verified_employee:
+        tools = INTENT_TOOLS + DIRECTORY_TOOLS
+        system_prompt = ROUTER_SYSTEM_TOOLS_EMPLOYEE
 
     trimmed = history[-8:]
     convo_lines = "\n".join(f"{m['role'].upper()}: {m['content'][:400]}" for m in trimmed)
@@ -226,7 +260,7 @@ async def _classify_via_tools(message: str, history: List[Dict[str, Any]]) -> Op
         + "Pick exactly one tool to call."
     )
     messages = [
-        {"role": "system", "content": ROUTER_SYSTEM_TOOLS},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_block},
     ]
     url = f"{LLMHUB_BASE_URL}/chat/completions"
@@ -239,7 +273,7 @@ async def _classify_via_tools(message: str, history: List[Dict[str, Any]]) -> Op
             "messages": messages,
             "temperature": 0.0,
             "max_tokens": 200,
-            "tools": INTENT_TOOLS,
+            "tools": tools,
             "tool_choice": "auto",
         }
         try:
@@ -311,6 +345,8 @@ async def _classify_via_tools(message: str, history: List[Dict[str, Any]]) -> Op
             "rationale": f"Hub native tool_call → {tool_name}",
             "subject": _extract_subject(tool_name, args),
             "model": data.get("model") or model,
+            "tool_name": tool_name,
+            "tool_args": args,
         }
     if last_err:
         logger.warning("Router tools chain exhausted: %s", last_err)
@@ -356,9 +392,10 @@ async def _classify_via_json(message: str, history: List[Dict[str, Any]]) -> Dic
     }
 
 
-async def classify(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Returns {intent, confidence, rationale, subject, model}."""
-    via_tools = await _classify_via_tools(message, history)
+async def classify(message: str, history: List[Dict[str, Any]],
+                   session_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Returns {intent, confidence, rationale, subject, model, tool_name?, tool_args?}."""
+    via_tools = await _classify_via_tools(message, history, session_context=session_context)
     if via_tools is not None:
         return via_tools
     return await _classify_via_json(message, history)

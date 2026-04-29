@@ -44,15 +44,20 @@ async def _get_or_create_session(db, session_id: Optional[str]) -> Dict[str, Any
 
 
 async def _append_messages(db, session_id: str, new_msgs: List[Dict[str, Any]]) -> None:
-    """All persisted text is run through redact_pan_in_text — plaintext PANs
-    are masked to XXXXX####X before they ever land on disk."""
+    """All persisted user text is run through redact_pii_in_text — plaintext
+    PANs, emails and phone numbers are masked before they ever land on disk.
+    Assistant text is PAN-scrubbed only; assistant replies never contain the
+    user's raw identifiers by construction."""
     now = datetime.now(timezone.utc).isoformat()
     now_dt = datetime.now(timezone.utc)
     stamped: List[Dict[str, Any]] = []
     for m in new_msgs:
         cleaned = dict(m)
         if "content" in cleaned and isinstance(cleaned["content"], str):
-            cleaned["content"] = id_mod.redact_pan_in_text(cleaned["content"])
+            if cleaned.get("role") == "user":
+                cleaned["content"] = id_mod.redact_pii_in_text(cleaned["content"])
+            else:
+                cleaned["content"] = id_mod.redact_pan_in_text(cleaned["content"])
         if "blocks" in cleaned and isinstance(cleaned["blocks"], list):
             cleaned["blocks"] = [_redact_block(b) for b in cleaned["blocks"]]
         cleaned["ts"] = now
@@ -288,6 +293,36 @@ async def _branch_escalation(message: str) -> Dict[str, Any]:
     return {"blocks": blocks, "citations": [], "model": None}
 
 
+async def _branch_directory(session_id: str, tool_name: Optional[str],
+                            tool_args: Dict[str, Any],
+                            identity_obj: Optional[Dict[str, Any]],
+                            session_context: Dict[str, Any]) -> Dict[str, Any]:
+    """Phase 8 — dispatch a directory_* tool. Non-employees get a polite decline."""
+    # Guardrail: directory access is STAFF ONLY.
+    if (session_context.get("session_type") != "employee"
+            or session_context.get("auth_state") != "verified"
+            or not identity_obj or identity_obj.get("type") != "employee"):
+        return {
+            "blocks": [{"type": "text", "text": (
+                "Directory access is for SMIFS staff only. I can still help you with product "
+                "knowledge, market data, or connect you with a relationship manager."
+            )}],
+            "citations": [], "model": None,
+        }
+    if not tool_name:
+        return {
+            "blocks": [{"type": "text", "text": "Could you rephrase that? I wasn't sure which directory lookup you meant."}],
+            "citations": [], "model": None,
+        }
+    from . import directory_agent as _da
+    if tool_name not in _da.DIRECTORY_TOOL_NAMES:
+        return {
+            "blocks": [{"type": "text", "text": f"Unsupported directory tool: {tool_name}."}],
+            "citations": [], "model": None,
+        }
+    return await _da.execute(tool_name, tool_args, session_id, identity_obj)
+
+
 # ---------- main orchestrator ----------
 async def run_turn(db, session_id: Optional[str], message: str,
                    emit_status: StatusEmitter = None,
@@ -376,12 +411,18 @@ async def run_turn(db, session_id: Optional[str], message: str,
         else:
             # ---- 2) Router → specialist ----
             await _emit(emit_status, {"step": "router", "label": "Routing your question"})
-            routing = await classify(message, history)
+            auth_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
+            session_context = {
+                "session_type": auth_row.get("session_type", "visitor"),
+                "auth_state": auth_row.get("auth_state"),
+            }
+            routing = await classify(message, history, session_context=session_context)
             intent = routing["intent"]
             subject = routing.get("subject")
             trace.append({
                 "step": "router", "intent": intent, "confidence": routing["confidence"],
                 "rationale": routing["rationale"], "subject": subject,
+                "tool_name": routing.get("tool_name"),
             })
             label_for = {
                 "KNOWLEDGE": "Consulting the Research Assistant",
@@ -391,6 +432,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 "CALLBACK_REQUEST": "Preparing callback details",
                 "ESCALATION": "Connecting a human advisor",
                 "SMALL_TALK": "Drafting a reply",
+                "DIRECTORY_QUERY": "Querying the SMIFS directory",
             }
             await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
             identity_obj = await auth_agent.get_verified_identity(db, sid)
@@ -407,10 +449,14 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 out = await _branch_market(db, message, subject, history)
             elif intent == "CLIENT_LOOKUP":
                 out = await _branch_client_lookup(db, sid, message, subject, auth_row, identity_obj)
-                # If the lookup branch produced a PAN_REQUEST, retag intent so the FE knows.
                 hint = out.get("intent_hint") if isinstance(out, dict) else None
                 if hint:
                     intent = hint
+            elif intent == "DIRECTORY_QUERY":
+                out = await _branch_directory(
+                    sid, routing.get("tool_name"), routing.get("tool_args") or {},
+                    identity_obj, session_context,
+                )
             elif intent == "ESCALATION":
                 out = await _branch_escalation(message)
             else:  # SMALL_TALK
@@ -483,4 +529,16 @@ def _flatten_text(blocks: List[Dict[str, Any]]) -> str:
             parts.append(f"[Employee: {d.get('name')} · {d.get('designation') or ''}]")
         elif b.get("type") == "escalation_card":
             parts.append("[Connect with advisor]")
+        elif b.get("type") == "directory_card":
+            d = b.get("data", {})
+            parts.append(f"[Directory: {d.get('name')} · {d.get('designation') or ''} · {d.get('department') or ''}]")
+        elif b.get("type") == "directory_list":
+            d = b.get("data", {})
+            parts.append(f"[Directory list: {d.get('title')} · {len(d.get('items') or [])} of {d.get('total', 0)}]")
+        elif b.get("type") == "org_stats_card":
+            d = b.get("data", {})
+            parts.append(f"[Org stats: {d.get('total_employees')} total · {d.get('active_employees')} active]")
+        elif b.get("type") == "reporting_chain_card":
+            d = b.get("data", {})
+            parts.append(f"[Reporting chain: {len(d.get('chain') or [])} levels]")
     return "\n\n".join(parts).strip()

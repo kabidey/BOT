@@ -394,6 +394,7 @@ async def get_session(session_id: str):
         "session_id": session_id,
         "session_type": auth_row.get("session_type", "visitor"),
         "auth_state": auth_row.get("auth_state"),
+        "lifecycle": auth_row.get("lifecycle", "active"),
         "identity": identity_obj,
         # Back-compat: old FE expects `client` key
         "client": ({"name": (identity_obj or {}).get("first_name") or "Client",

@@ -9,6 +9,10 @@ import ClientCardBlock from "@/components/blocks/ClientCardBlock";
 import EmployeeCardBlock from "@/components/blocks/EmployeeCardBlock";
 import EscalationBlock from "@/components/blocks/EscalationBlock";
 import ResumeOfferBlock from "@/components/blocks/ResumeOfferBlock";
+import DirectoryCardBlock from "@/components/blocks/DirectoryCardBlock";
+import DirectoryListBlock from "@/components/blocks/DirectoryListBlock";
+import OrgStatsCardBlock from "@/components/blocks/OrgStatsCardBlock";
+import ReportingChainCardBlock from "@/components/blocks/ReportingChainCardBlock";
 
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
 const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
@@ -469,6 +473,14 @@ export default function Chat({ embedded = false }) {
             onDecline={() => handleDecline()}
           />
         );
+      case "directory_card":
+        return <DirectoryCardBlock key={key} block={block} />;
+      case "directory_list":
+        return <DirectoryListBlock key={key} block={block} />;
+      case "org_stats_card":
+        return <OrgStatsCardBlock key={key} block={block} />;
+      case "reporting_chain_card":
+        return <ReportingChainCardBlock key={key} block={block} />;
       case "escalation_card":
         return <EscalationBlock key={key} block={block} msgIdx={msgIdx} onRequestCallback={requestCallback} />;
       default:
