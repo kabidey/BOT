@@ -20,6 +20,7 @@ const TABS = [
   { id: "cost", label: "Cost Ledger", icon: Wallet },
   { id: "insights", label: "Insights", icon: BarChart3 },
   { id: "kb", label: "Knowledge Base", icon: FileStack },
+  { id: "archives", label: "Archives", icon: Archive },
   { id: "widget", label: "Widget", icon: MessageSquareCode },
 ];
 
