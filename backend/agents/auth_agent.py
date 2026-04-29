@@ -1,13 +1,44 @@
-"""Auth Agent — in-chat client verification via 2 personalized questions.
+"""Phase 6 Auth Agent — real-identity verification via OrgLens API.
 
-State machine:
-  anonymous ──[code]──▶ awaiting_q1 ──[correct]──▶ awaiting_q2 ──[correct]──▶ verified
-                              ↳[wrong×3]──▶ locked (15 min)
-                              ↳[wrong]──▶ stays in same state, attempts++
+Three session types: visitor (default), employee, client.
 
-Phase 5 (Apr 2026): all state transitions use `find_one_and_update` with atomic
-operators ($set / $inc) and return the post-update row, eliminating any
-read-modify-write race for the same session_id.
+State machine
+=============
+                    ┌─────────────────┐
+                    │   anonymous     │  (session_type=visitor — no auth challenge)
+                    └────────┬────────┘
+              role intent /  │   role intent / verify request
+              identifier  in │
+                  message    ▼
+                ┌──────────────────────┐
+                │   awaiting_role      │  ← "verify me" w/o role hint
+                └──────┬───────────────┘
+            picks      │
+            employee   │   picks client
+                       ▼
+                ┌──────────────────────┐
+                │  awaiting_identifier │  (session_type set provisionally)
+                └──────┬───────────────┘
+       email/UCC + 200 │   404 → friendly retry, no lock
+                       ▼
+                ┌──────────────────────┐
+                │   awaiting_pan       │  (sanitized record cached, expected_pan_hash set)
+                └──────┬───────────────┘
+            wrong x<3  │   match → verified
+            wrong x3   │
+                       ▼
+                ┌──────────────────────┐
+                │      locked          │  (15 min, then auto-clear → anonymous)
+                └──────────────────────┘
+
+Privacy
+=======
+* Plaintext PAN is never persisted. Only `expected_pan_hash` (HMAC-SHA256) is
+  stored on the session row, computed from the OrgLens record's `pan` /
+  `pan_number` field at lookup time. The user's PAN is hashed in-memory and
+  compared.
+* The cached `pending_record` excludes PAN/Aadhaar/bank/full-address/etc. —
+  see identity.sanitize_*_for_storage.
 """
 from __future__ import annotations
 import logging
@@ -16,39 +47,45 @@ from typing import Any, Dict, Optional
 
 from pymongo import ReturnDocument
 
-from . import api_agent
+import identity
 
 logger = logging.getLogger(__name__)
 
 MAX_FAILED_ATTEMPTS = 3
 LOCKOUT_MINUTES = 15
 
+# Auth states
+ANON = "anonymous"
+AWAIT_ROLE = "awaiting_role"
+AWAIT_IDENT = "awaiting_identifier"
+AWAIT_PAN = "awaiting_pan"
+VERIFIED = "verified"
+LOCKED = "locked"
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _norm_answer(s: str) -> str:
-    return (s or "").strip().lower()
-
-
-# ---------- session row helpers ----------
+# ---------------- session row helpers ----------------
 async def get_or_create_session_row(db, session_id: str) -> Dict[str, Any]:
-    """Return the session row, creating an anonymous one if missing.
-    Also auto-resets a locked session whose lockout has expired.
-    Uses find_one_and_update with $setOnInsert to guarantee atomic creation
-    even under concurrent first-touches of the same session_id."""
     now_dt = _now()
     now_iso = now_dt.isoformat()
     seed = {
         "_id": session_id,
         "session_id": session_id,
-        "client_code": None,
-        "auth_state": "anonymous",
+        "session_type": "visitor",
+        "auth_state": ANON,
+        "pending_session_type": None,
+        "pending_identifier": None,
+        "pending_record": None,
+        "expected_pan_hash": None,
+        "identity": None,
         "failed_attempts": 0,
-        "pending_question_index": None,
         "verified_at": None,
         "locked_until": None,
+        "pan_hash": None,
+        "consent_to_ingest": False,
         "created_at": now_iso,
         "updated_at": now_iso,
         "updated_at_dt": now_dt,
@@ -59,23 +96,23 @@ async def get_or_create_session_row(db, session_id: str) -> Dict[str, Any]:
         upsert=True,
         return_document=ReturnDocument.AFTER,
     )
-    # Auto-clear expired lockouts atomically.
-    if row.get("auth_state") == "locked" and row.get("locked_until"):
+    if row.get("auth_state") == LOCKED and row.get("locked_until"):
         try:
             until = datetime.fromisoformat(row["locked_until"])
             if _now() >= until:
-                row = await _atomic_set_state(
+                row = await _atomic_set(
                     db, session_id,
-                    auth_state="anonymous", failed_attempts=0,
-                    pending_question_index=None, locked_until=None, client_code=None,
+                    auth_state=ANON, failed_attempts=0,
+                    pending_session_type=None, pending_identifier=None,
+                    pending_record=None, expected_pan_hash=None,
+                    locked_until=None,
                 )
         except Exception:
             pass
     return row
 
 
-async def _atomic_set_state(db, session_id: str, **fields) -> Dict[str, Any]:
-    """Single atomic $set returning the post-update row."""
+async def _atomic_set(db, session_id: str, **fields) -> Dict[str, Any]:
     now_dt = _now()
     fields["updated_at"] = now_dt.isoformat()
     fields["updated_at_dt"] = now_dt
@@ -87,7 +124,6 @@ async def _atomic_set_state(db, session_id: str, **fields) -> Dict[str, Any]:
 
 
 async def _atomic_increment_attempts(db, session_id: str) -> Dict[str, Any]:
-    """$inc failed_attempts atomically; returns post-update row."""
     now_dt = _now()
     return await db.sessions.find_one_and_update(
         {"_id": session_id},
@@ -97,124 +133,312 @@ async def _atomic_increment_attempts(db, session_id: str) -> Dict[str, Any]:
     )
 
 
-# Legacy alias kept for any internal callers
-_update = _atomic_set_state
-
-
 async def signout(db, session_id: str) -> Dict[str, Any]:
-    """Reset auth state to anonymous; idempotent — creates the row if missing."""
     await get_or_create_session_row(db, session_id)
-    row = await _atomic_set_state(
+    row = await _atomic_set(
         db, session_id,
-        client_code=None, auth_state="anonymous", failed_attempts=0,
-        pending_question_index=None, verified_at=None, locked_until=None,
+        session_type="visitor", auth_state=ANON,
+        pending_session_type=None, pending_identifier=None,
+        pending_record=None, expected_pan_hash=None,
+        identity=None, verified_at=None, failed_attempts=0,
+        locked_until=None, pan_hash=None,
     )
-    return row or {"auth_state": "anonymous"}
+    return row or {"auth_state": ANON, "session_type": "visitor"}
 
 
-# ---------- branches consumed by the orchestrator ----------
-async def begin_verification(db, session_id: str, identifier: str) -> Dict[str, Any]:
-    """Look up the client and start at q1, OR return a not-found message that keeps
-    the session anonymous (no lockout penalty)."""
-    res = await api_agent.lookup_client_with_questions(db, identifier)
-    if not res.get("found"):
-        return {
-            "blocks": [{
-                "type": "text",
-                "text": (
-                    f"I couldn't find a Mackertich ONE record matching '{identifier}'. "
-                    "Please double-check the code or phone, or I can continue helping you as a prospect."
-                ),
-            }],
-            "citations": [],
-            "model": None,
-        }
-    code = res["code"]
-    questions = res.get("verify_questions", [])
-    await _atomic_set_state(
-        db, session_id,
-        client_code=code, auth_state="awaiting_q1",
-        failed_attempts=0, pending_question_index=0,
-    )
-    q = questions[0]["q"] if questions else "Year of birth"
+# ---------------- branches consumed by the orchestrator ----------------
+async def start_role_inquiry(db, session_id: str) -> Dict[str, Any]:
+    await _atomic_set(db, session_id, auth_state=AWAIT_ROLE,
+                      pending_session_type=None, pending_identifier=None,
+                      pending_record=None, expected_pan_hash=None,
+                      failed_attempts=0)
     return {
-        "blocks": [{
-            "type": "text",
-            "text": (
-                f"I found your record on file. For your security, I'll need to verify your identity with two short questions.\n\n"
-                f"**1 of 2 — {q}?**"
-            ),
-        }],
-        "citations": [],
-        "model": None,
+        "blocks": [{"type": "text", "text": (
+            "Happy to help with that. Are you reaching out as a "
+            "**Mackertich ONE client** or as an **SMIFS employee**?"
+        )}],
+        "citations": [], "model": None,
     }
 
 
-async def handle_answer(db, session_id: str, row: Dict[str, Any], user_text: str) -> Dict[str, Any]:
-    """Process the user's response when we are mid-verification.
-    Re-fetches the row inside the atomic path to defeat any stale read."""
-    fresh = await db.sessions.find_one({"_id": session_id}) or row
-    state = fresh["auth_state"]
-    code = fresh.get("client_code")
-    if not code or state not in {"awaiting_q1", "awaiting_q2"}:
-        await _atomic_set_state(db, session_id, auth_state="anonymous",
-                                failed_attempts=0, pending_question_index=None)
-        return {
-            "blocks": [{"type": "text", "text": "Verification context was lost. Please share your client code again to restart."}],
-            "citations": [], "model": None,
-        }
+async def handle_role_response(db, session_id: str, message: str) -> Dict[str, Any]:
+    role = identity.detect_role_intent(message)
+    msg_lower = (message or "").strip().lower()
+    if role == "employee" or msg_lower.startswith("employee") or msg_lower.startswith("emp"):
+        return await start_employee_flow(db, session_id, identity.extract_smifs_email(message))
+    if role == "client" or msg_lower.startswith("client") or "ucc" in msg_lower[:8]:
+        return await start_client_flow(db, session_id, identity.extract_ucc(message, require_client_context=True))
+    return {
+        "blocks": [{"type": "text", "text": (
+            "Just to be sure — please reply with **client** or **employee** so I can pull up the right record."
+        )}],
+        "citations": [], "model": None,
+    }
 
-    client = await api_agent.lookup_client_with_questions(db, code)
-    questions = client.get("verify_questions", [])
-    idx = fresh.get("pending_question_index", 0) or 0
-    if idx >= len(questions):
-        return await _finalise_verified(db, session_id, client)
 
-    expected = _norm_answer(questions[idx].get("a", ""))
-    given = _norm_answer(user_text)
-    matched = bool(expected) and (expected == given or expected in given or given in expected)
+async def start_employee_flow(db, session_id: str, email: Optional[str]) -> Dict[str, Any]:
+    if email:
+        return await _do_employee_lookup(db, session_id, email)
+    await _atomic_set(db, session_id,
+                      session_type="employee", pending_session_type="employee",
+                      auth_state=AWAIT_IDENT, failed_attempts=0,
+                      pending_identifier=None, pending_record=None,
+                      expected_pan_hash=None)
+    return {
+        "blocks": [{"type": "text", "text": (
+            "Of course. Could you share your **work email** "
+            "(your @smifs.com address) so I can pull up your record?"
+        )}],
+        "citations": [], "model": None,
+    }
 
-    if matched:
-        if state == "awaiting_q1":
-            next_q = questions[1]["q"] if len(questions) > 1 else None
-            if next_q is None:
-                return await _finalise_verified(db, session_id, client)
-            await _atomic_set_state(db, session_id, auth_state="awaiting_q2",
-                                    failed_attempts=0, pending_question_index=1)
+
+async def start_client_flow(db, session_id: str, ucc: Optional[str]) -> Dict[str, Any]:
+    if ucc:
+        return await _do_client_lookup(db, session_id, ucc)
+    await _atomic_set(db, session_id,
+                      session_type="client", pending_session_type="client",
+                      auth_state=AWAIT_IDENT, failed_attempts=0,
+                      pending_identifier=None, pending_record=None,
+                      expected_pan_hash=None)
+    return {
+        "blocks": [{"type": "text", "text": (
+            "Of course. Could you share your **client code (UCC)**? "
+            "It's the numeric code on your contract note or ledger."
+        )}],
+        "citations": [], "model": None,
+    }
+
+
+async def handle_identifier_response(db, session_id: str, message: str) -> Dict[str, Any]:
+    fresh = await db.sessions.find_one({"_id": session_id}) or {}
+    pending_type = fresh.get("pending_session_type") or fresh.get("session_type")
+    if pending_type == "employee":
+        email = identity.extract_smifs_email(message) or identity.extract_email(message)
+        if not email:
             return {
-                "blocks": [{"type": "text", "text": f"Thank you. **2 of 2 — {next_q}?**"}],
+                "blocks": [{"type": "text", "text": (
+                    "I didn't see a valid work email. Please share your @smifs.com address."
+                )}],
                 "citations": [], "model": None,
             }
-        return await _finalise_verified(db, session_id, client)
+        return await _do_employee_lookup(db, session_id, email)
+    if pending_type == "client":
+        ucc = identity.extract_ucc(message)
+        if not ucc:
+            digits = "".join(c for c in (message or "") if c.isdigit())
+            if 4 <= len(digits) <= 8:
+                ucc = digits
+        if not ucc:
+            return {
+                "blocks": [{"type": "text", "text": (
+                    "I didn't see a valid client code. Please share the numeric UCC (4–8 digits)."
+                )}],
+                "citations": [], "model": None,
+            }
+        return await _do_client_lookup(db, session_id, ucc)
+    return await start_role_inquiry(db, session_id)
 
+
+async def _do_employee_lookup(db, session_id: str, email: str) -> Dict[str, Any]:
+    try:
+        rec = await identity.lookup_employee_by_email(email)
+    except identity.OrgLensForbidden:
+        logger.warning("OrgLens 403 (employees:pii missing) for email lookup")
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                "I cannot verify employees right now (directory permission denied). "
+                "Please reach out to HR or your manager directly. "
+                "I can still help you as a visitor in the meantime."
+            )}],
+            "citations": [], "model": None,
+        }
+    except Exception as e:
+        logger.exception("OrgLens employee lookup failed: %s", str(e)[:120])
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                "Our directory service is briefly unavailable. Please try again in a moment, "
+                "or continue as a visitor."
+            )}],
+            "citations": [], "model": None,
+        }
+    if rec is None:
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None,
+                          pending_record=None, expected_pan_hash=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                f"I couldn't find **{email}** in our directory. "
+                "Want me to try another email, or shall I continue helping you as a visitor?"
+            )}],
+            "citations": [], "model": None,
+        }
+    pan_value = (rec.get("pan_number") or "").strip()
+    if not identity.is_valid_pan(pan_value):
+        logger.warning("OrgLens employee record missing PAN; falling back to escalation.")
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                "I found your record, but it lacks the verifier I need. "
+                "Please reach out to your manager directly so they can verify you in person."
+            )}],
+            "citations": [], "model": None,
+        }
+    expected = identity.pan_hash(pan_value)
+    sanitized = identity.sanitize_employee_for_storage(rec)
+    await _atomic_set(
+        db, session_id,
+        session_type="employee", pending_session_type="employee",
+        auth_state=AWAIT_PAN,
+        pending_identifier=email,
+        pending_record=sanitized,
+        expected_pan_hash=expected,
+        failed_attempts=0,
+    )
+    first = sanitized.get("first_name") or sanitized.get("name", "").split()[0] or "there"
+    return {
+        "blocks": [{"type": "text", "text": (
+            f"Got it, {first}. For security, please share your **PAN** "
+            f"(format: ABCDE1234F). It's used only to verify your identity and "
+            f"is masked the moment you send it."
+        )}],
+        "citations": [], "model": None,
+        "intent_hint": "AUTH_PAN_REQUEST",
+    }
+
+
+async def _do_client_lookup(db, session_id: str, ucc: str) -> Dict[str, Any]:
+    try:
+        rec = await identity.lookup_client_by_ucc(ucc)
+    except identity.OrgLensForbidden:
+        logger.warning("OrgLens 403 (clients:pii missing) for UCC lookup")
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                "I'm unable to look up client records right now. "
+                "Please contact your relationship manager directly."
+            )}],
+            "citations": [], "model": None,
+        }
+    except Exception as e:
+        logger.exception("OrgLens client lookup failed: %s", str(e)[:120])
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                "Our records service is briefly unavailable. Please try again shortly."
+            )}],
+            "citations": [], "model": None,
+        }
+    if rec is None:
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None,
+                          pending_record=None, expected_pan_hash=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                f"I couldn't locate UCC **{ucc}**. Could you double-check the code? "
+                "Or I can help you as a prospect."
+            )}],
+            "citations": [], "model": None,
+        }
+    pan_value = (rec.get("pan") or "").strip()
+    if not identity.is_valid_pan(pan_value):
+        logger.warning("OrgLens client record missing PAN; falling back to escalation.")
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None)
+        return {
+            "blocks": [
+                {"type": "text", "text": (
+                    "I found your record, but I cannot verify it via PAN at this moment. "
+                    "Please call our advisory desk so we can verify you in person."
+                )},
+                {"type": "escalation_card", "data": {"reason": "client_pan_unavailable"}},
+            ],
+            "citations": [], "model": None,
+        }
+    expected = identity.pan_hash(pan_value)
+    sanitized = identity.sanitize_client_for_storage(rec)
+    await _atomic_set(
+        db, session_id,
+        session_type="client", pending_session_type="client",
+        auth_state=AWAIT_PAN,
+        pending_identifier=ucc,
+        pending_record=sanitized,
+        expected_pan_hash=expected,
+        failed_attempts=0,
+    )
+    first = sanitized.get("first_name") or "there"
+    return {
+        "blocks": [{"type": "text", "text": (
+            f"Thanks{', ' + first if first != 'there' else ''}. "
+            "For security, please share your **PAN** (format: ABCDE1234F). "
+            "It's used only to verify your identity and is masked the moment you send it."
+        )}],
+        "citations": [], "model": None,
+        "intent_hint": "AUTH_PAN_REQUEST",
+    }
+
+
+async def handle_pan_response(db, session_id: str, message: str) -> Dict[str, Any]:
+    fresh = await db.sessions.find_one({"_id": session_id}) or {}
+    expected = fresh.get("expected_pan_hash")
+    pending = fresh.get("pending_record") or {}
+    session_type = fresh.get("session_type") or "visitor"
+    pan = identity.extract_pan(message)
+    if not pan:
+        return {
+            "blocks": [{"type": "text", "text": (
+                "I didn't catch a valid PAN in your message. "
+                "PAN format is 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F)."
+            )}],
+            "citations": [], "model": None,
+        }
+    if not expected:
+        await _atomic_set(db, session_id, auth_state=ANON, session_type="visitor",
+                          pending_session_type=None, pending_identifier=None,
+                          pending_record=None, expected_pan_hash=None)
+        return {
+            "blocks": [{"type": "text", "text": (
+                "Verification context was lost. Please tell me again whether you're "
+                "a Mackertich ONE client or an SMIFS employee."
+            )}],
+            "citations": [], "model": None,
+        }
+    given_hash = identity.pan_hash(pan)
+    if given_hash == expected:
+        return await _finalise_verified(db, session_id, session_type, pending, given_hash)
     after = await _atomic_increment_attempts(db, session_id)
     attempts = (after or {}).get("failed_attempts", 1)
     if attempts >= MAX_FAILED_ATTEMPTS:
         until = _now() + timedelta(minutes=LOCKOUT_MINUTES)
-        await _atomic_set_state(
+        await _atomic_set(
             db, session_id,
-            auth_state="locked", locked_until=until.isoformat(),
-            pending_question_index=None,
+            auth_state=LOCKED, locked_until=until.isoformat(),
+            pending_record=None, expected_pan_hash=None,
         )
         return {
             "blocks": [
                 {"type": "text", "text": (
-                    f"For security, verification has been temporarily locked after {MAX_FAILED_ATTEMPTS} unsuccessful attempts. "
-                    f"Please try again in {LOCKOUT_MINUTES} minutes, or speak directly with our advisory desk."
+                    f"For security, verification is now locked after {MAX_FAILED_ATTEMPTS} "
+                    f"unsuccessful attempts. Please try again in {LOCKOUT_MINUTES} minutes, "
+                    "or speak directly with our advisory desk."
                 )},
                 {"type": "escalation_card", "data": {"reason": "verification_locked"}},
             ],
             "citations": [], "model": None,
         }
-    current_q = questions[idx]["q"]
     return {
-        "blocks": [{
-            "type": "text",
-            "text": (
-                f"That doesn't match our records. Please try again — **{current_q}?** "
-                f"({attempts}/{MAX_FAILED_ATTEMPTS} attempts used)"
-            ),
-        }],
+        "blocks": [{"type": "text", "text": (
+            f"That PAN doesn't match our records. Please try again "
+            f"({attempts}/{MAX_FAILED_ATTEMPTS} attempts used). "
+            "PAN format: ABCDE1234F."
+        )}],
         "citations": [], "model": None,
     }
 
@@ -232,58 +456,98 @@ async def locked_response() -> Dict[str, Any]:
     }
 
 
-async def _finalise_verified(db, session_id: str, client: Dict[str, Any]) -> Dict[str, Any]:
+async def _finalise_verified(db, session_id: str, session_type: str,
+                             pending: Dict[str, Any], pan_fp: str) -> Dict[str, Any]:
     now_iso = _now().isoformat()
-    await _atomic_set_state(
+    consent_default = True if session_type == "employee" else False
+    await _atomic_set(
         db, session_id,
-        auth_state="verified", failed_attempts=0,
-        pending_question_index=None, verified_at=now_iso,
+        session_type=session_type,
+        auth_state=VERIFIED,
+        identity=pending,
+        pan_hash=pan_fp,
+        verified_at=now_iso,
+        failed_attempts=0,
+        pending_session_type=None,
+        pending_identifier=None,
+        pending_record=None,
+        expected_pan_hash=None,
+        consent_to_ingest=consent_default,
     )
-    name = client.get("name", "there")
-    first = name.split()[0] if name else "there"
+    if session_type == "employee":
+        return _employee_verified_payload(pending)
+    return _client_verified_payload(pending)
+
+
+def _employee_verified_payload(emp: Dict[str, Any]) -> Dict[str, Any]:
+    first = emp.get("first_name") or "there"
     return {
         "blocks": [
             {"type": "text", "text": (
-                f"Welcome back, {first} — your Mackertich ONE relationship is verified. "
-                "Here is your account at a glance. How can I help you today?"
+                f"Welcome, {first}. You're verified as an SMIFS employee — "
+                f"happy to assist with internal product specifics or anything from the KB. "
+                "How can I help you today?"
             )},
-            {"type": "client_card", "data": {
-                "code": client.get("code"),
-                "name": client.get("name"),
-                "holdings_summary": client.get("holdings_summary"),
+            {"type": "employee_card", "data": {
+                "employee_id": emp.get("employee_id"),
+                "name": emp.get("name"),
+                "first_name": first,
+                "designation": emp.get("designation"),
+                "department": emp.get("department"),
+                "location": emp.get("location"),
+                "employment_status": emp.get("employment_status"),
+                "company": emp.get("company"),
+                "business_unit": emp.get("business_unit"),
+                "reports_to_name": emp.get("reports_to_name"),
                 "verified": True,
             }},
         ],
         "citations": [], "model": None,
+        "intent_hint": "AUTH_VERIFIED",
     }
 
 
-# ---------- prompt-injection helper for downstream LLM branches ----------
-async def get_verified_client(db, session_id: str) -> Optional[Dict[str, Any]]:
-    row = await db.sessions.find_one({"_id": session_id}, {"_id": 0})
-    if not row or row.get("auth_state") != "verified" or not row.get("client_code"):
-        return None
-    client = await api_agent.lookup_client(db, row["client_code"])
-    if not client.get("found"):
-        return None
+def _client_verified_payload(cli: Dict[str, Any]) -> Dict[str, Any]:
+    first = cli.get("first_name") or "valued investor"
+    rm = cli.get("rm_name") or "your relationship manager"
     return {
-        "code": client.get("code"),
-        "name": client.get("name"),
-        "holdings_summary": client.get("holdings_summary"),
+        "blocks": [
+            {"type": "text", "text": (
+                f"Welcome back, {first}. Your Mackertich ONE relationship is verified. "
+                f"Your relationship manager is {rm}. How can I help you today?"
+            )},
+            {"type": "client_card", "data": {
+                "ucc": cli.get("ucc"),
+                "first_name": first,
+                "branch_name": cli.get("branch_name"),
+                "rm_name": rm,
+                "rm_code": cli.get("rm_code"),
+                "risk_profile": cli.get("risk_profile"),
+                "status": cli.get("status"),
+                "city": cli.get("city"),
+                "state": cli.get("state"),
+                "segments": cli.get("segments") or {},
+                "verified": True,
+            }},
+        ],
+        "citations": [], "model": None,
+        "intent_hint": "AUTH_VERIFIED",
     }
 
 
-def client_context_block(client: Dict[str, Any]) -> str:
-    first = (client.get("name") or "").split()[0] or "the client"
-    return (
-        "\n\n--- VERIFIED CLIENT CONTEXT ---\n"
-        f"Name: {client.get('name')}\n"
-        f"First name: {first}\n"
-        f"Code: {client.get('code')}\n"
-        f"Holdings summary: {client.get('holdings_summary')}\n"
-        f"PERSONALIZATION RULE: Open every reply with the client's first name as a salutation "
-        f"(e.g. start with '{first},'). Use this context whenever the client asks about their "
-        f"portfolio, holdings, or personalised recommendations. Do NOT invent additional holdings "
-        f"or numbers beyond the summary; for specifics outside the summary, offer to involve a human advisor."
-        "\n--- END CLIENT CONTEXT ---"
-    )
+# ---------------- helpers consumed by orchestrator/server ----------------
+async def get_verified_identity(db, session_id: str) -> Optional[Dict[str, Any]]:
+    row = await db.sessions.find_one({"_id": session_id}, {"_id": 0})
+    if not row or row.get("auth_state") != VERIFIED:
+        return None
+    return row.get("identity")
+
+
+def context_block_for(identity_obj: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not identity_obj:
+        return None
+    if identity_obj.get("type") == "employee":
+        return identity.employee_context_block(identity_obj)
+    if identity_obj.get("type") == "client":
+        return identity.client_context_block(identity_obj)
+    return None

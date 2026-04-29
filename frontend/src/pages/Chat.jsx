@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase } from "lucide-react";
 
 import TextBlock from "@/components/blocks/TextBlock";
 import FormBlock from "@/components/blocks/FormBlock";
 import MarketCardBlock from "@/components/blocks/MarketCardBlock";
 import ClientCardBlock from "@/components/blocks/ClientCardBlock";
+import EmployeeCardBlock from "@/components/blocks/EmployeeCardBlock";
 import EscalationBlock from "@/components/blocks/EscalationBlock";
+
+const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
+const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -30,7 +34,8 @@ export default function Chat({ embedded = false }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [health, setHealth] = useState(null);
   const [activeCitation, setActiveCitation] = useState(null); // { msgIdx, citIdx }
-  const [client, setClient] = useState(null); // {name, code} when verified
+  const [client, setClient] = useState(null); // {name, code, type} when verified
+  const [identity, setIdentity] = useState(null); // full identity blob (employee|client)
   const [hydrating, setHydrating] = useState(false);
   const [widgetCfg, setWidgetCfg] = useState(null); // /api/widget/config response (embed mode)
   const listRef = useRef(null);
@@ -105,6 +110,8 @@ export default function Chat({ embedded = false }) {
         if (cancelled) return;
         if (data.client) setClient(data.client);
         else setClient(null);
+        if (data.identity) setIdentity(data.identity);
+        else setIdentity(null);
         const restored = (data.history || []).map((h) => {
           if (h.role === "user") return { role: "user", content: h.text };
           return {
@@ -146,9 +153,13 @@ export default function Chat({ embedded = false }) {
   const sendStreaming = useCallback(async (text) => {
     setErrorMsg("");
     setActiveCitation(null);
+    // If the previous assistant message asked for PAN, auto-mask the user's submitted text in local history
+    const lastBotMsg = [...messages].reverse().find((m) => m.role === "assistant" && !m.streaming);
+    const isPanReply = lastBotMsg?.intent === "AUTH_PAN_REQUEST" || lastBotMsg?.intent === "AUTH_PAN_RETRY";
+    const displayText = isPanReply ? maskPanInText(text) : text;
     // Push the user message AND a placeholder assistant turn that will receive streamed tokens.
     const turnId = `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setMessages((prev) => [...prev, { role: "user", content: text }, {
+    setMessages((prev) => [...prev, { role: "user", content: displayText }, {
       role: "assistant",
       blocks: [{ type: "text", text: "", grounded: false }],
       citations: [],
@@ -245,13 +256,14 @@ export default function Chat({ embedded = false }) {
         setSessionId(finalResult.session_id);
         localStorage.setItem(STORAGE_KEY, finalResult.session_id);
       }
-      // Refresh verified client info if intent indicates an auth state change
+      // Refresh verified identity if intent indicates an auth state change
       if (finalResult.intent && finalResult.intent.startsWith("AUTH_")) {
         try {
           const sid = finalResult.session_id || sessionId;
           if (sid) {
             const { data: sess } = await axios.get(`${API}/sessions/${sid}`);
             setClient(sess.client || null);
+            setIdentity(sess.identity || null);
           }
         } catch (_) { /* non-fatal */ }
       }
@@ -292,7 +304,7 @@ export default function Chat({ embedded = false }) {
       setStatusLabel("");
       abortRef.current = null;
     }
-  }, [sessionId]);
+  }, [sessionId, messages]);
 
   const send = (textOverride) => {
     const text = (textOverride ?? input).trim();
@@ -362,6 +374,8 @@ export default function Chat({ embedded = false }) {
         return <MarketCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "client_card":
         return <ClientCardBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "employee_card":
+        return <EmployeeCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "escalation_card":
         return <EscalationBlock key={key} block={block} msgIdx={msgIdx} onRequestCallback={requestCallback} />;
       default:
@@ -385,15 +399,21 @@ export default function Chat({ embedded = false }) {
         </div>
         <div className="smifs-header-right">
           {client && (
-            <div className="smifs-client-chip" data-testid="verified-chip">
+            <div
+              className={`smifs-client-chip smifs-client-chip--${(identity?.type) || (client.type) || "client"}`}
+              data-testid="verified-chip"
+              data-role={(identity?.type) || (client.type) || "client"}
+            >
               <div className="smifs-client-chip-avatar" aria-hidden>
-                <User size={12} strokeWidth={2.5} />
+                {((identity?.type) || (client.type)) === "employee"
+                  ? <Briefcase size={12} strokeWidth={2.5} />
+                  : <User size={12} strokeWidth={2.5} />}
               </div>
               <div className="smifs-client-chip-text">
-                <span className="smifs-client-chip-name">{client.name?.split(" ")[0] || "Client"}</span>
+                <span className="smifs-client-chip-name">{(identity?.first_name) || (client.name?.split(" ")[0]) || "Client"}</span>
                 <span className="smifs-client-chip-state">
                   <ShieldCheck size={10} strokeWidth={2.5} />
-                  Verified
+                  {((identity?.type) || (client.type)) === "employee" ? "EMP · Verified" : "Verified"}
                 </span>
               </div>
               <button
@@ -521,26 +541,37 @@ export default function Chat({ embedded = false }) {
           </div>
         )}
 
-        <div className="smifs-composer">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKey}
-            placeholder="Ask your wealth advisor…"
-            rows={1}
-            className="smifs-input"
-            data-testid="chat-input"
-          />
-          <button
-            className="smifs-send"
-            onClick={() => send()}
-            disabled={!input.trim() || streaming}
-            data-testid="send-button"
-            aria-label="Send message"
-          >
-            <Send size={16} strokeWidth={2.25} />
-          </button>
-        </div>
+        {(() => {
+          const lastBot = [...messages].reverse().find((m) => m.role === "assistant" && !m.streaming);
+          const sensitive = lastBot?.intent === "AUTH_PAN_REQUEST" || lastBot?.intent === "AUTH_PAN_RETRY";
+          return (
+            <div className={`smifs-composer ${sensitive ? "smifs-composer--secure" : ""}`} data-secure={sensitive ? "true" : "false"}>
+              {sensitive && (
+                <div className="smifs-secure-hint" data-testid="secure-input-hint">
+                  <Lock size={11} strokeWidth={2.5} /> Secure entry · we'll mask this immediately
+                </div>
+              )}
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKey}
+                placeholder={sensitive ? "Enter your PAN (e.g. ABCDE1234F) — masked on send" : "Ask your wealth advisor…"}
+                rows={1}
+                className="smifs-input"
+                data-testid="chat-input"
+              />
+              <button
+                className="smifs-send"
+                onClick={() => send()}
+                disabled={!input.trim() || streaming}
+                data-testid="send-button"
+                aria-label="Send message"
+              >
+                <Send size={16} strokeWidth={2.25} />
+              </button>
+            </div>
+          );
+        })()}
 
         <div className="smifs-footer">
           <button

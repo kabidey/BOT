@@ -1024,3 +1024,179 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   .smifs-client-chip-state { display: none; }
   .smifs-client-chip { padding: 4px 6px 4px 4px; }
 }
+
+/* ====== Phase 6 — Role-tinted verified chip ====== */
+.smifs-client-chip--employee {
+  background: linear-gradient(135deg, rgba(20,43,65,0.85), rgba(15,34,53,0.85));
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold-deep) inset, 0 6px 18px rgba(0,0,0,0.32);
+}
+.smifs-client-chip--employee .smifs-client-chip-avatar {
+  background: var(--gold);
+  color: var(--navy-900);
+}
+.smifs-client-chip--employee .smifs-client-chip-state {
+  color: var(--gold);
+}
+
+/* ====== Phase 6 — Employee + enriched Client card ====== */
+.smifs-emp-card {
+  background: linear-gradient(180deg, var(--navy-800) 0%, var(--navy-700) 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px 14px;
+  margin-top: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.smifs-emp-card::before {
+  content: "";
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--gold);
+}
+.smifs-emp-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  margin-bottom: 14px;
+}
+.smifs-emp-eyebrow {
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--gold); margin: 0 0 4px;
+}
+.smifs-emp-name {
+  font-family: "Cormorant Garamond", serif; font-weight: 600;
+  font-size: 22px; color: var(--ink); margin: 0;
+}
+.smifs-emp-eid {
+  font-family: "JetBrains Mono", monospace; font-size: 11px;
+  color: var(--ink-muted); margin: 4px 0 0;
+}
+.smifs-emp-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.smifs-emp-pill--verified {
+  background: rgba(201,168,106,0.14); color: var(--gold);
+  border: 1px solid var(--gold-deep);
+}
+.smifs-emp-pill--locked {
+  background: rgba(224,122,110,0.12); color: var(--danger);
+  border: 1px solid rgba(224,122,110,0.4);
+}
+.smifs-emp-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 18px; margin: 0;
+}
+.smifs-emp-grid > div { min-width: 0; }
+.smifs-emp-grid dt {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-muted); margin-bottom: 2px;
+}
+.smifs-emp-grid dd {
+  margin: 0; font-size: 13px; color: var(--ink); font-weight: 500;
+  word-break: break-word;
+}
+
+/* Secure composer hint */
+.smifs-composer--secure {
+  border-top-color: var(--gold) !important;
+  position: relative;
+}
+.smifs-composer--secure .smifs-input {
+  font-family: "JetBrains Mono", monospace;
+  letter-spacing: 0.08em;
+}
+.smifs-secure-hint {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; letter-spacing: 0.06em;
+  color: var(--gold); padding: 6px 12px 0;
+  font-weight: 500;
+}
+
+/* ====== Phase 6 — Archives admin tab ====== */
+.smifs-admin-toolbar {
+  display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center;
+}
+.smifs-admin-select {
+  background: var(--navy-700); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 10px; font-size: 12px; font-family: inherit;
+  outline: none;
+}
+.smifs-admin-split {
+  display: grid; grid-template-columns: 380px 1fr; gap: 16px;
+  margin-top: 18px; min-height: 480px;
+}
+@media (max-width: 1024px) {
+  .smifs-admin-split { grid-template-columns: 1fr; }
+}
+.smifs-admin-list {
+  background: var(--navy-800); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden auto; max-height: 70vh;
+}
+.smifs-admin-row {
+  width: 100%; text-align: left; background: transparent; color: inherit;
+  border: 0; border-bottom: 1px solid var(--line);
+  padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; cursor: pointer; transition: background 120ms ease;
+}
+.smifs-admin-row:hover { background: rgba(201,168,106,0.04); }
+.smifs-admin-row--on { background: rgba(201,168,106,0.08); }
+.smifs-admin-row-main { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.smifs-admin-row-name { font-weight: 500; color: var(--ink); }
+.smifs-admin-row-meta { font-size: 11px; color: var(--ink-muted); }
+.smifs-admin-row-side { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.smifs-admin-tag {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 999px; font-weight: 600;
+}
+.smifs-admin-tag--employee { background: rgba(201,168,106,0.14); color: var(--gold); }
+.smifs-admin-tag--client   { background: rgba(31,91,110,0.30); color: #6cb4cc; }
+.smifs-admin-tag--visitor  { background: rgba(151,166,180,0.18); color: var(--ink-muted); }
+.smifs-admin-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; padding: 2px 7px; border-radius: 999px;
+  background: rgba(255,255,255,0.06); color: var(--ink-muted);
+}
+.smifs-admin-pill--gold { color: var(--gold); background: rgba(201,168,106,0.10); }
+.smifs-admin-detail {
+  background: var(--navy-800); border: 1px solid var(--line);
+  border-radius: 12px; padding: 18px;
+  display: flex; flex-direction: column; min-height: 480px;
+}
+.smifs-admin-detail-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 6px; gap: 12px;
+}
+.smifs-admin-detail-head h3 { margin: 0; font-family: "Cormorant Garamond", serif; font-size: 22px; color: var(--ink); }
+.smifs-admin-transcript {
+  margin-top: 12px; flex: 1; overflow: auto;
+  border-top: 1px solid var(--line); padding-top: 10px;
+}
+.smifs-admin-msg { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.smifs-admin-msg-role {
+  width: 70px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-muted); padding-top: 1px;
+}
+.smifs-admin-msg-icon { color: var(--ink-muted); margin-top: 2px; flex-shrink: 0; }
+.smifs-admin-msg-content { flex: 1; font-size: 13px; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.smifs-admin-info {
+  background: rgba(201,168,106,0.10); border: 1px solid var(--line);
+  color: var(--gold); padding: 8px 12px; border-radius: 8px; font-size: 12px;
+  margin-top: 8px;
+}
+.smifs-admin-err {
+  background: rgba(224,122,110,0.12); border: 1px solid rgba(224,122,110,0.40);
+  color: var(--danger); padding: 8px 12px; border-radius: 8px; font-size: 12px;
+  margin-top: 8px; display: inline-flex; align-items: center; gap: 6px;
+}
+.smifs-admin-btn-ghost {
+  background: transparent; border: 1px solid var(--line); color: var(--ink-muted);
+  padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
+  transition: all 120ms ease;
+}
+.smifs-admin-btn-ghost:hover { color: var(--gold); border-color: var(--gold-deep); }
+.spin { animation: smifs-spin 1s linear infinite; }
+@keyframes smifs-spin { to { transform: rotate(360deg); } }

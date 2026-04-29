@@ -21,6 +21,7 @@ load_dotenv(ROOT_DIR / '.env')
 import rag
 import mocks
 import widget_config
+import identity as id_mod
 from agents import orchestrator, router as router_agent
 from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db, ROUTER_CHAIN, CHAT_CHAIN, reset_cache as reset_llm_cache
 from admin import build_admin_router
@@ -32,14 +33,32 @@ db = client[os.environ['DB_NAME']]
 
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '')
 
+# Use a log filter that scrubs PAN-shaped tokens from EVERY log record.
+class _PanScrubFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            if isinstance(record.msg, str):
+                record.msg = id_mod.sanitize_for_log(record.msg)
+            if record.args:
+                record.args = tuple(
+                    id_mod.sanitize_for_log(a) if isinstance(a, str) else a
+                    for a in record.args
+                )
+        except Exception:
+            pass
+        return True
+
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+for h in logging.getLogger().handlers:
+    h.addFilter(_PanScrubFilter())
 logger = logging.getLogger(__name__)
 
 # ---------------- FastAPI ----------------
 app = FastAPI(
     title="Mackertich ONE Advisor",
-    description="Phase 2 — Multi-agent orchestrator with rich JSON payloads.",
-    version="0.3.0",
+    description="Phase 6 — Real identity (employee / client / visitor) via OrgLens.",
+    version="0.6.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -57,6 +76,8 @@ class HealthResponse(BaseModel):
     embedder: Optional[str] = None
     last_chat_model: Optional[str] = None
     last_router_model: Optional[str] = None
+    orglens_reachable: Optional[bool] = None
+    orglens_permissions: Optional[List[str]] = None
 
 
 class ChatRequest(BaseModel):
@@ -105,7 +126,7 @@ def require_admin(x_admin_token: str = Header(default="")):
 # ---------------- Routes ----------------
 @api_router.get("/")
 async def root():
-    return {"service": "Mackertich ONE Advisor", "vertical_of": "SMIFS Ltd", "phase": 7}
+    return {"service": "Mackertich ONE Advisor", "vertical_of": "SMIFS Ltd", "phase": 6}
 
 
 @api_router.get("/health", response_model=HealthResponse)
@@ -115,17 +136,24 @@ async def health():
         {"role": "system", "content": "Respond with the single word: ok"},
         {"role": "user", "content": "ping"},
     ]
+    # Probe OrgLens permissions in parallel with the LLM ping.
+    orglens_perms: Optional[List[str]] = None
+    orglens_ok: Optional[bool] = None
+    try:
+        perms = await id_mod.probe_permissions()
+        orglens_perms = list(perms.get("permissions", []))
+        orglens_ok = True
+    except Exception as e:
+        logger.warning("OrgLens permissions probe failed: %s", str(e)[:120])
+        orglens_ok = False
     try:
         result = await call_with_fallback(ping_msgs, task="chat", temperature=0.0, max_tokens=4)
         resolved = result["data"].get("model") or result["model"]
         return HealthResponse(
-            status="ok",
-            llm_reachable=True,
-            model=resolved,
-            rag_chunks=chunk_count,
-            embedder=rag.EMBEDDER_KIND,
-            last_chat_model=last_ok("chat"),
-            last_router_model=last_ok("router"),
+            status="ok", llm_reachable=True, model=resolved,
+            rag_chunks=chunk_count, embedder=rag.EMBEDDER_KIND,
+            last_chat_model=last_ok("chat"), last_router_model=last_ok("router"),
+            orglens_reachable=orglens_ok, orglens_permissions=orglens_perms,
         )
     except httpx.HTTPStatusError as e:
         body = e.response.text if e.response is not None else ""
@@ -133,11 +161,13 @@ async def health():
             status="ok", llm_reachable=False,
             detail=f"HTTP {e.response.status_code}: {body[:200]}",
             rag_chunks=chunk_count, embedder=rag.EMBEDDER_KIND,
+            orglens_reachable=orglens_ok, orglens_permissions=orglens_perms,
         )
     except Exception as e:
         return HealthResponse(
             status="ok", llm_reachable=False, detail=str(e)[:200],
             rag_chunks=chunk_count, embedder=rag.EMBEDDER_KIND,
+            orglens_reachable=orglens_ok, orglens_permissions=orglens_perms,
         )
 
 
@@ -147,7 +177,6 @@ async def rag_search(req: RagSearchRequest):
     return await rag.search(req.query, top_k=req.top_k)
 
 
-# --- Phase 2 primary endpoint ---
 @api_router.post("/agent/turn", response_model=TurnResponse)
 async def agent_turn(req: TurnRequest):
     try:
@@ -163,8 +192,6 @@ async def agent_turn(req: TurnRequest):
 
 @api_router.post("/agent/turn/stream")
 async def agent_turn_stream(req: TurnRequest, request: Request):
-    """Server-Sent Events stream of router → specialist status events,
-    plus live token frames during LLM generation, then the final result."""
     queue: asyncio.Queue = asyncio.Queue()
 
     async def emit_status(event: Dict[str, Any]) -> None:
@@ -202,7 +229,6 @@ async def agent_turn_stream(req: TurnRequest, request: Request):
                 try:
                     event_type, data = await asyncio.wait_for(queue.get(), timeout=30.0)
                 except asyncio.TimeoutError:
-                    # Heartbeat to keep the connection alive
                     yield ": ping\n\n"
                     continue
                 if event_type == "__done__":
@@ -215,7 +241,7 @@ async def agent_turn_stream(req: TurnRequest, request: Request):
     headers = {
         "Cache-Control": "no-cache, no-transform",
         "Connection": "keep-alive",
-        "X-Accel-Buffering": "no",  # disable proxy buffering for SSE
+        "X-Accel-Buffering": "no",
         "Content-Type": "text/event-stream",
     }
     return StreamingResponse(event_source(), headers=headers, media_type="text/event-stream")
@@ -279,25 +305,18 @@ async def get_conversation(session_id: str):
     return doc
 
 
-# --- Phase 3 session endpoints ---
+# --- Phase 3/6 session endpoint ---
 @api_router.get("/sessions/{session_id}")
 async def get_session(session_id: str):
-    """Returns auth_state + verified client info (if any) + full conversation history.
-    Used by the frontend on mount to rehydrate the chat thread."""
+    """Returns auth state + identity (for the verified chip and rehydration)."""
     from agents import auth_agent
     convo = await db.conversations.find_one({"session_id": session_id}, {"_id": 0})
     if not convo:
         raise HTTPException(status_code=404, detail="Session not found")
     auth_row = await auth_agent.get_or_create_session_row(db, session_id)
-    client_info = None
-    if auth_row.get("auth_state") == "verified" and auth_row.get("client_code"):
-        client = await db.mock_clients.find_one(
-            {"code": auth_row["client_code"]},
-            {"_id": 0, "verify_questions": 0, "phone": 0},
-        )
-        if client:
-            client_info = {"name": client.get("name"), "code": client.get("code")}
-    # Strip MongoDB-internal _id from auth row (already excluded above) and shape history
+    identity_obj = None
+    if auth_row.get("auth_state") == auth_agent.VERIFIED:
+        identity_obj = auth_row.get("identity")
     history = []
     for m in convo.get("messages", []):
         entry = {"role": m.get("role"), "ts": m.get("ts")}
@@ -311,8 +330,13 @@ async def get_session(session_id: str):
         history.append(entry)
     return {
         "session_id": session_id,
+        "session_type": auth_row.get("session_type", "visitor"),
         "auth_state": auth_row.get("auth_state"),
-        "client": client_info,
+        "identity": identity_obj,
+        # Back-compat: old FE expects `client` key
+        "client": ({"name": (identity_obj or {}).get("first_name") or "Client",
+                    "code": (identity_obj or {}).get("ucc") or (identity_obj or {}).get("employee_id"),
+                    "type": (identity_obj or {}).get("type")} if identity_obj else None),
         "history": history,
         "created_at": convo.get("created_at"),
         "updated_at": convo.get("updated_at"),
@@ -321,44 +345,34 @@ async def get_session(session_id: str):
 
 @api_router.post("/sessions/{session_id}/signout")
 async def session_signout(session_id: str):
-    """Idempotent — safe to call on any session_id, even if no row exists."""
     from agents import auth_agent
     row = await auth_agent.signout(db, session_id)
     return {
         "session_id": session_id,
+        "session_type": row.get("session_type", "visitor"),
         "auth_state": row.get("auth_state", "anonymous"),
+        "identity": None,
         "client": None,
-        "message": "Signed out. You may continue as a prospect.",
+        "message": "Signed out. You may continue as a visitor.",
     }
 
 
-# --- Phase 5 public widget config (CORS-friendly, no auth) ---
+# --- Phase 5 public widget config ---
 @api_router.get("/widget/config")
 async def public_widget_config(request: Request):
-    """Public endpoint consumed by the embeddable widget on host pages.
-    Reads the active config from MongoDB (cache-warmed) and applies the
-    per-doc allowed_origins allowlist via Access-Control-Allow-Origin."""
     cfg = await widget_config.get()
     origin = request.headers.get("origin")
     if not widget_config.origin_allowed(origin, cfg):
-        # Origin is set AND not in the allowlist — reject.
         raise HTTPException(status_code=403, detail="Origin not permitted")
     public = widget_config._public_view(cfg)
-    headers: Dict[str, str] = {
-        "Cache-Control": "public, max-age=60",
-        "Vary": "Origin",
-    }
-    if origin:
-        headers["Access-Control-Allow-Origin"] = origin
-    else:
-        headers["Access-Control-Allow-Origin"] = "*"
+    headers: Dict[str, str] = {"Cache-Control": "public, max-age=60", "Vary": "Origin"}
+    headers["Access-Control-Allow-Origin"] = origin or "*"
     from fastapi.responses import JSONResponse
     return JSONResponse(content=public, headers=headers)
 
 
 @api_router.options("/widget/config")
 async def widget_config_preflight(request: Request):
-    """CORS preflight for the public widget config endpoint."""
     cfg = await widget_config.get()
     origin = request.headers.get("origin")
     headers = {
@@ -367,10 +381,7 @@ async def widget_config_preflight(request: Request):
         "Access-Control-Max-Age": "600",
         "Vary": "Origin",
     }
-    if widget_config.origin_allowed(origin, cfg) and origin:
-        headers["Access-Control-Allow-Origin"] = origin
-    else:
-        headers["Access-Control-Allow-Origin"] = "*"
+    headers["Access-Control-Allow-Origin"] = origin if (widget_config.origin_allowed(origin, cfg) and origin) else "*"
     from fastapi.responses import Response
     return Response(status_code=204, headers=headers)
 
@@ -392,11 +403,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     try:
-        # 0. Decide which embedder backend is active for THIS process
         active = await rag.detect_active_embedder()
-        # 1. RAG ingestion — drop+rebuild if the persisted vectors have a different
-        # dimensionality than the active embedder will produce (e.g. 384-dim local
-        # vs 1536-dim Hub). Querying mismatched dims would silently return garbage.
         existing = await db.doc_chunks.count_documents({})
         if existing == 0:
             logger.info("doc_chunks empty — running seed ingestion (embedder=%s).", active)
@@ -406,42 +413,42 @@ async def startup_event():
             persisted = await rag.persisted_dim(db)
             expected = 1536 if active == "hub_ai" else 384
             if persisted and persisted != expected:
-                logger.warning("Embedding dim mismatch (persisted=%d, expected=%d for %s) — wiping and re-ingesting.",
-                               persisted, expected, active)
+                logger.warning("Embedding dim mismatch (persisted=%d, expected=%d) — re-ingesting.",
+                               persisted, expected)
                 await db.doc_chunks.delete_many({})
                 res = await rag.reingest(db)
                 logger.info("Re-ingestion after dim mismatch: %s", res)
             else:
                 await rag.ensure_index_loaded(db)
-        # 2. Mock data seeding (idempotent)
         await mocks.seed_if_empty(db)
-        # 3. TTL indexes (Phase 4) — work on real ISODate fields (created_at_dt / updated_at_dt)
         try:
             await db.sessions.create_index("updated_at_dt", expireAfterSeconds=86400, name="ttl_updated_at_dt")
             await db.llm_calls.create_index("created_at_dt", expireAfterSeconds=90 * 86400, name="ttl_created_at_dt")
             await db.llm_calls.create_index([("created_at", -1)], name="created_at_desc")
             await db.leads.create_index([("created_at", -1)], name="leads_created_at_desc")
+            await db.session_archives.create_index([("archived_at", -1)], name="archives_archived_at_desc")
+            await db.session_archives.create_index("session_type", name="archives_session_type")
         except Exception:
             logger.exception("TTL index creation failed (non-fatal)")
-        # 4. Router self-check — verify the head of ROUTER_CHAIN can produce parseable JSON.
-        # Reset the per-task cache so the chain head is tried first after a config change.
         reset_llm_cache()
         logger.info("LLM chains active — CHAT_CHAIN=%s ROUTER_CHAIN=%s", CHAT_CHAIN, ROUTER_CHAIN)
-        # 5. Warm the widget_config cache (auto-seeds the doc if missing).
         try:
             cfg = await widget_config.get(force_refresh=True)
             logger.info("widget_config loaded — brand=%s allowed_origins=%s",
                         cfg.get("brand_name"), cfg.get("allowed_origins"))
         except Exception:
             logger.exception("widget_config init failed (non-fatal)")
+        # OrgLens permission self-check
+        try:
+            perms = await id_mod.probe_permissions()
+            logger.info("OrgLens permissions OK — key=%s scopes=%s",
+                        perms.get("key_id"), perms.get("permissions"))
+        except Exception as e:
+            logger.warning("OrgLens self-check failed: %s", str(e)[:160])
         try:
             probe = await router_agent.classify("What is an AIF?", history=[])
-            logger.info(
-                "Router self-check OK — model=%s intent=%s confidence=%.2f",
-                probe.get("model"), probe.get("intent"), probe.get("confidence", 0.0),
-            )
-            if probe.get("intent") == "KNOWLEDGE" and (probe.get("rationale") or "").startswith("Fallback after parse error"):
-                logger.warning("Router self-check produced fallback output — JSON parse failed on primary model. Investigate ROUTER_CHAIN[0]=%s.", ROUTER_CHAIN[0])
+            logger.info("Router self-check OK — model=%s intent=%s confidence=%.2f",
+                        probe.get("model"), probe.get("intent"), probe.get("confidence", 0.0))
         except Exception:
             logger.exception("Router self-check failed (non-fatal).")
     except Exception:

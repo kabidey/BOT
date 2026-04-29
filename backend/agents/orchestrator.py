@@ -1,19 +1,16 @@
-"""Phase 3 orchestrator — auth-aware multi-agent flow.
+"""Phase 6 orchestrator — visitor / employee / client flow with real OrgLens auth.
 
 Per-turn flow:
-  1. Persist user message
-  2. Auth pre-check:
-       - Auto-clear expired lockouts
-       - If locked → return locked response
-       - If awaiting q1/q2 → consume message as the answer (skip Router)
-       - If anonymous AND message contains a client identifier → begin verification
-  3. Otherwise: Router → specialist branch
-  4. Inject CLIENT_CONTEXT into LLM-using branches when session is verified
-  5. Persist assistant turn (blocks + intent + citations)
-
-Phase 6 (Apr 2026): when the caller provides `emit_token`, the LLM-emitting
-branches (KNOWLEDGE / LEAD_CAPTURE / SMALL_TALK) stream Hub AI tokens through
-the callback while still returning the same final structured payload.
+  1. Persist user message (with PAN scrubbed)
+  2. Auth pre-check (state machine in agents.auth_agent):
+       - locked            → locked response
+       - awaiting_role     → consume reply as role
+       - awaiting_identifier → consume as email/UCC
+       - awaiting_pan      → consume as PAN
+       - anonymous + role-trigger in message → kick off employee/client flow
+       - otherwise         → router → specialist
+  3. Inject role-specific identity context for verified sessions
+  4. Persist assistant turn
 """
 from __future__ import annotations
 import logging
@@ -21,6 +18,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+import identity as id_mod
 from .llm import call_with_fallback, extract_reply, stream_chat_with_fallback
 from . import api_agent, auth_agent, form_agent, rag_agent
 from .router import classify
@@ -46,12 +44,30 @@ async def _get_or_create_session(db, session_id: Optional[str]) -> Dict[str, Any
 
 
 async def _append_messages(db, session_id: str, new_msgs: List[Dict[str, Any]]) -> None:
+    """All persisted text is run through redact_pan_in_text — plaintext PANs
+    are masked to XXXXX####X before they ever land on disk."""
     now = datetime.now(timezone.utc).isoformat()
-    stamped = [{**m, "ts": now} for m in new_msgs]
+    stamped: List[Dict[str, Any]] = []
+    for m in new_msgs:
+        cleaned = dict(m)
+        if "content" in cleaned and isinstance(cleaned["content"], str):
+            cleaned["content"] = id_mod.redact_pan_in_text(cleaned["content"])
+        if "blocks" in cleaned and isinstance(cleaned["blocks"], list):
+            cleaned["blocks"] = [_redact_block(b) for b in cleaned["blocks"]]
+        cleaned["ts"] = now
+        stamped.append(cleaned)
     await db.conversations.update_one(
         {"session_id": session_id},
         {"$push": {"messages": {"$each": stamped}}, "$set": {"updated_at": now}},
     )
+
+
+def _redact_block(b: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(b, dict):
+        return b
+    if b.get("type") == "text" and isinstance(b.get("text"), str):
+        b = {**b, "text": id_mod.redact_pan_in_text(b["text"])}
+    return b
 
 
 async def _emit(emit: StatusEmitter, event: Dict[str, Any]) -> None:
@@ -71,16 +87,15 @@ SMALL_TALK_PROMPT = (
 )
 
 
-def _maybe_inject_context(system_prompt: str, client_ctx: Optional[Dict[str, Any]]) -> str:
-    if client_ctx:
-        return system_prompt + auth_agent.client_context_block(client_ctx)
-    return system_prompt
+def _maybe_inject_context(system_prompt: str, identity_obj: Optional[Dict[str, Any]]) -> str:
+    block = auth_agent.context_block_for(identity_obj)
+    return system_prompt + block if block else system_prompt
 
 
 async def _branch_small_talk(message: str, history: List[Dict[str, Any]],
-                             client_ctx: Optional[Dict[str, Any]],
+                             identity_obj: Optional[Dict[str, Any]],
                              emit_token: TokenEmitter = None) -> Dict[str, Any]:
-    msgs = [{"role": "system", "content": _maybe_inject_context(SMALL_TALK_PROMPT, client_ctx)}]
+    msgs = [{"role": "system", "content": _maybe_inject_context(SMALL_TALK_PROMPT, identity_obj)}]
     msgs += [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
     msgs.append({"role": "user", "content": message})
     if emit_token is not None:
@@ -111,17 +126,19 @@ async def _branch_small_talk(message: str, history: List[Dict[str, Any]],
 
 
 async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
-                            client_ctx: Optional[Dict[str, Any]],
+                            identity_obj: Optional[Dict[str, Any]],
                             session_id: Optional[str] = None,
                             emit_token: TokenEmitter = None,
                             emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
+    # rag_agent already supports a `client_context` kwarg; we pass our identity
+    # blob (employee or client) since both inject equivalently.
     if emit_token is not None:
         full_text = ""
         citations: List[Dict[str, Any]] = []
         grounded = False
         model: Optional[str] = None
         async for ev, data in rag_agent.stream_answer(
-            message, history, client_context=client_ctx, session_id=session_id,
+            message, history, client_context=identity_obj, session_id=session_id,
         ):
             if ev == "citations":
                 citations = data
@@ -137,13 +154,13 @@ async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
                 model = data.get("model")
         blocks: List[Dict[str, Any]] = [{"type": "text", "text": full_text, "grounded": grounded}]
         return {"blocks": blocks, "citations": citations, "model": model}
-    out = await rag_agent.answer(message, history, client_context=client_ctx, session_id=session_id)
+    out = await rag_agent.answer(message, history, client_context=identity_obj, session_id=session_id)
     blocks = [{"type": "text", "text": out["reply_text"], "grounded": out["grounded"]}]
     return {"blocks": blocks, "citations": out["citations"], "model": out["model"]}
 
 
 async def _branch_lead_capture(message: str, subject: Optional[str], history: List[Dict[str, Any]],
-                               client_ctx: Optional[Dict[str, Any]],
+                               identity_obj: Optional[Dict[str, Any]],
                                session_id: Optional[str] = None,
                                emit_token: TokenEmitter = None,
                                emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
@@ -155,7 +172,7 @@ async def _branch_lead_capture(message: str, subject: Optional[str], history: Li
         grounded = False
         model: Optional[str] = None
         async for ev, data in rag_agent.stream_answer(
-            message, history, client_context=client_ctx, session_id=session_id,
+            message, history, client_context=identity_obj, session_id=session_id,
         ):
             if ev == "citations":
                 citations = data
@@ -179,7 +196,7 @@ async def _branch_lead_capture(message: str, subject: Optional[str], history: Li
             ],
             "citations": citations, "model": model,
         }
-    rag_out = await rag_agent.answer(message, history, client_context=client_ctx, session_id=session_id)
+    rag_out = await rag_agent.answer(message, history, client_context=identity_obj, session_id=session_id)
     return {
         "blocks": [
             {"type": "text", "text": rag_out["reply_text"].strip() + closing, "grounded": rag_out["grounded"]},
@@ -221,37 +238,36 @@ async def _branch_market(db, message: str, subject: Optional[str], history: List
 
 
 async def _branch_client_lookup(db, session_id: str, message: str, subject: Optional[str],
-                                row: Dict[str, Any], client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    """Phase 3: this branch is reached only when the session is anonymous (verified
-    sessions with portfolio questions are answered by KNOWLEDGE branch with context).
-    Either kick off verification (if a code was provided) or ask for one."""
-    # If verified, surface the client_card directly with the holdings summary.
-    if client_ctx:
+                                row: Dict[str, Any], identity_obj: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Reached only when the router intent is CLIENT_LOOKUP. Either:
+      * Verified session → reissue the verified card
+      * Anonymous + identifier in message → kick off the right flow
+      * Anonymous, no identifier → start role inquiry
+    """
+    if identity_obj:
+        if identity_obj.get("type") == "employee":
+            return {
+                "blocks": [
+                    {"type": "text", "text": f"Here's your record on file, {identity_obj.get('first_name') or 'there'}."},
+                    {"type": "employee_card", "data": {**identity_obj, "verified": True}},
+                ],
+                "citations": [], "model": None,
+            }
         return {
             "blocks": [
-                {"type": "text", "text": f"Here's your account summary, {client_ctx['name'].split()[0]}."},
-                {"type": "client_card", "data": {
-                    "code": client_ctx["code"],
-                    "name": client_ctx["name"],
-                    "holdings_summary": client_ctx["holdings_summary"],
-                    "verified": True,
-                }},
+                {"type": "text", "text": f"Here's your account summary, {identity_obj.get('first_name') or 'there'}."},
+                {"type": "client_card", "data": {**identity_obj, "verified": True}},
             ],
             "citations": [], "model": None,
         }
-
-    identifier = api_agent.extract_client_identifier(message) or (
-        subject if subject and subject.upper().startswith("SMIFS") else None
-    )
-    if not identifier:
-        text = (
-            "To pull up your portfolio I'll need to verify your identity. "
-            "Could you share your client code (e.g. SMIFS001) or registered phone number?"
-        )
-        return {"blocks": [{"type": "text", "text": text}], "citations": [], "model": None}
-
-    # Begin the verification flow.
-    return await auth_agent.begin_verification(db, session_id, identifier)
+    # Fast-path: identifier already in the message
+    smifs_email = id_mod.extract_smifs_email(message)
+    if smifs_email:
+        return await auth_agent.start_employee_flow(db, session_id, smifs_email)
+    ucc = id_mod.extract_ucc(message, require_client_context=True)
+    if ucc:
+        return await auth_agent.start_client_flow(db, session_id, ucc)
+    return await auth_agent.start_role_inquiry(db, session_id)
 
 
 async def _branch_escalation(message: str) -> Dict[str, Any]:
@@ -274,34 +290,75 @@ async def run_turn(db, session_id: Optional[str], message: str,
     sid = convo["session_id"]
     history = convo.get("messages", [])
     auth_row = await auth_agent.get_or_create_session_row(db, sid)
-    state = auth_row.get("auth_state", "anonymous")
+    state = auth_row.get("auth_state", auth_agent.ANON)
     trace: List[Dict[str, Any]] = []
     intent: Optional[str] = None
 
     # ---- 1) Auth pre-check ----
-    if state == "locked":
+    if state == auth_agent.LOCKED:
         await _emit(emit_status, {"step": "auth", "label": "Verification temporarily locked"})
         out = await auth_agent.locked_response()
         intent = "AUTH_LOCKED"
         trace.append({"step": "auth", "auth_state": "locked"})
-    elif state in {"awaiting_q1", "awaiting_q2"}:
+    elif state == auth_agent.AWAIT_PAN:
         await _emit(emit_status, {"step": "auth", "label": "Verifying your identity"})
-        out = await auth_agent.handle_answer(db, sid, auth_row, message)
-        # After the answer, the row may now be verified/locked/awaiting_q2
+        out = await auth_agent.handle_pan_response(db, sid, message)
         new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
-        intent = "AUTH_VERIFIED" if new_row.get("auth_state") == "verified" else (
-            "AUTH_LOCKED" if new_row.get("auth_state") == "locked" else "AUTH_CHALLENGE"
-        )
-        trace.append({"step": "auth", "from": state, "to": new_row.get("auth_state")})
+        if new_row.get("auth_state") == auth_agent.VERIFIED:
+            intent = "AUTH_VERIFIED"
+        elif new_row.get("auth_state") == auth_agent.LOCKED:
+            intent = "AUTH_LOCKED"
+        else:
+            intent = "AUTH_PAN_RETRY"
+        trace.append({"step": "auth", "from": "awaiting_pan", "to": new_row.get("auth_state")})
+    elif state == auth_agent.AWAIT_IDENT:
+        await _emit(emit_status, {"step": "auth", "label": "Looking up your record"})
+        out = await auth_agent.handle_identifier_response(db, sid, message)
+        new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
+        ns = new_row.get("auth_state")
+        intent = ("AUTH_PAN_REQUEST" if ns == auth_agent.AWAIT_PAN
+                  else "AUTH_NOT_FOUND" if ns == auth_agent.ANON
+                  else "AUTH_CHALLENGE")
+        trace.append({"step": "auth", "from": "awaiting_identifier", "to": ns})
+    elif state == auth_agent.AWAIT_ROLE:
+        await _emit(emit_status, {"step": "auth", "label": "Identifying your role"})
+        out = await auth_agent.handle_role_response(db, sid, message)
+        new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
+        ns = new_row.get("auth_state")
+        intent = ("AUTH_PAN_REQUEST" if ns == auth_agent.AWAIT_PAN
+                  else "AUTH_CHALLENGE" if ns in (auth_agent.AWAIT_IDENT, auth_agent.AWAIT_ROLE)
+                  else "AUTH_NOT_FOUND" if ns == auth_agent.ANON
+                  else "AUTH_VERIFIED")
+        trace.append({"step": "auth", "from": "awaiting_role", "to": ns})
     else:
-        # Anonymous — check for a client code in the message; begin verification immediately.
-        ident = api_agent.extract_client_identifier(message)
-        if ident:
-            await _emit(emit_status, {"step": "auth", "label": "Looking up your record"})
-            out = await auth_agent.begin_verification(db, sid, ident)
+        # ---- Anonymous: detect role triggers (employee email / UCC / hint), else router ----
+        smifs_email = id_mod.extract_smifs_email(message)
+        role_intent = id_mod.detect_role_intent(message)
+        if smifs_email:
+            await _emit(emit_status, {"step": "auth", "label": "Looking up your employee record"})
+            out = await auth_agent.start_employee_flow(db, sid, smifs_email)
             new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
-            intent = "AUTH_CHALLENGE" if new_row.get("auth_state") == "awaiting_q1" else "AUTH_NOT_FOUND"
-            trace.append({"step": "auth", "identifier": ident, "to": new_row.get("auth_state")})
+            ns = new_row.get("auth_state")
+            intent = "AUTH_PAN_REQUEST" if ns == auth_agent.AWAIT_PAN else "AUTH_NOT_FOUND"
+            trace.append({"step": "auth", "trigger": "smifs_email", "to": ns})
+        elif role_intent == "client":
+            ucc = id_mod.extract_ucc(message, require_client_context=True)
+            await _emit(emit_status, {"step": "auth", "label": "Looking up your client record"})
+            out = await auth_agent.start_client_flow(db, sid, ucc)
+            new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
+            ns = new_row.get("auth_state")
+            intent = ("AUTH_PAN_REQUEST" if ns == auth_agent.AWAIT_PAN
+                      else "AUTH_CHALLENGE" if ns == auth_agent.AWAIT_IDENT
+                      else "AUTH_NOT_FOUND")
+            trace.append({"step": "auth", "trigger": "client_hint", "to": ns})
+        elif role_intent == "employee":
+            out = await auth_agent.start_employee_flow(db, sid, None)
+            intent = "AUTH_CHALLENGE"
+            trace.append({"step": "auth", "trigger": "employee_hint", "to": "awaiting_identifier"})
+        elif role_intent == "ambiguous_verify":
+            out = await auth_agent.start_role_inquiry(db, sid)
+            intent = "AUTH_CHALLENGE"
+            trace.append({"step": "auth", "trigger": "verify_hint", "to": "awaiting_role"})
         else:
             # ---- 2) Router → specialist ----
             await _emit(emit_status, {"step": "router", "label": "Routing your question"})
@@ -322,27 +379,34 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 "SMALL_TALK": "Drafting a reply",
             }
             await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
-            client_ctx = await auth_agent.get_verified_client(db, sid)
+            identity_obj = await auth_agent.get_verified_identity(db, sid)
 
             if intent == "KNOWLEDGE":
-                out = await _branch_knowledge(message, history, client_ctx, session_id=sid,
+                out = await _branch_knowledge(message, history, identity_obj, session_id=sid,
                                               emit_token=emit_token, emit_citations=emit_citations)
             elif intent == "LEAD_CAPTURE":
-                out = await _branch_lead_capture(message, subject, history, client_ctx, session_id=sid,
+                out = await _branch_lead_capture(message, subject, history, identity_obj, session_id=sid,
                                                  emit_token=emit_token, emit_citations=emit_citations)
             elif intent == "CALLBACK_REQUEST":
                 out = await _branch_callback(message, history)
             elif intent == "MARKET_DATA":
                 out = await _branch_market(db, message, subject, history)
             elif intent == "CLIENT_LOOKUP":
-                out = await _branch_client_lookup(db, sid, message, subject, auth_row, client_ctx)
+                out = await _branch_client_lookup(db, sid, message, subject, auth_row, identity_obj)
+                # If the lookup branch produced a PAN_REQUEST, retag intent so the FE knows.
+                hint = out.get("intent_hint") if isinstance(out, dict) else None
+                if hint:
+                    intent = hint
             elif intent == "ESCALATION":
                 out = await _branch_escalation(message)
             else:  # SMALL_TALK
-                out = await _branch_small_talk(message, history, client_ctx, emit_token=emit_token)
+                out = await _branch_small_talk(message, history, identity_obj, emit_token=emit_token)
             trace.append({"step": "specialist", "intent": intent, "status": "ok"})
 
-    # Persist
+    # Promote intent_hint into the final intent if the auth agent emitted one.
+    if isinstance(out, dict) and out.get("intent_hint"):
+        intent = out["intent_hint"]
+
     payload = {
         "session_id": sid,
         "trace": trace,
@@ -362,6 +426,15 @@ async def run_turn(db, session_id: Optional[str], message: str,
             "model": out.get("model"),
         },
     ])
+
+    # If we just transitioned to verified, snapshot to the archive collection
+    # (best-effort, fire-and-forget).
+    if intent == "AUTH_VERIFIED":
+        try:
+            from archives import snapshot_on_verify
+            await snapshot_on_verify(db, sid)
+        except Exception:
+            logger.exception("archive snapshot_on_verify failed (non-fatal)")
     return payload
 
 
@@ -378,7 +451,10 @@ def _flatten_text(blocks: List[Dict[str, Any]]) -> str:
             parts.append(f"[Quote: {d.get('symbol')} ₹{d.get('last_price')} ({d.get('change_pct')}%)]")
         elif b.get("type") == "client_card":
             d = b.get("data", {})
-            parts.append(f"[Client: {d.get('name')} ({d.get('code')})]")
+            parts.append(f"[Client: UCC {d.get('ucc')} · {d.get('branch_name') or ''}]")
+        elif b.get("type") == "employee_card":
+            d = b.get("data", {})
+            parts.append(f"[Employee: {d.get('name')} · {d.get('designation') or ''}]")
         elif b.get("type") == "escalation_card":
             parts.append("[Connect with advisor]")
     return "\n\n".join(parts).strip()

@@ -65,8 +65,10 @@ def _build_messages(message: str, history: List[Dict[str, Any]],
                     grounded: bool, client_context: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
     system_content = BASE_PROMPT + (GROUNDED_INSTR if grounded else UNGROUNDED_INSTR)
     if client_context:
-        from .auth_agent import client_context_block
-        system_content = system_content + client_context_block(client_context)
+        from .auth_agent import context_block_for
+        block = context_block_for(client_context)
+        if block:
+            system_content = system_content + block
     trimmed = history[-(RAG_HISTORY_TURNS * 2):]
     history_msgs = [{"role": m["role"], "content": m["content"]} for m in trimmed]
     return [{"role": "system", "content": system_content}] + history_msgs + [

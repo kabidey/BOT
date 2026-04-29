@@ -1,4 +1,4 @@
-"""Phase 4 admin router — leads, cost ledger, insights, KB uploads."""
+"""Phase 4/6 admin router — leads, cost ledger, insights, KB uploads, archives."""
 from __future__ import annotations
 import logging
 import os
@@ -17,7 +17,7 @@ UPLOAD_DIR = Path(__file__).parent / "seed_docs" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTS = {".pdf", ".docx", ".md", ".txt"}
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def require_admin(x_admin_token: str = Header(default="")):
@@ -26,40 +26,39 @@ def require_admin(x_admin_token: str = Header(default="")):
     return True
 
 
-admin_router_module_marker = True  # placeholder so this file is importable as a module
-
-
-# ---------- Pydantic models ----------
 class LeadStatusUpdate(BaseModel):
     status: str = Field(..., pattern="^(new|contacted|qualified|closed)$")
     notes: Optional[str] = None
 
 
-# We use a factory pattern below so server.py can inject the live `db` handle.
-def build_admin_router(db) -> APIRouter:
-    """Return an APIRouter with all admin endpoints bound to the given db."""
+class ArchiveConsentUpdate(BaseModel):
+    consent_to_ingest: bool
 
-    # ---------- Pydantic models (in-scope) ----------
+
+class ArchiveIngestRequest(BaseModel):
+    dry_run: bool = False
+    role: str = "all"  # "all" | "employee" | "client"
+
+
+def build_admin_router(db) -> APIRouter:
     def _now() -> datetime:
         return datetime.now(timezone.utc)
 
     def _start_of_day_utc() -> datetime:
-        n = _now()
-        return n.replace(hour=0, minute=0, second=0, microsecond=0)
+        return _now().replace(hour=0, minute=0, second=0, microsecond=0)
 
     def _range_to_since(range_str: str) -> datetime:
         if range_str == "1d":
             return _now() - timedelta(days=1)
         if range_str == "30d":
             return _now() - timedelta(days=30)
-        return _now() - timedelta(days=7)  # default 7d
+        return _now() - timedelta(days=7)
 
     router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
 
     # ---------------- Cost ----------------
     @router.get("/cost")
     async def get_cost():
-        # Latest balance (most recent llm_calls row with non-zero balance)
         latest_row = await db.llm_calls.find_one(
             {"balance_inr_after": {"$gt": 0}},
             sort=[("created_at", -1)],
@@ -100,7 +99,6 @@ def build_admin_router(db) -> APIRouter:
         by_model = await _group_by("model_resolved")
         by_task = await _group_by("task")
 
-        # Cost-per-day for last 7 days for sparkline
         seven_days = []
         for i in range(6, -1, -1):
             day_start = (_start_of_day_utc() - timedelta(days=i))
@@ -132,11 +130,7 @@ def build_admin_router(db) -> APIRouter:
     async def get_insights(range: str = "7d"):
         since = _range_to_since(range).isoformat()
 
-        # Sessions / messages / verified clients
-        active_sessions_pipe = [
-            {"$match": {"updated_at": {"$gte": since}}},
-            {"$count": "n"},
-        ]
+        active_sessions_pipe = [{"$match": {"updated_at": {"$gte": since}}}, {"$count": "n"}]
         active_sessions = await db.conversations.aggregate(active_sessions_pipe).to_list(length=1)
         sessions = int(active_sessions[0]["n"]) if active_sessions else 0
 
@@ -154,7 +148,6 @@ def build_admin_router(db) -> APIRouter:
             "auth_state": "verified", "verified_at": {"$gte": since}
         })
 
-        # Intent distribution (assistant turns only)
         intent_pipe = [
             {"$match": {"updated_at": {"$gte": since}}},
             {"$project": {"messages": 1}},
@@ -167,7 +160,6 @@ def build_admin_router(db) -> APIRouter:
         ]
         intent_dist = await db.conversations.aggregate(intent_pipe).to_list(length=50)
 
-        # Lead asset classes (in `leads` collection)
         lead_classes_pipe = [
             {"$match": {"created_at": {"$gte": since}, "form_type": "lead_capture"}},
             {"$group": {"_id": "$context.asset_class", "count": {"$sum": 1}}},
@@ -176,12 +168,6 @@ def build_admin_router(db) -> APIRouter:
         ]
         lead_classes = await db.leads.aggregate(lead_classes_pipe).to_list(length=20)
 
-        # Router confidence per intent — the router writes router rows to llm_calls
-        # but we don't currently capture per-call confidence there. Confidence lives
-        # in conversations.messages[*].trace[*]; surfacing that is a P2 enhancement.
-        low_conf: List[Dict[str, Any]] = []
-
-        # Escalation rate
         total_assist = sum(i["count"] for i in intent_dist) or 1
         esc = next((i["count"] for i in intent_dist if i["intent"] == "ESCALATION"), 0)
         escalation_rate = round(esc / total_assist, 4)
@@ -191,7 +177,7 @@ def build_admin_router(db) -> APIRouter:
             "totals": {"sessions": sessions, "messages": messages, "verified_clients": verified},
             "intent_distribution": intent_dist,
             "lead_asset_classes": lead_classes,
-            "low_confidence_intents": low_conf,
+            "low_confidence_intents": [],
             "escalation_rate": escalation_rate,
         }
 
@@ -210,13 +196,12 @@ def build_admin_router(db) -> APIRouter:
         doc = await db.leads.find_one({"lead_id": lead_id}, {"_id": 0})
         if not doc:
             raise HTTPException(status_code=404, detail="Lead not found")
-        # Attach last 10 turns from the same session_id
         transcript: List[Dict[str, Any]] = []
         sid = doc.get("session_id")
         if sid:
             convo = await db.conversations.find_one({"session_id": sid}, {"_id": 0, "messages": 1})
             if convo:
-                msgs = convo.get("messages", [])[-20:]  # last 10 turns ≈ 20 messages
+                msgs = convo.get("messages", [])[-20:]
                 for m in msgs:
                     entry = {"role": m.get("role"), "ts": m.get("ts")}
                     if m.get("role") == "user":
@@ -261,15 +246,12 @@ def build_admin_router(db) -> APIRouter:
 
     @router.delete("/docs/{doc_id}")
     async def delete_doc(doc_id: str):
-        # Refuse to delete seed docs
         sample = await db.doc_chunks.find_one({"doc_id": doc_id}, {"_id": 0, "source": 1, "filename": 1})
         if not sample:
             raise HTTPException(status_code=404, detail="Doc not found")
-        if sample.get("source") != "upload":
+        if sample.get("source") not in ("upload", "session_archive"):
             raise HTTPException(status_code=400, detail="Cannot delete seed documents — upload to override.")
-        # Remove chunks
         await db.doc_chunks.delete_many({"doc_id": doc_id})
-        # Remove file if present
         filename = sample.get("filename")
         if filename:
             fp = UPLOAD_DIR / filename
@@ -278,7 +260,6 @@ def build_admin_router(db) -> APIRouter:
                     fp.unlink()
             except OSError:
                 logger.warning("Failed to delete upload file %s", fp)
-        # Rebuild in-memory index
         import rag as _rag
         await _rag.reload_index_from_db(db)
         return {"deleted": doc_id, "ok": True}
@@ -286,16 +267,12 @@ def build_admin_router(db) -> APIRouter:
     @router.post("/reingest")
     async def admin_reingest(files: List[UploadFile] = File(default=[]),
                              reset_seeds: bool = Form(default=False)):
-        """Re-ingest seed docs. If files are uploaded, also extract + ingest them.
-        With reset_seeds=true (default false), re-ingest the seed_docs/ folder too."""
         import rag as _rag
         result = {"docs_added": 0, "chunks_added": 0, "files": [], "embedder": _rag.EMBEDDER_KIND or "local"}
-        # 1. Optional: re-ingest seeds
         if reset_seeds:
             seed_res = await _rag.reingest(db)
             result.update({"seed_reingest": seed_res})
 
-        # 2. Process uploaded files
         for upload in files:
             try:
                 fname = upload.filename or "uploaded"
@@ -309,7 +286,6 @@ def build_admin_router(db) -> APIRouter:
                     result["files"].append({"filename": fname, "status": "skipped",
                                             "reason": f"File too large (>{MAX_UPLOAD_BYTES//1024//1024} MB)"})
                     continue
-                # Save to disk (for traceability + delete-by-doc-id)
                 safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", fname)
                 disk_path = UPLOAD_DIR / safe_name
                 disk_path.write_bytes(contents)
@@ -337,7 +313,6 @@ def build_admin_router(db) -> APIRouter:
                 logger.exception("Upload processing failed for %s", upload.filename)
                 result["files"].append({"filename": upload.filename, "status": "error",
                                         "reason": str(e)[:200]})
-
         return result
 
     # ---------- Phase 5 widget config (admin-gated) ----------
@@ -348,8 +323,7 @@ def build_admin_router(db) -> APIRouter:
         return _wc._strip_id(cfg)
 
     @router.put("/widget/config")
-    async def admin_put_widget_config(payload: Dict[str, Any],
-                                      x_admin_token: str = Header(default="")):
+    async def admin_put_widget_config(payload: Dict[str, Any], x_admin_token: str = Header(default="")):
         import widget_config as _wc
         try:
             updated = await _wc.update(payload, updated_by=_wc.admin_token_fingerprint(x_admin_token))
@@ -362,6 +336,33 @@ def build_admin_router(db) -> APIRouter:
         import widget_config as _wc
         fresh = await _wc.reset(updated_by=_wc.admin_token_fingerprint(x_admin_token))
         return _wc._strip_id(fresh)
+
+    # ---------- Phase 6 archives ----------
+    @router.get("/archives")
+    async def list_archives(role: str = "all", limit: int = 50):
+        import archives as _arc
+        return await _arc.list_archives(db, role=role, limit=limit)
+
+    @router.get("/archives/{archive_id}")
+    async def get_archive(archive_id: str):
+        import archives as _arc
+        doc = await _arc.get_archive(db, archive_id)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Archive not found")
+        return doc
+
+    @router.patch("/archives/{archive_id}")
+    async def update_archive_consent(archive_id: str, payload: ArchiveConsentUpdate):
+        import archives as _arc
+        doc = await _arc.update_consent(db, archive_id, payload.consent_to_ingest)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Archive not found")
+        return doc
+
+    @router.post("/archives/ingest_to_rag")
+    async def ingest_archives_to_rag(payload: ArchiveIngestRequest):
+        import archives as _arc
+        return await _arc.ingest_archives_to_rag(db, dry_run=payload.dry_run, role=payload.role)
 
     return router
 
@@ -392,7 +393,6 @@ def _extract_text(path: Path) -> str:
 
 
 def _derive_title(text: str, fallback_name: str) -> str:
-    # First H1 markdown line, else first non-empty line, else filename stem
     for line in text.splitlines():
         s = line.strip()
         if s.startswith("# "):
