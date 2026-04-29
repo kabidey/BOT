@@ -18,6 +18,16 @@ auth flow.
 - **Employee** — `@smifs.com` email + PAN verification; auto-consent to RAG ingestion
 - **Client** — UCC + PAN verification; explicit consent required for RAG ingestion
 
+## Implemented (Phase 7 — Apr 2026)
+- `lifecycle.py` — strict 2-minute idle expiry + identity-keyed rehydration
+- Sessions are **frozen** (`lifecycle="expired"`), not deleted; 30-day TTL on `sessions.updated_at_dt`
+- New session UUID minted on expiry, inherits prior's identity hashes (`emp_id_hash`, `ucc_hash`, `pan_hash`, `email_hash`, `phone_hash`) onto a freshly-inserted row so rehydration candidates + resume work
+- Endpoints: `GET /api/sessions/{sid}/rehydration_candidates`, `POST /api/sessions/{sid}/resume`, `POST /api/sessions/{sid}/decline_resume`
+- Cross-user resume denied with HTTP 403 (HMAC-SHA256 hash-overlap check)
+- Orchestrator prepends a `resume_offer` block + top-level `resume_offer` on the first turn after expiry
+- Frontend: client-side 110s warning banner, 120s composer lockout with Resume button, `ResumeOfferBlock` renders offered prior session(s)
+- Tests: `tests/test_phase7_lifecycle.py` (9 cases) + `tests/test_phase7_inheritance_regression.py` (2 cases) — 11/11 passing
+
 ## Implemented (Phase 6 — Apr 2026)
 - `identity.py` — OrgLens client, PAN regex/mask/HMAC-hash, role/email/UCC extractors
 - New auth state machine (`auth_agent.py`): anonymous → awaiting_role → awaiting_identifier → awaiting_pan → verified | locked
