@@ -18,6 +18,16 @@ auth flow.
 - **Employee** — `@smifs.com` email + PAN verification; auto-consent to RAG ingestion
 - **Client** — UCC + PAN verification; explicit consent required for RAG ingestion
 
+## Implemented (Phase 8.1 — Apr 2026)
+- Comprehensive employee Q&A: any question that maps to any of the ~72 OrgLens fields is answerable.
+- **USER_PROFILE injection** (`identity.employee_context_block`): full JSON dump of `identity.raw` (minus sensitive credentials) emitted into the chat LLM's system prompt each turn. Self-queries answered directly without any directory tool call.
+- **Narrowed `_RAW_STRIP_FIELDS`**: only PAN / Aadhaar / bank / account stripped. Email / phone / DOB / hrbp_email / etc. stay in `raw` so USER_PROFILE can answer "what's my work email?" type questions. Persist-time PII scrub on `conversations.messages[].content` (user turns) remains the privacy boundary.
+- **6 new directory tools** on top of Phase 8 (total 15): `directory_filter_by_status`, `directory_recent_joins`, `directory_upcoming_confirmations`, `directory_by_tenure`, `directory_aggregate`, `directory_field_value`. Pagination-aware (OrgLens caps /employees limit=500).
+- Expanded `directory_search_employees` filter palette: employee_type, confirmation_status, business_unit, company, gender, on_notice, is_absconding, reports_to_name/email/user_id, hrbp_name.
+- **Latent bug fixed in orchestrator**: role-trigger detection (`detect_role_intent`) was re-firing on VERIFIED sessions whenever the user mentioned "employee" or "client" in a self-query, silently resetting auth_state to AWAIT_IDENT. Now guarded behind `state == ANON`.
+- `EMPLOYEE_FIELD_MAP.md` documents the full 72-field inventory + privacy contract.
+- Coverage: 22/22 matrix rows green (12 self + 10 about-others). Pytest 42/42 green across Phase 7+8+8.1.
+
 ## Implemented (Phase 8 — Apr 2026)
 - Live OrgLens tool-calling for verified employees: 9 `directory_*` tools registered on the Router dynamically (only when session_type=employee & verified). Tools: `directory_lookup_employee`, `directory_search_employees`, `directory_my_team`, `directory_my_reporting_chain`, `directory_departments`, `directory_locations`, `directory_designations`, `directory_org_stats`, `directory_org_tree`. All dispatched via a single `DIRECTORY_QUERY` intent and executed by `agents/directory_agent.py` (5-min TTL cache).
 - 4 new structured FE blocks: `DirectoryCardBlock`, `DirectoryListBlock`, `OrgStatsCardBlock`, `ReportingChainCardBlock`. Guardrail: non-employee sessions politely declined (no directory leakage).
