@@ -19,23 +19,26 @@ LLMHUB_API_KEY = os.environ.get("LLMHUB_API_KEY", "")
 LLMHUB_BASE_URL = os.environ.get("LLMHUB_BASE_URL", "").rstrip("/")
 
 CHAT_CHAIN = [
-    "gpt-4o-mini",
-    "claude-haiku-4-5-20251001",
-    "claude-3-5-sonnet-20241022",
-    "llama-3.3-70b-versatile",
     "gemma-4-E4B",
+    "llama-3.3-70b-versatile",
+    "claude-haiku-4-5-20251001",
     "auto",
 ]
 
 ROUTER_CHAIN = [
-    "gpt-4o-mini",
-    "claude-haiku-4-5-20251001",
     "llama-3.3-70b-versatile",
     "gemma-4-E4B",
+    "claude-haiku-4-5-20251001",
     "auto",
 ]
 
 _LAST_OK: Dict[str, str] = {}
+
+
+def reset_cache() -> None:
+    """Wipe the per-task cached primary so the chain head is tried first.
+    Called at startup whenever the chain configuration changes."""
+    _LAST_OK.clear()
 
 
 # Module-level DB binding so the LLM module can record cost without circular imports.

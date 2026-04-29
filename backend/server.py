@@ -20,8 +20,8 @@ load_dotenv(ROOT_DIR / '.env')
 
 import rag
 import mocks
-from agents import orchestrator
-from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db
+from agents import orchestrator, router as router_agent
+from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db, ROUTER_CHAIN, CHAT_CHAIN, reset_cache as reset_llm_cache
 from admin import build_admin_router
 
 # MongoDB
@@ -353,6 +353,20 @@ async def startup_event():
             await db.leads.create_index([("created_at", -1)], name="leads_created_at_desc")
         except Exception:
             logger.exception("TTL index creation failed (non-fatal)")
+        # 4. Router self-check — verify the head of ROUTER_CHAIN can produce parseable JSON.
+        # Reset the per-task cache so the chain head is tried first after a config change.
+        reset_llm_cache()
+        logger.info("LLM chains active — CHAT_CHAIN=%s ROUTER_CHAIN=%s", CHAT_CHAIN, ROUTER_CHAIN)
+        try:
+            probe = await router_agent.classify("What is an AIF?", history=[])
+            logger.info(
+                "Router self-check OK — model=%s intent=%s confidence=%.2f",
+                probe.get("model"), probe.get("intent"), probe.get("confidence", 0.0),
+            )
+            if probe.get("intent") == "KNOWLEDGE" and (probe.get("rationale") or "").startswith("Fallback after parse error"):
+                logger.warning("Router self-check produced fallback output — JSON parse failed on primary model. Investigate ROUTER_CHAIN[0]=%s.", ROUTER_CHAIN[0])
+        except Exception:
+            logger.exception("Router self-check failed (non-fatal).")
     except Exception:
         logger.exception("Startup initialization failed.")
 

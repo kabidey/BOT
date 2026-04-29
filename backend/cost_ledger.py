@@ -3,8 +3,8 @@
 Hub AI's response shape (observed Feb 2026):
 {
   "id": "chatcmpl-...",
-  "model": "gpt-4o-mini-2024-07-18",
-  "provider": "openai-shared",
+  "model": "<resolved-model-name>",
+  "provider": "<provider>",
   "choices": [...],
   "usage": {"prompt_tokens": ..., "completion_tokens": ..., "total_tokens": ...},
   "cost": {"input_inr": ..., "output_inr": ..., "cost_inr": ..., "exchange_rate": ...},
