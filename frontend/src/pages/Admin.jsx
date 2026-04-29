@@ -87,10 +87,10 @@ export default function Admin() {
           <div className="smifs-admin-gate-icon" aria-hidden>
             <Lock size={20} strokeWidth={2} />
           </div>
-          <p className="smifs-admin-gate-eyebrow">SMIFS · Admin Console</p>
+          <p className="smifs-admin-gate-eyebrow">Mackertich ONE · Admin Console</p>
           <h1 className="smifs-admin-gate-title">Restricted access</h1>
           <p className="smifs-admin-gate-body">
-            Enter the admin token issued by the SMIFS operations team to continue.
+            Enter the admin token issued by the Mackertich ONE operations team (SMIFS Ltd) to continue.
           </p>
           <input
             type="password"
@@ -129,10 +129,10 @@ export default function Admin() {
 
       <aside className="smifs-admin-side">
         <div className="smifs-admin-brand">
-          <div className="smifs-mono" aria-hidden>S</div>
+          <div className="smifs-mono" aria-hidden>M1</div>
           <div>
-            <p className="smifs-admin-brand-eyebrow">SMIFS · Admin</p>
-            <h1 className="smifs-admin-brand-title">Operations</h1>
+            <p className="smifs-admin-brand-eyebrow">Mackertich ONE · Admin</p>
+            <h1 className="smifs-admin-brand-title">Operations Console</h1>
           </div>
         </div>
         <nav className="smifs-admin-nav">

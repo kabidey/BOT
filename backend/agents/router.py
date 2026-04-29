@@ -176,7 +176,7 @@ TOOL_TO_INTENT: Dict[str, str] = {
 }
 
 ROUTER_SYSTEM_TOOLS = (
-    "You are the intent router for SMIFS Wealth Advisor. "
+    "You are the intent router for the Mackertich ONE Advisor (Mackertich ONE is the wealth-management vertical of SMIFS Ltd). "
     "Read the latest user message and decide which ONE specialist function to call. "
     "If the user expresses interest in investing in a product, prefer capture_lead over answer_from_knowledge_base. "
     "If the user asks about their own portfolio without sharing a code, call lookup_client with no arguments. "
@@ -185,7 +185,7 @@ ROUTER_SYSTEM_TOOLS = (
 
 # Legacy JSON-output classifier prompt — kept as a fallback for cases where the
 # tool-capable model returns no tool_call (rare; mostly bare punctuation).
-ROUTER_SYSTEM_JSON = """You are the intent classifier for SMIFS Wealth Advisor.
+ROUTER_SYSTEM_JSON = """You are the intent classifier for the Mackertich ONE Advisor (Mackertich ONE is the wealth-management vertical of SMIFS Ltd).
 Classify the LATEST user message into EXACTLY ONE of: KNOWLEDGE, MARKET_DATA, CLIENT_LOOKUP, LEAD_CAPTURE, CALLBACK_REQUEST, ESCALATION, SMALL_TALK.
 Respond with ONLY a JSON object: {"intent": "...", "confidence": 0.0-1.0, "rationale": "...", "subject": "..." or null}
 """

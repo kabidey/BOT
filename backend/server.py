@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------- FastAPI ----------------
 app = FastAPI(
-    title="SMIFS Wealth-Engagement Agent",
+    title="Mackertich ONE Advisor",
     description="Phase 2 — Multi-agent orchestrator with rich JSON payloads.",
     version="0.3.0",
     docs_url="/api/docs",
@@ -104,7 +104,7 @@ def require_admin(x_admin_token: str = Header(default="")):
 # ---------------- Routes ----------------
 @api_router.get("/")
 async def root():
-    return {"service": "SMIFS Wealth-Engagement Agent", "phase": 2}
+    return {"service": "Mackertich ONE Advisor", "vertical_of": "SMIFS Ltd", "phase": 7}
 
 
 @api_router.get("/health", response_model=HealthResponse)
@@ -228,6 +228,8 @@ async def submit_lead(req: LeadSubmitRequest):
     doc = {
         "_id": lead_id,
         "lead_id": lead_id,
+        "brand": "Mackertich ONE",
+        "parent_company": "SMIFS Ltd",
         "session_id": req.session_id,
         "form_type": req.form_type,
         "fields": req.fields,
@@ -238,7 +240,7 @@ async def submit_lead(req: LeadSubmitRequest):
     await db.leads.insert_one(doc)
     return LeadSubmitResponse(
         lead_id=lead_id,
-        message="Thank you. A senior advisor will reach out within one business day.",
+        message="Thank you. A Mackertich ONE senior advisor will reach out within one business day.",
     )
 
 

@@ -108,7 +108,7 @@ async def begin_verification(db, session_id: str, identifier: str) -> Dict[str, 
             "blocks": [{
                 "type": "text",
                 "text": (
-                    f"I couldn't find an SMIFS account matching '{identifier}'. "
+                    f"I couldn't find a Mackertich ONE record matching '{identifier}'. "
                     "Please double-check the code or phone, or I can continue helping you as a prospect."
                 ),
             }],
@@ -254,7 +254,7 @@ async def _finalise_verified(db, session_id: str, client: Dict[str, Any]) -> Dic
             {
                 "type": "text",
                 "text": (
-                    f"Thank you, {first} — your identity is verified. "
+                    f"Welcome back, {first} — your Mackertich ONE relationship is verified. "
                     "Here is your account at a glance. How can I help you today?"
                 ),
             },

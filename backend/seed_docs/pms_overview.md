@@ -1,7 +1,7 @@
 # Portfolio Management Services (PMS)
 
 ## Overview
-Portfolio Management Services (PMS) are professional investment management offerings registered with SEBI under the SEBI (Portfolio Managers) Regulations, 2020. A PMS provider manages a tailored portfolio of equity, debt, or hybrid securities on behalf of an individual investor in a segregated demat account. Unlike mutual funds, the investor remains the direct legal owner of every underlying security. SMIFS Management Services Limited partners with select PMS managers across thematic, multi-cap, mid-cap, and concentrated portfolios.
+Portfolio Management Services (PMS) are professional investment management offerings registered with SEBI under the SEBI (Portfolio Managers) Regulations, 2020. A PMS provider manages a tailored portfolio of equity, debt, or hybrid securities on behalf of an individual investor in a segregated demat account. Unlike mutual funds, the investor remains the direct legal owner of every underlying security. **Mackertich ONE**, the wealth-management vertical of SMIFS Ltd, partners with select PMS managers across thematic, multi-cap, mid-cap, and concentrated portfolios.
 
 ## Discretionary vs Non-Discretionary
 SEBI permits two PMS structures:

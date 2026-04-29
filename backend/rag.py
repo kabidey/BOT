@@ -1,4 +1,4 @@
-"""RAG pipeline for SMIFS Wealth-Engagement Agent.
+"""RAG pipeline for Mackertich ONE Advisor (wealth-management vertical of SMIFS Ltd).
 
 - Chunker: splits markdown by H2 sections, then by ~400-token windows with 50-token overlap.
 - Embedder: tries Hub AI /embeddings first; falls back to local sentence-transformers

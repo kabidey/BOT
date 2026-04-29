@@ -13,8 +13,8 @@ const API = `${BACKEND_URL}/api`;
 const STORAGE_KEY = "smifs_session_id";
 
 const SUGGESTIONS = [
+  "Tell me about Mackertich ONE",
   "What is the minimum ticket size for an AIF?",
-  "What's the price of RELIANCE?",
   "I'm interested in investing in NCDs",
 ];
 
@@ -330,10 +330,10 @@ export default function Chat() {
 
       <header className="smifs-header">
         <div className="smifs-brand">
-          <div className="smifs-mono" aria-hidden>S</div>
+          <div className="smifs-mono" aria-hidden>M1</div>
           <div>
-            <h1 className="smifs-title" data-testid="smifs-title">SMIFS Wealth Advisor</h1>
-            <p className="smifs-subtitle">Lead Wealth-Engagement Agent · Phase 2 · Multi-agent</p>
+            <h1 className="smifs-title" data-testid="smifs-title">Mackertich ONE Advisor</h1>
+            <p className="smifs-subtitle">Wealth Management · SMIFS Ltd</p>
           </div>
         </div>
         <div className="smifs-header-right">
@@ -395,7 +395,7 @@ export default function Chat() {
               <p className="smifs-welcome-body">
                 Our multi-agent advisor routes your question to the right specialist —
                 research, market data, your account, or our human team — and grounds every
-                product fact in our internal SMIFS knowledge base.
+                product fact in the Mackertich ONE knowledge base.
               </p>
               <div className="smifs-suggestions">
                 {SUGGESTIONS.map((s, i) => (

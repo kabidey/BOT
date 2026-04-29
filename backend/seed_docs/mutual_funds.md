@@ -1,7 +1,7 @@
 # Mutual Funds
 
 ## Overview
-Mutual Funds are pooled investment vehicles regulated by SEBI under the SEBI (Mutual Funds) Regulations, 1996. An asset management company (AMC) collects capital from numerous investors and deploys it across a diversified portfolio in accordance with a stated investment objective. SMIFS Management Services Limited offers mutual fund advisory and execution across all major AMC platforms with a research-first selection framework.
+Mutual Funds are pooled investment vehicles regulated by SEBI under the SEBI (Mutual Funds) Regulations, 1996. An asset management company (AMC) collects capital from numerous investors and deploys it across a diversified portfolio in accordance with a stated investment objective. **Mackertich ONE**, the wealth-management vertical of SMIFS Ltd, offers mutual fund advisory and execution across all major AMC platforms with a research-first selection framework.
 
 ## Categories
 SEBI's October 2017 categorisation circular standardised mutual funds into the following primary buckets:

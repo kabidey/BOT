@@ -1,7 +1,7 @@
 # Alternative Investment Funds (AIFs)
 
 ## Overview
-Alternative Investment Funds (AIFs) are privately-pooled investment vehicles registered with SEBI under the SEBI (Alternative Investment Funds) Regulations, 2012. AIFs collect capital from sophisticated investors and deploy it into asset classes that fall outside the scope of conventional mutual funds — private equity, venture capital, structured credit, distressed assets, real estate, hedge strategies, and listed market opportunities. SMIFS Management Services Limited curates AIF allocations for high-net-worth and ultra-high-net-worth clients seeking differentiated risk-return profiles.
+Alternative Investment Funds (AIFs) are privately-pooled investment vehicles registered with SEBI under the SEBI (Alternative Investment Funds) Regulations, 2012. AIFs collect capital from sophisticated investors and deploy it into asset classes that fall outside the scope of conventional mutual funds — private equity, venture capital, structured credit, distressed assets, real estate, hedge strategies, and listed market opportunities. **Mackertich ONE**, the wealth-management vertical of SMIFS Ltd, curates AIF allocations for high-net-worth and ultra-high-net-worth clients seeking differentiated risk-return profiles.
 
 ## Categories
 SEBI classifies AIFs into three categories, each with distinct mandates and regulatory treatment:

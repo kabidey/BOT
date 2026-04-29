@@ -7,7 +7,7 @@ export default function ClientCardBlock({ block, msgIdx }) {
     <div className="smifs-client-card" data-testid={`client-card-${msgIdx}`}>
       <div className="smifs-client-head">
         <div>
-          <p className="smifs-client-eyebrow">SMIFS client record</p>
+          <p className="smifs-client-eyebrow">Mackertich ONE client record</p>
           <h3 className="smifs-client-name">{d.name || "Client"}</h3>
           <p className="smifs-client-code">{d.code}</p>
         </div>

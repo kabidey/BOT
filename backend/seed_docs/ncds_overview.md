@@ -1,7 +1,7 @@
 # Non-Convertible Debentures (NCDs)
 
 ## Overview
-Non-Convertible Debentures (NCDs) are fixed-income debt instruments issued by corporates to raise capital from the public. Unlike convertible debentures, NCDs cannot be converted into equity shares of the issuing company. SMIFS Management Services Limited assists eligible investors in evaluating, subscribing to, and managing NCD allocations across primary and secondary markets.
+Non-Convertible Debentures (NCDs) are fixed-income debt instruments issued by corporates to raise capital from the public. Unlike convertible debentures, NCDs cannot be converted into equity shares of the issuing company. **Mackertich ONE**, the wealth-management vertical of SMIFS Ltd, assists eligible investors in evaluating, subscribing to, and managing NCD allocations across primary and secondary markets.
 
 ## Coupon Types
 NCDs typically offer one of three coupon structures:

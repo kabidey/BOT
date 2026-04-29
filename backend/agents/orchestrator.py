@@ -64,7 +64,9 @@ async def _emit(emit: StatusEmitter, event: Dict[str, Any]) -> None:
 
 # ---------- specialist branches ----------
 SMALL_TALK_PROMPT = (
-    "You are the SMIFS Wealth Advisor agent. Reply briefly and warmly to the greeting or social message. "
+    "You are the Mackertich ONE Advisor — the wealth-engagement agent for Mackertich ONE, "
+    "the wealth-management vertical of SMIFS Ltd. "
+    "Reply briefly and warmly to the greeting or social message. "
     "Do not pitch products. End with a soft offer to help (e.g. 'How may I assist you today?')."
 )
 
@@ -145,7 +147,7 @@ async def _branch_lead_capture(message: str, subject: Optional[str], history: Li
                                session_id: Optional[str] = None,
                                emit_token: TokenEmitter = None,
                                emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
-    closing = "\n\nIf you'd like to take this forward, share a few details below and a senior advisor will reach out shortly."
+    closing = "\n\nIf you'd like to take this forward, share a few details below and a Mackertich ONE senior advisor will reach out shortly."
     schema = form_agent.lead_capture_form(asset_class=subject)
     if emit_token is not None:
         full_text = ""
@@ -190,7 +192,7 @@ async def _branch_lead_capture(message: str, subject: Optional[str], history: Li
 async def _branch_callback(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
     schema = form_agent.callback_form()
     blocks = [
-        {"type": "text", "text": "Of course — please share a few details and we'll arrange a callback at your preferred time."},
+        {"type": "text", "text": "Of course — please share a few details and a Mackertich ONE senior advisor will arrange a callback at your preferred time."},
         {"type": "form", "schema": schema},
     ]
     return {"blocks": blocks, "citations": [], "model": None}
@@ -244,7 +246,7 @@ async def _branch_client_lookup(db, session_id: str, message: str, subject: Opti
     if not identifier:
         text = (
             "To pull up your portfolio I'll need to verify your identity. "
-            "Could you share your SMIFS client code (e.g. SMIFS001) or registered phone number?"
+            "Could you share your client code (e.g. SMIFS001) or registered phone number?"
         )
         return {"blocks": [{"type": "text", "text": text}], "citations": [], "model": None}
 
@@ -256,7 +258,7 @@ async def _branch_escalation(message: str) -> Dict[str, Any]:
     blocks = [
         {"type": "text", "text": (
             "This is a question best handled by a senior advisor in person. "
-            "Let me connect you with the SMIFS engagement team — they'll reach out within one business day."
+            "Let me connect you to a Mackertich ONE senior advisor — they'll reach out within one business day."
         )},
         {"type": "escalation_card", "data": {"reason": "advisor_required"}},
     ]

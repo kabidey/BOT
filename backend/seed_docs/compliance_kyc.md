@@ -1,7 +1,7 @@
 # KYC, Compliance, and Onboarding
 
 ## Overview
-SMIFS Management Services Limited adheres to all client onboarding requirements stipulated by SEBI, the Reserve Bank of India, and the Prevention of Money Laundering Act (PMLA), 2002. Every relationship begins with a comprehensive Know Your Customer (KYC) process which is a one-time, market-wide registration honoured across all SEBI-registered intermediaries.
+**Mackertich ONE**, the wealth-management vertical of SMIFS Ltd, adheres to all client onboarding requirements stipulated by SEBI, the Reserve Bank of India, and the Prevention of Money Laundering Act (PMLA), 2002. Every relationship begins with a comprehensive Know Your Customer (KYC) process which is a one-time, market-wide registration honoured across all SEBI-registered intermediaries.
 
 ## Mandatory KYC Documents
 For Indian resident individuals:

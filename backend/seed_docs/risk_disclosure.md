@@ -1,7 +1,7 @@
 # Risk Disclosure Statement
 
 ## General Investment Risk
-Investments in securities markets are subject to market risks. The value of a portfolio can rise or fall depending on factors and forces affecting the capital markets. Past performance does not guarantee or indicate future returns. SMIFS Management Services Limited makes no representation or warranty regarding the future performance of any security, fund, or strategy recommended.
+Investments in securities markets are subject to market risks. The value of a portfolio can rise or fall depending on factors and forces affecting the capital markets. Past performance does not guarantee or indicate future returns. Neither **Mackertich ONE** nor its parent **SMIFS Ltd** makes any representation or warranty regarding the future performance of any security, fund, or strategy recommended.
 
 ## Equity-Specific Risks
 - **Market Risk**: Equity prices fluctuate with broad market sentiment, interest rates, currency movements, and macroeconomic conditions.
@@ -32,4 +32,4 @@ While client assets are held in segregated demat accounts, operational risks at 
 The single greatest risk to long-term wealth creation in our experience is behavioural — selling during drawdowns, chasing performance, and abandoning a sound asset allocation in response to news flow. Our advisory process is structured around a written IPS specifically to reduce the impact of behavioural reactions on the investor's actual return outcomes.
 
 ## Acknowledgement
-By engaging SMIFS Management Services Limited, the client acknowledges receipt of this risk disclosure and confirms that all investment decisions are made with full understanding of these risks. This document does not enumerate every conceivable risk; it is a high-level summary intended to support, not replace, individual due diligence.
+By engaging **Mackertich ONE** (the wealth-management vertical of **SMIFS Ltd**), the client acknowledges receipt of this risk disclosure and confirms that all investment decisions are made with full understanding of these risks. This document does not enumerate every conceivable risk; it is a high-level summary intended to support, not replace, individual due diligence.

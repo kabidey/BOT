@@ -1,7 +1,7 @@
 # IPO and Primary Market Services
 
 ## Overview
-SMIFS Management Services Limited offers a comprehensive primary market desk covering Mainboard IPOs, SME IPOs, Follow-on Public Offers (FPOs), Offer for Sale (OFS), Rights Issues, and public NCD issuances. Our objective is to help clients participate in well-priced primary opportunities while filtering out issues with weak fundamentals or aggressive valuation.
+**Mackertich ONE**, the wealth-management vertical of SMIFS Ltd, offers a comprehensive primary market desk covering Mainboard IPOs, SME IPOs, Follow-on Public Offers (FPOs), Offer for Sale (OFS), Rights Issues, and public NCD issuances. Our objective is to help clients participate in well-priced primary opportunities while filtering out issues with weak fundamentals or aggressive valuation.
 
 ## Mainboard IPOs
 Mainboard IPOs are listings on the BSE Mainboard or NSE Main Platform — typically issuers with paid-up capital above ₹10 crore and a minimum public offer of ₹10 crore. Allocation is governed by SEBI:

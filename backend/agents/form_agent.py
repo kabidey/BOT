@@ -11,14 +11,15 @@ def lead_capture_form(asset_class: Optional[str] = None) -> Dict[str, Any]:
         if len(s) > 1 and s.endswith("S") and not s.endswith("SS"):
             s = s[:-1]
         normalized = s
-    title = "Let's connect you with an advisor"
+    title = "Connect with a Mackertich ONE advisor"
     subtitle = (
-        f"We'll personalise {normalized} options for your goals and respond within one business day."
+        f"We'll personalise {normalized} options for your goals and a senior Mackertich ONE advisor will respond within one business day."
         if normalized
-        else "Share a few details and a senior advisor will reach out within one business day."
+        else "Share a few details and a Mackertich ONE senior advisor will reach out within one business day."
     )
     return {
         "form_type": "lead_capture",
+        "brand": "Mackertich ONE",
         "title": title,
         "subtitle": subtitle,
         "fields": [
@@ -49,8 +50,9 @@ def lead_capture_form(asset_class: Optional[str] = None) -> Dict[str, Any]:
 def callback_form() -> Dict[str, Any]:
     return {
         "form_type": "callback",
-        "title": "Schedule a callback",
-        "subtitle": "A senior advisor will call you at your preferred time.",
+        "brand": "Mackertich ONE",
+        "title": "Request a Mackertich ONE callback",
+        "subtitle": "A senior Mackertich ONE advisor will call you at your preferred time.",
         "fields": [
             {"name": "name", "label": "Full Name", "type": "text", "required": True, "placeholder": "Your name"},
             {
