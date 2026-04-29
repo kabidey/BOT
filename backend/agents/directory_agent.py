@@ -418,6 +418,7 @@ DIRECTORY_TOOLS: List[Dict[str, Any]] = [
                     "on_notice": {"type": "boolean", "description": "Only people currently on notice."},
                     "is_absconding": {"type": "boolean", "description": "Only people flagged absconding."},
                     "reports_to_name": {"type": "string", "description": "Manager name substring."},
+                    "reports_to_email": {"type": "string", "description": "Exact manager work email."},
                     "reports_to_user_id": {"type": "string", "description": "Exact manager user_id."},
                     "hrbp_name": {"type": "string", "description": "HRBP name substring."},
                     "limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "Max results to return (default 10)."},

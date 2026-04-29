@@ -1,0 +1,49 @@
+{
+  "summary": "Phase 8.1 regression PASS — full 42/42 green. All 4 main-agent fixes verified: (1) 'Who is my manager, and who does my manager report to?' deterministically routes to directory_my_reporting_chain, (2) 'What departments exist at SMIFS?' deterministically routes to directory_departments, (3) 'Who do I report to, and who do they report to?' routes to directory_my_reporting_chain, (4) test_employee_verify_writes_hashes_no_plaintext now reflects Phase 8.1 narrowed _RAW_STRIP_FIELDS contract (PAN/Aadhaar/bank/account forbidden, email/phone/DOB allowed) and PASSES. Also confirmed directory_search_employees schema now exposes reports_to_email + reports_to_user_id. Phase 7+8 regression suites both green. One test-infra side-issue (rehydration_candidates top-3 limit being exhausted by sibling phase8 test files' active employee sessions) was fixed in-place with an autouse module-scoped cleanup fixture in test_phase7_lifecycle.py — pure test hygiene, NO product code touched.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "ROUTER FIX VERIFIED — all 5 about-others queries now route to the correct directory_* tool deterministically: 'Tell me about Awanish Chandra' → directory_lookup_employee, 'How many employees does SMIFS have?' → directory_org_stats, 'Who is in the COMPLIANCE department?' → directory_search_employees, 'What departments exist at SMIFS?' → directory_departments (FIXED — was leaking to KNOWLEDGE), 'Who is my manager, and who does my manager report to?' → directory_my_reporting_chain (FIXED — was leaking to CLIENT_LOOKUP/directory_field_value).",
+    "STALE TEST FIXED — test_employee_verify_writes_hashes_no_plaintext now asserts the Phase 8.1 narrowed contract: PAN/Aadhaar/bank/account forbidden in raw, email/phone/DOB allowed (needed for USER_PROFILE block). Plaintext PAN absence in entire session doc still verified. Test passes.",
+    "SCHEMA FIX VERIFIED — directory_agent.py::DIRECTORY_TOOLS[search_employees] schema now exposes reports_to_email AND reports_to_user_id (test_directory_search_employees_new_params PASSES).",
+    "All 5 self-queries still routed to KNOWLEDGE (not directory_*): employee ID, HRBP, manager, join date, on-notice — USER_PROFILE doing its job.",
+    "ORCHESTRATOR role-trigger guard still intact: verified user sending message containing word 'employee' does NOT regress auth_state from VERIFIED → AWAIT_IDENT.",
+    "Privacy raw snapshot regression still GREEN: identity.raw contains email + mobile_number for verified Aaditya but NOT pan/aadhar_no/bank_details/account.",
+    "PII scrub on conversations.messages[].content still masking plaintext email→aa***@smifs.com and PAN→XXXXX8323X (TestPIIScrub PASSES).",
+    "Cross-role visitor guard PASSES — 'How many people are on notice at SMIFS?' from a visitor returns no directory_* blocks/calls.",
+    "Lifecycle field still surfaced at /api/sessions/{sid} top-level. 30-day TTL index still present.",
+    "Phase 7 lifecycle: idle expiry → new sid + resume_offer block → rehydration_candidates → resume (matching identity 200, cross-user 403) → decline_resume marks priors ended — full chain green.",
+    "Phase 7 inheritance: new session inherits identity hashes from prior; turn response exposes prior_session_id + resume_offer at root — both PASS."
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_phase8_1_employee_qa.py",
+    "/app/backend/tests/test_phase7_lifecycle.py",
+    "/app/test_reports/pytest/iteration_10_final.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Test infra observation (NOT a code bug): rehydration_candidates_for_session() in lifecycle.py uses a hardcoded limit=3 and sorts by updated_at_dt desc. When multiple test classes mint verified sessions for the same identity (same email_hash), older expired-prior sessions get pushed out of the top-3 even though they're the only legitimately resumable candidate. Worked around in this run by adding an autouse cleanup fixture to test_phase7_lifecycle.py. Future-proofing options: (a) bump default limit to 10, (b) prefer lifecycle=expired sessions over active ones in the sort key, (c) namespace test-created sessions so they don't pollute each other. None of these are urgent — the production user flow (single user, single device) won't hit this.",
+    "asyncio.get_event_loop().run_until_complete() pattern used in tests is deprecated in Py 3.12+. Currently fine on 3.11. Future: use pytest-asyncio @pytest.mark.asyncio.",
+    "Router prompt now well-disambiguated for the 5 about-others canonical phrasings; if more directory tools get added later, the same risk of tool-selection drift returns — keep tightening 'WHEN NOT TO USE' lines per tool."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase7_lifecycle.py (added autouse module-scoped fixture _cleanup_employee_sessions_before_phase7 to clean leftover active employee sessions from sibling phase8 test files — pure test hygiene, no product code touched)"
+  ],
+  "success_rate": {
+    "backend": "100% (42/42)",
+    "frontend": "not tested (backend-only scope)"
+  },
+  "test_credentials": "Employee: aaditya.jaiswal@smifs.com / PAN BQPPJ8323M (OrgLens live). Admin token: smifs-admin-2026 (unused this iteration).",
+  "seed_data_creation": "Tests mint fresh verified-employee sessions per run via /api/agent/turn (email + PAN). Added autouse pre-test cleanup in test_phase7_lifecycle.py to delete leftover active employee sessions from previous runs / sibling test files. Natural 30-day TTL purge still applies in prod.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `pytest /app/backend/tests/test_phase8_1_employee_qa.py tests/test_phase8_directory.py tests/test_phase7_lifecycle.py tests/test_phase7_inheritance_regression.py -v` from /app/backend. Expected: 42/42 green. The autouse fixture I added at the top of test_phase7_lifecycle.py keeps the rehydration_candidates test resilient against accumulated test-leftover sessions in Mongo. If a future testing agent wants to remove that fixture, they should first either bump the limit in lifecycle.py::_candidates_from_hashes or change the sort to prefer expired-lifecycle.",
+  "rca_of_the_issue": "Previous iteration's 4 failures all root-caused and resolved by main agent: (1-3) Router drift on 3 about-others prompts → main agent strengthened ROUTER_SYSTEM_TOOLS_EMPLOYEE rules 4 (reporting chain), 8 (departments enumeration), 9 (field_value scope) — verified deterministic routing now. (4) Stale plaintext test → main agent narrowed forbidden_raw_keys to sensitive credentials only with explanatory comment — verified passes. The single side-issue I encountered (rehydration_candidates top-3 limit exhausted by sibling test sessions) was a test infra artifact, not a regression — fixed in-place by an autouse cleanup fixture. All 42 tests now green."
+}

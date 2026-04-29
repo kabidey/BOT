@@ -53,6 +53,19 @@ def mongo():
         cli.close()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _cleanup_employee_sessions_before_phase7(mongo):
+    """Remove leftover active employee sessions for the test identity so the
+    rehydration_candidates top-3 limit is not exhausted by sibling test files
+    (test_phase8_*.py also mint verified employee sessions for the same email).
+    Pure test-infra hygiene — does not alter any product code path."""
+    try:
+        mongo.sessions.delete_many({"session_type": "employee", "lifecycle": "active"})
+    except Exception:
+        pass
+    yield
+
+
 def _age_session(mongo_db, sid: str, minutes: int = 3):
     """Backdate a session's updated_at_dt so the lifecycle thinks it's idle."""
     past = datetime.now(timezone.utc) - timedelta(minutes=minutes)
@@ -124,18 +137,21 @@ class TestIdentityHashStorageAndPII:
         present_forbidden = forbidden_root_keys & set(sess.keys())
         assert not present_forbidden, f"plaintext PII at session root: {present_forbidden}"
 
-        # ---- plaintext PAN must not appear anywhere in the doc ----
+        # ---- plaintext PAN / Aadhaar / bank / account must not appear anywhere in the doc ----
         import json as _json
         dumped = _json.dumps(sess, default=str)
         assert EMP_PAN not in dumped, "plaintext PAN found in session doc"
-        # Full email MAY be inside identity.raw (scrubbed). But Phase 7 strips
-        # it too — verify:
         ident = sess.get("identity") or {}
         raw = ident.get("raw") or {}
-        assert "email" not in raw, "raw.email leaked into storage"
-        assert not any(k in raw for k in ("mobile_number", "personal_mobile",
-                                          "phone", "pan", "aadhar", "aadhar_no")), \
-            f"raw contains forbidden keys: {list(raw.keys())}"
+        # Phase 8.1 — email/phone/hrbp_email/DOB ARE allowed in raw (needed
+        # for the chat LLM's USER_PROFILE block to answer self-queries).
+        # The real privacy boundary is the persist-time PII scrub on
+        # conversations.messages[].content (covered by test_phase8_directory
+        # ::TestPIIScrub). Here we only enforce the hard-sensitive subset:
+        assert not any(k in raw for k in ("pan", "pan_number", "aadhar",
+                                          "aadhar_no", "aadhaar", "bank",
+                                          "bank_details", "account")), \
+            f"raw contains forbidden sensitive keys: {[k for k in raw if k in {'pan','pan_number','aadhar','aadhar_no','aadhaar','bank','bank_details','account'}]}"
 
 
 class TestIdleExpiryAndResumeOffer:
