@@ -1222,3 +1222,49 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 .smifs-admin-btn-ghost:hover { color: var(--gold); border-color: var(--gold-deep); }
 .spin { animation: smifs-spin 1s linear infinite; }
 @keyframes smifs-spin { to { transform: rotate(360deg); } }
+
+/* Phase 7 — Richer card styling */
+.smifs-emp-sub-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 4px;
+}
+.smifs-emp-status {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
+}
+.smifs-emp-status--ok {
+  background: rgba(116, 198, 157, 0.12); color: #74c69d;
+  border: 1px solid rgba(116, 198, 157, 0.28);
+}
+.smifs-emp-status--warn {
+  background: rgba(232, 178, 92, 0.12); color: #e8b25c;
+  border: 1px solid rgba(232, 178, 92, 0.28);
+}
+.smifs-emp-status--off {
+  background: rgba(224, 122, 110, 0.12); color: var(--danger);
+  border: 1px solid rgba(224, 122, 110, 0.30);
+}
+.smifs-emp-tenure {
+  color: var(--ink-muted); font-size: 11px; font-weight: 400;
+}
+.smifs-rm-contact {
+  display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px;
+}
+.smifs-rm-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--gold);
+  text-decoration: none; padding: 3px 8px;
+  border: 1px solid rgba(201,168,106,0.30);
+  border-radius: 999px;
+  transition: background 120ms ease, color 120ms ease;
+}
+.smifs-rm-link:hover { background: rgba(201,168,106,0.08); color: var(--gold-soft); }
+.smifs-client-segments-row { grid-column: 1 / -1; }
+.smifs-seg-chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.smifs-seg-chip {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+  background: rgba(201, 168, 106, 0.08); color: var(--gold);
+  border: 1px solid rgba(201,168,106,0.22);
+}

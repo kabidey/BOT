@@ -481,26 +481,30 @@ async def _finalise_verified(db, session_id: str, session_type: str,
 
 def _employee_verified_payload(emp: Dict[str, Any]) -> Dict[str, Any]:
     first = emp.get("first_name") or "there"
+    # Build a richer 1-line context fragment for the deterministic welcome.
+    role = emp.get("designation")
+    dept = emp.get("department")
+    role_clause = ""
+    if role and dept:
+        role_clause = f"as a {role} in {dept}"
+    elif role:
+        role_clause = f"as {role}"
+    elif dept:
+        role_clause = f"with the {dept} team"
+    rt = emp.get("reports_to_name")
+    rt_clause = f", reporting to {rt}" if rt else ""
+    welcome = (
+        f"Welcome, {first}. You're verified {role_clause}{rt_clause}. "
+        "Happy to help with internal product specifics, KB queries, or anything else. "
+        "How can I help today?"
+    ).replace("verified .", "verified.")
+    # Strip the bulky `raw` blob before shipping the card to the FE
+    card_data = {k: v for k, v in emp.items() if k != "raw"}
+    card_data["verified"] = True
     return {
         "blocks": [
-            {"type": "text", "text": (
-                f"Welcome, {first}. You're verified as an SMIFS employee — "
-                f"happy to assist with internal product specifics or anything from the KB. "
-                "How can I help you today?"
-            )},
-            {"type": "employee_card", "data": {
-                "employee_id": emp.get("employee_id"),
-                "name": emp.get("name"),
-                "first_name": first,
-                "designation": emp.get("designation"),
-                "department": emp.get("department"),
-                "location": emp.get("location"),
-                "employment_status": emp.get("employment_status"),
-                "company": emp.get("company"),
-                "business_unit": emp.get("business_unit"),
-                "reports_to_name": emp.get("reports_to_name"),
-                "verified": True,
-            }},
+            {"type": "text", "text": welcome},
+            {"type": "employee_card", "data": card_data},
         ],
         "citations": [], "model": None,
         "intent_hint": "AUTH_VERIFIED",
@@ -510,25 +514,22 @@ def _employee_verified_payload(emp: Dict[str, Any]) -> Dict[str, Any]:
 def _client_verified_payload(cli: Dict[str, Any]) -> Dict[str, Any]:
     first = cli.get("first_name") or "valued investor"
     rm = cli.get("rm_name") or "your relationship manager"
+    risk = cli.get("risk_profile")
+    branch = cli.get("branch_name")
+    seg_yes = [k.upper() for k, v in (cli.get("segments") or {}).items() if v == "Yes"]
+    seg_clause = f"{' + '.join(seg_yes[:3])} active" if seg_yes else "your account is active"
+    risk_clause = f"{risk.lower()} profile" if risk else "your profile"
+    rm_clause = f"with {rm}" + (f" at {branch}" if branch else "")
+    welcome = (
+        f"Welcome back, {first}. Your Mackertich ONE relationship is verified — "
+        f"{risk_clause}, {rm_clause}, {seg_clause}. How can I help today?"
+    )
+    card_data = {k: v for k, v in cli.items() if k != "raw"}
+    card_data["verified"] = True
     return {
         "blocks": [
-            {"type": "text", "text": (
-                f"Welcome back, {first}. Your Mackertich ONE relationship is verified. "
-                f"Your relationship manager is {rm}. How can I help you today?"
-            )},
-            {"type": "client_card", "data": {
-                "ucc": cli.get("ucc"),
-                "first_name": first,
-                "branch_name": cli.get("branch_name"),
-                "rm_name": rm,
-                "rm_code": cli.get("rm_code"),
-                "risk_profile": cli.get("risk_profile"),
-                "status": cli.get("status"),
-                "city": cli.get("city"),
-                "state": cli.get("state"),
-                "segments": cli.get("segments") or {},
-                "verified": True,
-            }},
+            {"type": "text", "text": welcome},
+            {"type": "client_card", "data": card_data},
         ],
         "citations": [], "model": None,
         "intent_hint": "AUTH_VERIFIED",
