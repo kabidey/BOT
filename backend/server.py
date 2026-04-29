@@ -345,14 +345,27 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     try:
-        # 1. RAG ingestion
+        # 0. Decide which embedder backend is active for THIS process
+        active = await rag.detect_active_embedder()
+        # 1. RAG ingestion — drop+rebuild if the persisted vectors have a different
+        # dimensionality than the active embedder will produce (e.g. 384-dim local
+        # vs 1536-dim Hub). Querying mismatched dims would silently return garbage.
         existing = await db.doc_chunks.count_documents({})
         if existing == 0:
-            logger.info("doc_chunks empty — running seed ingestion.")
+            logger.info("doc_chunks empty — running seed ingestion (embedder=%s).", active)
             res = await rag.reingest(db)
             logger.info("Startup ingestion complete: %s", res)
         else:
-            await rag.ensure_index_loaded(db)
+            persisted = await rag.persisted_dim(db)
+            expected = 1536 if active == "hub_ai" else 384
+            if persisted and persisted != expected:
+                logger.warning("Embedding dim mismatch (persisted=%d, expected=%d for %s) — wiping and re-ingesting.",
+                               persisted, expected, active)
+                await db.doc_chunks.delete_many({})
+                res = await rag.reingest(db)
+                logger.info("Re-ingestion after dim mismatch: %s", res)
+            else:
+                await rag.ensure_index_loaded(db)
         # 2. Mock data seeding (idempotent)
         await mocks.seed_if_empty(db)
         # 3. TTL indexes (Phase 4) — work on real ISODate fields (created_at_dt / updated_at_dt)

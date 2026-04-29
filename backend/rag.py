@@ -33,6 +33,8 @@ CHUNK_CHAR_OVERLAP = APPROX_OVERLAP_TOKENS * CHARS_PER_TOKEN
 
 LLMHUB_API_KEY = os.environ.get("LLMHUB_API_KEY", "")
 LLMHUB_BASE_URL = os.environ.get("LLMHUB_BASE_URL", "").rstrip("/")
+HUB_EMBED_MODEL = os.environ.get("HUB_EMBED_MODEL", "text-embedding-3-small")
+HUB_EMBED_BATCH = int(os.environ.get("HUB_EMBED_BATCH", "32"))
 
 # Module-level state populated by ingest()
 EMBEDDER_KIND: Optional[str] = None  # "hub_ai" or "local"
@@ -44,26 +46,33 @@ _index_meta: List[Dict[str, Any]] = []  # parallel list of {doc_title, section, 
 
 # ---------------------- Embedder ----------------------
 async def _try_hub_ai_embed(texts: List[str]) -> Optional[np.ndarray]:
-    """Try Hub AI /embeddings. Returns float32 array (N, dim) or None if unavailable."""
+    """Try Hub AI /embeddings. Returns float32 array (N, dim) or None if unavailable.
+    Sends in batches of HUB_EMBED_BATCH to keep payloads modest."""
     if not LLMHUB_API_KEY or not LLMHUB_BASE_URL:
         return None
     url = f"{LLMHUB_BASE_URL}/embeddings"
-    payload = {"model": "auto", "input": texts}
+    headers = {
+        "Authorization": f"Bearer {LLMHUB_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    out_vecs: List[List[float]] = []
     try:
-        async with httpx.AsyncClient(timeout=30.0) as http:
-            resp = await http.post(
-                url,
-                headers={
-                    "Authorization": f"Bearer {LLMHUB_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-            vecs = [item["embedding"] for item in data["data"]]
-            return np.asarray(vecs, dtype=np.float32)
+        async with httpx.AsyncClient(timeout=60.0) as http:
+            for start in range(0, len(texts), HUB_EMBED_BATCH):
+                batch = texts[start:start + HUB_EMBED_BATCH]
+                payload = {"model": HUB_EMBED_MODEL, "input": batch}
+                resp = await http.post(url, headers=headers, json=payload)
+                if resp.status_code != 200:
+                    logger.warning("Hub AI embeddings non-200: %s — %s", resp.status_code, resp.text[:200])
+                    return None
+                data = resp.json()
+                items = data.get("data") or []
+                if len(items) != len(batch):
+                    logger.warning("Hub AI embeddings batch size mismatch: %d != %d", len(items), len(batch))
+                    return None
+                for item in items:
+                    out_vecs.append(item["embedding"])
+        return np.asarray(out_vecs, dtype=np.float32)
     except Exception as e:
         logger.warning("Hub AI embeddings probe failed: %s", e)
         return None
@@ -230,11 +239,29 @@ async def ensure_index_loaded(db) -> int:
             return 0
         _index_matrix = mat
         _index_meta = meta
-        # Embedding dim 384 = local MiniLM; 1536+ would be hub_ai. Heuristic for status display.
+        # Embedding dim 384 = local MiniLM; >= 768 (1536 for OpenAI text-embedding-3-small) = hub_ai.
         if EMBEDDER_KIND is None:
             EMBEDDER_KIND = "local" if mat.shape[1] == 384 else "hub_ai"
-        logger.info("RAG index loaded: %d chunks (embedder=%s)", len(meta), EMBEDDER_KIND)
+        logger.info("RAG index loaded: %d chunks (embedder=%s, dim=%d)", len(meta), EMBEDDER_KIND, mat.shape[1])
         return len(meta)
+
+
+async def detect_active_embedder() -> str:
+    """Probe Hub AI /embeddings once to decide which backend will be used for future encodes.
+    Sets EMBEDDER_KIND. Returns the kind ('hub_ai' or 'local')."""
+    global EMBEDDER_KIND
+    probe = await _try_hub_ai_embed(["probe"])
+    EMBEDDER_KIND = "hub_ai" if probe is not None else "local"
+    logger.info("Active embedder selected: %s", EMBEDDER_KIND)
+    return EMBEDDER_KIND
+
+
+async def persisted_dim(db) -> Optional[int]:
+    """Inspect one persisted chunk to learn the embedding dim already on disk, if any."""
+    row = await db.doc_chunks.find_one({}, {"embedding": 1})
+    if not row or "embedding" not in row:
+        return None
+    return len(row["embedding"])
 
 
 async def reingest(db) -> Dict[str, Any]:

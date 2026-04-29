@@ -1,68 +1,72 @@
-# Hub AI Capabilities (probed Apr 2026)
+# Hub AI Capabilities (re-probed Apr 2026)
 
 Base URL: `https://ai.superclue.io/api/v1`
 Auth: `Authorization: Bearer <LLMHUB_API_KEY>`
 
-## ✅ Confirmed working
+## ✅ Confirmed working (current re-probe)
 
-### `GET /models` — model catalog
-39 models across 9 providers. Notable additions vs the older catalog:
+### `POST /embeddings` ✅ NEW
+Live as of this re-probe. Returns OpenAI-compatible response shape.
 
-| provider | models |
-|---|---|
-| openai | gpt-4o, gpt-4o-mini, gpt-4-turbo, **gpt-4.1, gpt-4.1-mini, gpt-4.1-nano**, **o1, o1-mini, o1-pro, o3, o3-mini, o4-mini**, gpt-3.5-turbo, dall-e-3, dall-e-2, gpt-image-1, sora-2, sora-2-pro |
-| anthropic | claude-sonnet-4-20250514, **claude-sonnet-4-6-20260205**, claude-haiku-4-5-20251001, claude-opus-4-20250514, **claude-opus-4-6-20260205**, claude-3-5-sonnet-20241022 |
-| groq | **llama-3.3-70b-versatile**, llama-3.1-8b-instant, llama-3.1-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it |
-| local | gemma-4-e4b, qwen2.5-coder-14b, deepseek-coder-v2-lite-16b, deepseek-r1-distill-qwen-14b |
-| deepseek | deepseek-chat, deepseek-reasoner |
+| Model | Dim | Pricing (USD / 1M input tokens) |
+|---|---|---|
+| `text-embedding-3-small` | **1536** | **$0.02** ← best price/quality |
+| `text-embedding-3-large` | 3072 | $0.13 |
+| `text-embedding-ada-002` | 1536 | $0.10 (legacy) |
+| `auto` | 1536 (resolves to text-embedding-3-small) | varies |
 
-Each model includes `pricing` (per-1M-token USD).
-
-### Streaming via `stream: true` ✅
-Returns `text/event-stream` SSE frames. Verified curl:
+Verified curl:
 ```bash
-curl -N -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"model":"auto","stream":true,"max_tokens":40,"messages":[{"role":"user","content":"Say hi"}]}' \
-  "$BASE/chat/completions"
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"input":["text 1","text 2"],"model":"text-embedding-3-small"}' \
+  "$BASE/embeddings"
+# returns: {object,data:[{embedding:[1536 floats]}, ...], model, usage:{prompt_tokens,total_tokens}, cost, balance_inr, latency_ms}
 ```
-Response shape per frame:
+
+### Streaming `stream: true` ✅ (unchanged)
+SSE `text/event-stream`, no `[DONE]` sentinel — TCP closes after final chunk.
+
+### `context_chunks` (native RAG injection) ✅ (unchanged)
+Hub natively merges chunks into context with metadata preserved.
+
+### `response_format: {"type":"json_object"}` ✅ (unchanged)
+Honored across models including local gemma.
+
+### Native function-calling / `tools` ✅ NEW (with caveat)
+**Works perfectly when a tool-capable model is named explicitly.** Verified return shape:
+```json
+{
+  "model": "llama-3.3-70b-versatile",
+  "choices": [{
+    "finish_reason": "tool_calls",
+    "message": {
+      "content": "",
+      "tool_calls": [{"type":"function","function":{"name":"fetch_market_data","arguments":"{\"symbol\":\"RELIANCE\"}"}}]
+    }
+  }]
+}
 ```
-data: {"id":"chatcmpl-…","object":"chat.completion.chunk","model":"gemma-4-e4b","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
-```
-**No** terminating `data: [DONE]` sentinel — stream just closes when finish_reason flips to non-null.
+Confirmed-working models for tool-calling:
+- `llama-3.3-70b-versatile` (groq) ← chosen as router primary (cheap, fast, native tools)
+- `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o-mini` (openai)
+- `claude-haiku-4-5-20251001` (anthropic — `finish_reason: "tool_use"`, but Hub normalises into the same `tool_calls` shape)
 
-### `context_chunks` (native RAG injection) ✅
-Hub accepts a `context_chunks` array alongside `messages`. The chunks are silently merged into the model's context with associated metadata (`source`, `title`, `id`, `section` are all preserved — the model can name the source on demand). Compatible with `stream: true`.
-```bash
-curl -X POST … -d '{
-  "model":"auto",
-  "messages":[{"role":"user","content":"What is the AIF minimum?"}],
-  "context_chunks":[
-    {"text":"SEBI mandates Rs 1 crore per investor across all AIF categories.",
-     "source":"aif_overview","section":"Minimum Ticket Size","id":"chunk-42"}
-  ]
-}'
-```
-Verified: prompt_tokens jump from 13 → 79+ when chunks attached; the model answers using ONLY chunk content. **Field aliases tested:** `chunks` and `documents` are silently ignored (no token bump). Only `context_chunks` is honored.
+**Does NOT work:**
+- `model:"auto"` → silently routes to `gemma-4-e4b`, which emits raw chat-template tokens like `<|tool_call>call:fetch_market_data{symbol:RELIANCE}<tool_call|>` instead of a parsed `tool_calls` array.
+- `claude-3-5-sonnet-20241022` was rerouted to gemma in our probe (provider quota?), producing the same broken tokens.
 
-### `response_format: {"type":"json_object"}` ✅
-Honored by all `auto`-routed models including local gemma. Used by the router for strict JSON output.
+**Implication:** tool-calling REQUIRES naming a tool-capable model directly. Don't use `auto` when sending `tools`.
 
-## ❌ Not supported (probed, returned 404 or silently ignored)
+## ❌ Still not supported
 
-| Probe | Result |
-|---|---|
-| `GET /openapi.json`, `GET /docs`, `GET /` | 404 — no public spec |
-| `GET/POST /embeddings` | 404 — embeddings endpoint not live. Stay on local `sentence-transformers/all-MiniLM-L6-v2`. |
-| `routing_hint: "fast"\|"quality"\|"cheap"` | Silently ignored — `auto` always landed on `gemma-4-e4b` regardless of hint. The `"routing"` field in responses comes back as empty string. |
-| `task_type: "classification"\|"chat"\|"rag"` | Silently ignored. |
-| `quality: "high"` | Silently ignored. |
-| `tools: [{type:"function",…}]` | 200 OK, but the model never emits a `tool_calls` array — it just narrates. Function-calling is not actually wired through `auto`. Could revisit per-model (e.g. force `gpt-4o-mini`) if we ever need real tools. |
-| `POST /route`, `/router`, `/classify`, `/intent` | 404 — no separate intent-classification endpoint. Continue using LLM-as-classifier via `/chat/completions` with `response_format: json_object`. |
+### Routing hints — silently ignored
+Tested 15 candidate fields against `model:"auto"` with `"hi"`:
+- `routing_hint`, `task`, `task_type`, `quality`, `priority`, `tier`, `cost_preference`, `route`, `meta.routing_hint`
+- All produced identical resolved model (`gemma-4-e4b`).
 
-## Decisions for SMIFS Wealth Agent
+The new response field `routing` (e.g. `"auto:local/gemma-4-e4b"`) is **prompt-content driven**, not hint driven. Probing 5 different prompt complexities only reroutes between local models (`gemma-4-e4b` vs `deepseek-coder-v2-lite-16b`); never to paid OpenAI/Anthropic. The "intelligent prompt routing engine" is real but **it routes by analysing the prompt, not by client hints.**
 
-- **Integrate `stream: true`** end-to-end so the chat UI types out tokens progressively.
-- **Integrate `context_chunks`** for the RAG agent — replaces our system-prompt KB block. Quality regression-tested below.
-- **Skip routing hints, embeddings, tools** — not wired through the router yet; revisit when Hub publishes a docs/spec.
-- **No `gpt-4o-mini`** in chains; keep `auto` as primary, `llama-3.3-70b-versatile` and `gemma-4-E4B` as cost-controlled fallbacks.
+**Workaround for differentiation between router-task and chat-task models:** name the model directly per task (router → `llama-3.3-70b-versatile` for native tool calling; chat → `auto` so Hub picks the free local model for cost). This produces the requested `by_model` differentiation in the cost ledger without any client-side hint.
+
+### `GET /openapi.json`, `/docs`, `/` | 404 (unchanged)
+### `POST /route`, `/classify`, `/intent` | 404 (unchanged)
