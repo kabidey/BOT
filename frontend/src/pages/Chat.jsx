@@ -99,12 +99,46 @@ export default function Chat() {
   const sendStreaming = useCallback(async (text) => {
     setErrorMsg("");
     setActiveCitation(null);
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    // Push the user message AND a placeholder assistant turn that will receive streamed tokens.
+    const turnId = `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setMessages((prev) => [...prev, { role: "user", content: text }, {
+      role: "assistant",
+      blocks: [{ type: "text", text: "", grounded: false }],
+      citations: [],
+      streaming: true,
+      turnId,
+    }]);
     setStreaming(true);
     setStatusLabel("Routing your question…");
 
     const controller = new AbortController();
     abortRef.current = controller;
+
+    const updateStreamingTurn = (mutator) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.turnId === turnId);
+        if (idx === -1) return prev;
+        const copy = prev.slice();
+        copy[idx] = mutator(copy[idx]);
+        return copy;
+      });
+    };
+
+    const appendStreamingToken = (token) => {
+      updateStreamingTurn((target) => {
+        if (!target.streaming) return target;
+        const blocks = target.blocks.slice();
+        const firstText = blocks.findIndex((b) => b.type === "text");
+        const i = firstText === -1 ? 0 : firstText;
+        const existing = blocks[i]?.text || "";
+        blocks[i] = { ...(blocks[i] || { type: "text" }), text: existing + token };
+        return { ...target, blocks };
+      });
+    };
+
+    const setStreamingCitations = (cits) => {
+      updateStreamingTurn((target) => target.streaming ? { ...target, citations: cits } : target);
+    };
 
     try {
       const resp = await fetch(`${API}/agent/turn/stream`, {
@@ -145,6 +179,10 @@ export default function Chat() {
           }
           if (eventName === "status") {
             if (data?.label) setStatusLabel(`${data.label}…`);
+          } else if (eventName === "token") {
+            if (data?.text) appendStreamingToken(data.text);
+          } else if (eventName === "citations") {
+            if (Array.isArray(data)) setStreamingCitations(data);
           } else if (eventName === "result") {
             finalResult = data;
           } else if (eventName === "error") {
@@ -170,23 +208,38 @@ export default function Chat() {
           }
         } catch (_) { /* non-fatal */ }
       }
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        blocks: finalResult.blocks || [],
-        citations: finalResult.citations || [],
-        intent: finalResult.intent,
-        model: finalResult.model,
-        trace: finalResult.trace,
-      }]);
+      // Replace the streaming placeholder with the authoritative final payload.
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.turnId === turnId);
+        if (idx === -1) return prev;
+        const copy = prev.slice();
+        copy[idx] = {
+          role: "assistant",
+          blocks: finalResult.blocks || [],
+          citations: finalResult.citations || [],
+          intent: finalResult.intent,
+          model: finalResult.model,
+          trace: finalResult.trace,
+        };
+        return copy;
+      });
     } catch (e) {
       if (e.name === "AbortError") return;
       const detail = e.message || "Unknown error";
       setErrorMsg(detail);
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        error: true,
-        blocks: [{ type: "text", text: "I'm momentarily unable to reach the advisory engine. Please try again shortly." }],
-      }]);
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.turnId === turnId);
+        if (idx === -1) return [...prev, {
+          role: "assistant", error: true,
+          blocks: [{ type: "text", text: "I'm momentarily unable to reach the advisory engine. Please try again shortly." }],
+        }];
+        const copy = prev.slice();
+        copy[idx] = {
+          role: "assistant", error: true,
+          blocks: [{ type: "text", text: "I'm momentarily unable to reach the advisory engine. Please try again shortly." }],
+        };
+        return copy;
+      });
     } finally {
       setStreaming(false);
       setStatusLabel("");
@@ -370,10 +423,13 @@ export default function Chat() {
               );
             }
             // assistant
+            const isStreamingTurn = !!m.streaming;
+            const firstTextBlock = (m.blocks || []).find((b) => b.type === "text");
+            const hasStreamedText = isStreamingTurn && !!(firstTextBlock?.text);
             return (
               <div
                 key={i}
-                className={`smifs-msg smifs-msg--bot ${m.error ? "smifs-msg--error" : ""}`}
+                className={`smifs-msg smifs-msg--bot ${m.error ? "smifs-msg--error" : ""} ${isStreamingTurn ? "smifs-msg--streaming" : ""}`}
                 data-testid={`msg-assistant-${i}`}
                 data-intent={m.intent || ""}
               >
@@ -381,24 +437,25 @@ export default function Chat() {
                   Advisor
                   {m.intent ? <span className="smifs-msg-intent" data-testid={`msg-intent-${i}`}> · {m.intent.replace(/_/g, " ").toLowerCase()}</span> : null}
                   {m.model ? <span className="smifs-msg-model"> · {m.model}</span> : null}
+                  {isStreamingTurn ? <span className="smifs-msg-model" data-testid="streaming-tag"> · streaming</span> : null}
                 </div>
-                <div className="smifs-blocks">
-                  {(m.blocks || []).map((b, bi) => renderBlock(b, bi, i, m))}
-                </div>
+                {isStreamingTurn && !hasStreamedText ? (
+                  <div className="smifs-msg-bubble smifs-streaming" data-testid={`streaming-spinner-${i}`}>
+                    <Sparkles size={13} strokeWidth={2.25} />
+                    <span className="smifs-streaming-label" data-testid="streaming-label">{statusLabel || "Thinking…"}</span>
+                    <span className="smifs-streaming-dots"><span /><span /><span /></span>
+                  </div>
+                ) : (
+                  <div className="smifs-blocks">
+                    {(m.blocks || []).map((b, bi) => renderBlock(b, bi, i, m))}
+                    {hasStreamedText && (
+                      <span className="smifs-caret" aria-hidden data-testid="streaming-caret" />
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
-
-          {streaming && (
-            <div className="smifs-msg smifs-msg--bot" data-testid="streaming-status">
-              <div className="smifs-msg-meta">Advisor</div>
-              <div className="smifs-msg-bubble smifs-streaming">
-                <Sparkles size={13} strokeWidth={2.25} />
-                <span className="smifs-streaming-label" data-testid="streaming-label">{statusLabel || "Thinking…"}</span>
-                <span className="smifs-streaming-dots"><span /><span /><span /></span>
-              </div>
-            </div>
-          )}
         </div>
 
         {errorMsg && (

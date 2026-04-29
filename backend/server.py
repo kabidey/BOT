@@ -162,15 +162,25 @@ async def agent_turn(req: TurnRequest):
 
 @api_router.post("/agent/turn/stream")
 async def agent_turn_stream(req: TurnRequest, request: Request):
-    """Server-Sent Events stream of router → specialist status events, then final result."""
+    """Server-Sent Events stream of router → specialist status events,
+    plus live token frames during LLM generation, then the final result."""
     queue: asyncio.Queue = asyncio.Queue()
 
-    async def emit(event: Dict[str, Any]) -> None:
+    async def emit_status(event: Dict[str, Any]) -> None:
         await queue.put(("status", event))
+
+    async def emit_token(token: str) -> None:
+        await queue.put(("token", {"text": token}))
+
+    async def emit_citations(citations: List[Dict[str, Any]]) -> None:
+        await queue.put(("citations", citations))
 
     async def runner():
         try:
-            payload = await orchestrator.run_turn(db, req.session_id, req.message, emit_status=emit)
+            payload = await orchestrator.run_turn(
+                db, req.session_id, req.message,
+                emit_status=emit_status, emit_token=emit_token, emit_citations=emit_citations,
+            )
             await queue.put(("result", payload))
         except httpx.HTTPStatusError as e:
             body = e.response.text if e.response is not None else ""

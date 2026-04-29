@@ -10,6 +10,10 @@ Per-turn flow:
   3. Otherwise: Router → specialist branch
   4. Inject CLIENT_CONTEXT into LLM-using branches when session is verified
   5. Persist assistant turn (blocks + intent + citations)
+
+Phase 6 (Apr 2026): when the caller provides `emit_token`, the LLM-emitting
+branches (KNOWLEDGE / LEAD_CAPTURE / SMALL_TALK) stream Hub AI tokens through
+the callback while still returning the same final structured payload.
 """
 from __future__ import annotations
 import logging
@@ -17,13 +21,15 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from .llm import call_with_fallback, extract_reply
+from .llm import call_with_fallback, extract_reply, stream_chat_with_fallback
 from . import api_agent, auth_agent, form_agent, rag_agent
 from .router import classify
 
 logger = logging.getLogger(__name__)
 
 StatusEmitter = Optional[Callable[[Dict[str, Any]], Awaitable[None]]]
+TokenEmitter = Optional[Callable[[str], Awaitable[None]]]
+CitationsEmitter = Optional[Callable[[List[Dict[str, Any]]], Awaitable[None]]]
 
 
 # ---------- helpers ----------
@@ -70,39 +76,115 @@ def _maybe_inject_context(system_prompt: str, client_ctx: Optional[Dict[str, Any
 
 
 async def _branch_small_talk(message: str, history: List[Dict[str, Any]],
-                             client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+                             client_ctx: Optional[Dict[str, Any]],
+                             emit_token: TokenEmitter = None) -> Dict[str, Any]:
     msgs = [{"role": "system", "content": _maybe_inject_context(SMALL_TALK_PROMPT, client_ctx)}]
     msgs += [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
     msgs.append({"role": "user", "content": message})
-    result = await call_with_fallback(msgs, task="chat", temperature=0.5, max_tokens=200)
+    if emit_token is not None:
+        full_text = ""
+        model: Optional[str] = None
+        try:
+            async for ev, data in stream_chat_with_fallback(
+                msgs, temperature=0.5, max_tokens=200, intent="SMALL_TALK",
+            ):
+                if ev == "token":
+                    full_text += data
+                    await emit_token(data)
+                elif ev == "done":
+                    full_text = data.get("reply_text", full_text) or full_text
+                    model = data.get("model")
+            return {"blocks": [{"type": "text", "text": full_text}], "citations": [], "model": model}
+        except Exception as e:
+            logger.warning("Small-talk stream failed (%s); falling back to non-streaming.", e)
+    result = await call_with_fallback(msgs, task="chat", temperature=0.5, max_tokens=200, intent="SMALL_TALK")
+    text = extract_reply(result["data"])
+    if emit_token is not None:
+        await emit_token(text)
     return {
-        "blocks": [{"type": "text", "text": extract_reply(result["data"])}],
+        "blocks": [{"type": "text", "text": text}],
         "citations": [],
         "model": result["data"].get("model") or result["model"],
     }
 
 
 async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
-                            client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    out = await rag_agent.answer(message, history, client_context=client_ctx)
-    blocks: List[Dict[str, Any]] = [{
-        "type": "text",
-        "text": out["reply_text"],
-        "grounded": out["grounded"],
-    }]
+                            client_ctx: Optional[Dict[str, Any]],
+                            session_id: Optional[str] = None,
+                            emit_token: TokenEmitter = None,
+                            emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
+    if emit_token is not None:
+        full_text = ""
+        citations: List[Dict[str, Any]] = []
+        grounded = False
+        model: Optional[str] = None
+        async for ev, data in rag_agent.stream_answer(
+            message, history, client_context=client_ctx, session_id=session_id,
+        ):
+            if ev == "citations":
+                citations = data
+                if emit_citations is not None:
+                    await emit_citations(citations)
+            elif ev == "token":
+                full_text += data
+                await emit_token(data)
+            elif ev == "done":
+                full_text = data.get("reply_text", full_text) or full_text
+                citations = data.get("citations", citations)
+                grounded = bool(data.get("grounded"))
+                model = data.get("model")
+        blocks: List[Dict[str, Any]] = [{"type": "text", "text": full_text, "grounded": grounded}]
+        return {"blocks": blocks, "citations": citations, "model": model}
+    out = await rag_agent.answer(message, history, client_context=client_ctx, session_id=session_id)
+    blocks = [{"type": "text", "text": out["reply_text"], "grounded": out["grounded"]}]
     return {"blocks": blocks, "citations": out["citations"], "model": out["model"]}
 
 
 async def _branch_lead_capture(message: str, subject: Optional[str], history: List[Dict[str, Any]],
-                               client_ctx: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-    rag_out = await rag_agent.answer(message, history, client_context=client_ctx)
-    schema = form_agent.lead_capture_form(asset_class=subject)
+                               client_ctx: Optional[Dict[str, Any]],
+                               session_id: Optional[str] = None,
+                               emit_token: TokenEmitter = None,
+                               emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
     closing = "\n\nIf you'd like to take this forward, share a few details below and a senior advisor will reach out shortly."
-    blocks: List[Dict[str, Any]] = [
-        {"type": "text", "text": rag_out["reply_text"].strip() + closing, "grounded": rag_out["grounded"]},
-        {"type": "form", "schema": schema},
-    ]
-    return {"blocks": blocks, "citations": rag_out["citations"], "model": rag_out["model"]}
+    schema = form_agent.lead_capture_form(asset_class=subject)
+    if emit_token is not None:
+        full_text = ""
+        citations: List[Dict[str, Any]] = []
+        grounded = False
+        model: Optional[str] = None
+        async for ev, data in rag_agent.stream_answer(
+            message, history, client_context=client_ctx, session_id=session_id,
+        ):
+            if ev == "citations":
+                citations = data
+                if emit_citations is not None:
+                    await emit_citations(citations)
+            elif ev == "token":
+                full_text += data
+                await emit_token(data)
+            elif ev == "done":
+                full_text = data.get("reply_text", full_text) or full_text
+                citations = data.get("citations", citations)
+                grounded = bool(data.get("grounded"))
+                model = data.get("model")
+        if emit_token is not None:
+            await emit_token(closing)
+        text = full_text.strip() + closing
+        return {
+            "blocks": [
+                {"type": "text", "text": text, "grounded": grounded},
+                {"type": "form", "schema": schema},
+            ],
+            "citations": citations, "model": model,
+        }
+    rag_out = await rag_agent.answer(message, history, client_context=client_ctx, session_id=session_id)
+    return {
+        "blocks": [
+            {"type": "text", "text": rag_out["reply_text"].strip() + closing, "grounded": rag_out["grounded"]},
+            {"type": "form", "schema": schema},
+        ],
+        "citations": rag_out["citations"], "model": rag_out["model"],
+    }
 
 
 async def _branch_callback(message: str, history: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -183,7 +265,9 @@ async def _branch_escalation(message: str) -> Dict[str, Any]:
 
 # ---------- main orchestrator ----------
 async def run_turn(db, session_id: Optional[str], message: str,
-                   emit_status: StatusEmitter = None) -> Dict[str, Any]:
+                   emit_status: StatusEmitter = None,
+                   emit_token: TokenEmitter = None,
+                   emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
     convo = await _get_or_create_session(db, session_id)
     sid = convo["session_id"]
     history = convo.get("messages", [])
@@ -239,9 +323,11 @@ async def run_turn(db, session_id: Optional[str], message: str,
             client_ctx = await auth_agent.get_verified_client(db, sid)
 
             if intent == "KNOWLEDGE":
-                out = await _branch_knowledge(message, history, client_ctx)
+                out = await _branch_knowledge(message, history, client_ctx, session_id=sid,
+                                              emit_token=emit_token, emit_citations=emit_citations)
             elif intent == "LEAD_CAPTURE":
-                out = await _branch_lead_capture(message, subject, history, client_ctx)
+                out = await _branch_lead_capture(message, subject, history, client_ctx, session_id=sid,
+                                                 emit_token=emit_token, emit_citations=emit_citations)
             elif intent == "CALLBACK_REQUEST":
                 out = await _branch_callback(message, history)
             elif intent == "MARKET_DATA":
@@ -251,7 +337,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
             elif intent == "ESCALATION":
                 out = await _branch_escalation(message)
             else:  # SMALL_TALK
-                out = await _branch_small_talk(message, history, client_ctx)
+                out = await _branch_small_talk(message, history, client_ctx, emit_token=emit_token)
             trace.append({"step": "specialist", "intent": intent, "status": "ok"})
 
     # Persist
