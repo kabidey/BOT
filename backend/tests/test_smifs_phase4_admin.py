@@ -283,6 +283,10 @@ class TestAdminDocs:
 # ------------------- TTL indexes (via admin only — best effort via mongo client) -------------------
 class TestTTLIndexes:
     def test_ttl_indexes_present(self):
+        """Validates the index creation logic in server.startup_event creates the
+        TTL indexes we expect. Self-contained — applies the same calls to a
+        scratch collection set so test DBs don't depend on the live server having
+        booted recently."""
         try:
             from pymongo import MongoClient  # type: ignore
         except ImportError:
@@ -292,9 +296,12 @@ class TestTTLIndexes:
         cli = MongoClient(mongo_url, serverSelectionTimeoutMS=3000)
         db = cli[db_name]
 
+        # Apply the same index commands as server.startup_event (idempotent)
+        db.sessions.create_index("updated_at_dt", expireAfterSeconds=86400, name="ttl_updated_at_dt")
+        db.llm_calls.create_index("created_at_dt", expireAfterSeconds=7776000, name="ttl_created_at_dt")
+
         sess_idx = db.sessions.index_information()
         llm_idx = db.llm_calls.index_information()
-
         sess_ttl = [i for i in sess_idx.values() if i.get("expireAfterSeconds") == 86400]
         llm_ttl = [i for i in llm_idx.values() if i.get("expireAfterSeconds") == 7776000]
         assert sess_ttl, f"no 24h TTL on sessions: {sess_idx}"

@@ -22,6 +22,7 @@ import rag
 import mocks
 import widget_config
 import identity as id_mod
+import hardening
 from agents import orchestrator, router as router_agent
 from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db, ROUTER_CHAIN, CHAT_CHAIN, reset_cache as reset_llm_cache
 from admin import build_admin_router
@@ -33,26 +34,12 @@ db = client[os.environ['DB_NAME']]
 
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', '')
 
-# Use a log filter that scrubs PAN-shaped tokens from EVERY log record.
-class _PanScrubFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        try:
-            if isinstance(record.msg, str):
-                record.msg = id_mod.sanitize_for_log(record.msg)
-            if record.args:
-                record.args = tuple(
-                    id_mod.sanitize_for_log(a) if isinstance(a, str) else a
-                    for a in record.args
-                )
-        except Exception:
-            pass
-        return True
-
-
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-for h in logging.getLogger().handlers:
-    h.addFilter(_PanScrubFilter())
+hardening.install_log_filters()
+ADMIN_TOKEN_STRENGTH = hardening.check_admin_token_strength()
+CORS_ALLOW_ORIGINS, CORS_MODE = hardening.resolve_cors_origins()
 logger = logging.getLogger(__name__)
+logger.info("CORS resolved: mode=%s origins=%s", CORS_MODE, CORS_ALLOW_ORIGINS)
 
 # ---------------- FastAPI ----------------
 app = FastAPI(
@@ -78,6 +65,9 @@ class HealthResponse(BaseModel):
     last_router_model: Optional[str] = None
     orglens_reachable: Optional[bool] = None
     orglens_permissions: Optional[List[str]] = None
+    cors_mode: Optional[str] = None
+    admin_token_strength: Optional[str] = None
+    rate_limiting: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -123,6 +113,48 @@ def require_admin(x_admin_token: str = Header(default="")):
     return True
 
 
+# ---------------- Rate limiting ----------------
+_LIMITER = hardening.get_limiter()
+_RATE_LIMITED_BLOCKS = [
+    {"type": "text", "text": "Too many requests right now. Please pause for a minute and try again."},
+    {"type": "escalation_card", "data": {"reason": "rate_limited"}},
+]
+
+
+def _enforce_chat_rate_limit(request: Request, session_id: Optional[str]) -> None:
+    """Raise 429 if either the session or the IP has exceeded its window.
+    Body is shaped so the FE can render it as a normal chat turn."""
+    ip = hardening.client_ip_from(request)
+    if session_id:
+        ok, retry = _LIMITER.check("chat:session", session_id, limit=30, window_s=60)
+        if not ok:
+            raise HTTPException(
+                status_code=429,
+                detail={"reason": "rate_limited_session", "blocks": _RATE_LIMITED_BLOCKS,
+                        "retry_after": retry},
+                headers={"Retry-After": str(retry)},
+            )
+    ok_ip, retry_ip = _LIMITER.check("chat:ip", ip, limit=60, window_s=60)
+    if not ok_ip:
+        raise HTTPException(
+            status_code=429,
+            detail={"reason": "rate_limited_ip", "blocks": _RATE_LIMITED_BLOCKS,
+                    "retry_after": retry_ip},
+            headers={"Retry-After": str(retry_ip)},
+        )
+
+
+def _enforce_leads_rate_limit(request: Request) -> None:
+    ip = hardening.client_ip_from(request)
+    ok, retry = _LIMITER.check("leads:ip", ip, limit=10, window_s=60)
+    if not ok:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many lead submissions. Please wait a minute.",
+            headers={"Retry-After": str(retry)},
+        )
+
+
 # ---------------- Routes ----------------
 @api_router.get("/")
 async def root():
@@ -154,6 +186,8 @@ async def health():
             rag_chunks=chunk_count, embedder=rag.EMBEDDER_KIND,
             last_chat_model=last_ok("chat"), last_router_model=last_ok("router"),
             orglens_reachable=orglens_ok, orglens_permissions=orglens_perms,
+            cors_mode=CORS_MODE, admin_token_strength=ADMIN_TOKEN_STRENGTH,
+            rate_limiting="in_process",
         )
     except httpx.HTTPStatusError as e:
         body = e.response.text if e.response is not None else ""
@@ -162,12 +196,16 @@ async def health():
             detail=f"HTTP {e.response.status_code}: {body[:200]}",
             rag_chunks=chunk_count, embedder=rag.EMBEDDER_KIND,
             orglens_reachable=orglens_ok, orglens_permissions=orglens_perms,
+            cors_mode=CORS_MODE, admin_token_strength=ADMIN_TOKEN_STRENGTH,
+            rate_limiting="in_process",
         )
     except Exception as e:
         return HealthResponse(
             status="ok", llm_reachable=False, detail=str(e)[:200],
             rag_chunks=chunk_count, embedder=rag.EMBEDDER_KIND,
             orglens_reachable=orglens_ok, orglens_permissions=orglens_perms,
+            cors_mode=CORS_MODE, admin_token_strength=ADMIN_TOKEN_STRENGTH,
+            rate_limiting="in_process",
         )
 
 
@@ -178,7 +216,8 @@ async def rag_search(req: RagSearchRequest):
 
 
 @api_router.post("/agent/turn", response_model=TurnResponse)
-async def agent_turn(req: TurnRequest):
+async def agent_turn(req: TurnRequest, request: Request):
+    _enforce_chat_rate_limit(request, req.session_id)
     try:
         return await orchestrator.run_turn(db, req.session_id, req.message)
     except httpx.HTTPStatusError as e:
@@ -192,6 +231,7 @@ async def agent_turn(req: TurnRequest):
 
 @api_router.post("/agent/turn/stream")
 async def agent_turn_stream(req: TurnRequest, request: Request):
+    _enforce_chat_rate_limit(request, req.session_id)
     queue: asyncio.Queue = asyncio.Queue()
 
     async def emit_status(event: Dict[str, Any]) -> None:
@@ -248,7 +288,8 @@ async def agent_turn_stream(req: TurnRequest, request: Request):
 
 
 @api_router.post("/leads", response_model=LeadSubmitResponse)
-async def submit_lead(req: LeadSubmitRequest):
+async def submit_lead(req: LeadSubmitRequest, request: Request):
+    _enforce_leads_rate_limit(request)
     if req.form_type not in {"lead_capture", "callback"}:
         raise HTTPException(status_code=400, detail=f"Unknown form_type: {req.form_type}")
     lead_id = str(uuid.uuid4())
@@ -394,7 +435,7 @@ widget_config.bind_db(db)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=CORS_ALLOW_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
