@@ -1,0 +1,69 @@
+{
+  "summary": "Phase 8.1 regression testing completed. Created /app/backend/tests/test_phase8_1_employee_qa.py (19 cases — 17 PASS, 2 FAIL) + re-ran /app/backend/tests/test_phase7_lifecycle.py + test_phase7_inheritance_regression.py + test_phase8_directory.py (23 cases — 21 PASS, 2 FAIL). The Phase 8.1 core contracts are GREEN: USER_PROFILE JSON block, narrowed _RAW_STRIP_FIELDS, orchestrator role-trigger guard, directory tool count (15), privacy raw snapshot, cross-role visitor guard, lifecycle field, search_employees widened schema + function signature, 5/5 self-queries routed to KNOWLEDGE (not directory_*), and 3/5 about-others routed to the correct directory_* tool. However, the router drifted on 2 of the 5 about-others prompts — and a stale Phase 7 privacy test is now failing BY DESIGN because _RAW_STRIP_FIELDS was deliberately narrowed.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "agents/router.py (ROUTER_SYSTEM_TOOLS_EMPLOYEE)",
+        "issue": "Router drift on 3 about-others queries — 'Who is my manager, and who does my manager report to?' now routes to CLIENT_LOOKUP/directory_field_value (returns 'No employee matched user\\'s own name') instead of directory_my_reporting_chain. 'What departments exist at SMIFS?' now routes to KNOWLEDGE instead of directory_departments. The 6 new directory_* tools (field_value, aggregate, by_tenure, etc.) introduced in Phase 8.1 are stealing selection from the more-specific older tools. This is the exact failure mode the review brief warned about ('if a specific tool is missed, strengthen the router prompt rather than rephrase the question').",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "tests/test_phase7_lifecycle.py::test_employee_verify_writes_hashes_no_plaintext",
+        "issue": "STALE TEST — Phase 7 test asserts `raw.email not in storage`, but Phase 8.1 intentionally narrowed _RAW_STRIP_FIELDS to keep email/phone/hrbp_email/DOB in raw so the chat LLM's USER_PROFILE can answer self-queries. This test needs to be rewritten to assert the NEW contract: raw must NOT contain PAN/Aadhaar/bank/account, but email/phone/etc ARE allowed. The PII scrub on conversations.messages[].content still masks plaintext email/phone/PAN at persist time, which is the real privacy boundary (and that scrub is verified by test_phase8_directory.py::TestPIIScrub — passing)."
+      },
+      {
+        "endpoint": "agents/directory_agent.py::DIRECTORY_TOOLS[search_employees].parameters",
+        "issue": "Tool schema does NOT expose `reports_to_email` and `reports_to_user_id` to the LLM, although the underlying `directory.search_employees()` function signature accepts them for client-side filtering. Minor — doesn't break any user flow (router can use reports_to_name instead) but the review request explicitly listed these as expected schema params."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "identity._RAW_STRIP_FIELDS correctly narrowed: contains {pan, pan_number, aadhar_no, aadhar, aadhaar, bank, bank_details, bank_account, account}. Does NOT contain email/mobile_number/phone/hrbp_email/date_of_birth/reports_to_email/date_of_joining/fixed_ctc/total_ctc — all needed for USER_PROFILE.",
+    "identity.employee_context_block() emits a well-formed JSON USER_PROFILE dump with all required keys (employee_id, designation, department, business_unit, reports_to_name, hrbp_name, date_of_joining, confirmation_status, on_notice, email, mobile_number, fixed_ctc, total_ctc) plus derived current_experience_years (5 years 3 months → 5.25, verified).",
+    "Privacy regression PASSES — sessions.identity.raw for verified Aaditya contains email + mobile_number but NOT pan/pan_number/aadhar_no/bank_details/account. conversations.messages[].content PII scrub still masking plaintext email→aa***@smifs.com and PAN→XXXXX8323X (verified by test_phase8_directory.py::TestPIIScrub).",
+    "6 new directory_* tools all present in DIRECTORY_TOOLS (total now 15): directory_filter_by_status, directory_recent_joins, directory_upcoming_confirmations, directory_by_tenure, directory_aggregate, directory_field_value — all dispatched from directory_agent.execute().",
+    "ORCHESTRATOR BUG-FIX VERIFIED — a verified user sending 'What is my employee ID and employee type?' (which contains the word 'employee' → detect_role_intent returns 'employee') does NOT regress auth_state from VERIFIED → AWAIT_IDENT. Guard `state == ANON` before role-trigger detection is working. Mongo direct read confirms auth_state stays 'verified' after the turn.",
+    "ALL 5 self-queries routed correctly (no directory_* tool fired): 'What is my employee ID?', 'Who is my HRBP?', 'Who is my manager?', 'When did I join SMIFS?', 'Am I on notice?' → all went to KNOWLEDGE/SMALL_TALK as required.",
+    "3/5 about-others queries routed correctly: 'Tell me about Awanish Chandra' → directory_lookup_employee, 'How many employees does SMIFS have?' → directory_org_stats, 'Who is in the COMPLIANCE department?' → directory_search_employees.",
+    "Cross-role guard holds — visitor asking 'How many people are on notice at SMIFS?' returns NO directory_* blocks and NO directory_* tool calls.",
+    "GET /api/sessions/{sid} still returns top-level `lifecycle` field with value in {active, expired, ended, locked}.",
+    "All 3 other Phase 7 + Phase 8 test suites pass except the 2 noted above (stale test + router drift)."
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_phase8_1_employee_qa.py",
+    "/app/test_reports/pytest/phase8_1_results.xml",
+    "/app/test_reports/pytest/phase7_8_regression.xml"
+  ],
+  "action_items": [
+    "ROUTER PROMPT STRENGTHENING (HIGH): Update agents/router.py::ROUTER_SYSTEM_TOOLS_EMPLOYEE so that (a) 'who does my manager report to' / 'reporting chain' language deterministically fires directory_my_reporting_chain (currently leaks to CLIENT_LOOKUP or directory_field_value), and (b) 'what departments exist' / enumeration of departments fires directory_departments (currently falling to KNOWLEDGE). The 6 new tools (field_value, aggregate, by_tenure, etc.) need tighter usage rules so they don't steal queries from the 9 older tools.",
+    "Rewrite /app/backend/tests/test_phase7_lifecycle.py::test_employee_verify_writes_hashes_no_plaintext to reflect the Phase 8.1 narrowed _RAW_STRIP_FIELDS contract: assert PAN/Aadhaar/bank/account are absent from raw, but DO allow email/phone (they're needed for USER_PROFILE; the real privacy boundary is the persist-time scrub on conversations.messages[].content, already covered by test_phase8_directory.py::TestPIIScrub).",
+    "Optionally expand the `directory_search_employees` tool schema in agents/directory_agent.py::DIRECTORY_TOOLS to expose `reports_to_email` + `reports_to_user_id` so the LLM router can filter by them directly."
+  ],
+  "critical_code_review_comments": [
+    "identity.employee_context_block() line 480 — `current_experience_years` derivation parses only 'N years' + 'M months' patterns. If OrgLens ever returns 'X days' or locale-specific text, the derived tenure will silently be 0. Consider a defensive fallback using date_of_joining → today() diff when current_experience string is missing/unparseable.",
+    "directory_agent.py::DIRECTORY_TOOLS search_employees schema exposes 12 filter params but underlying function supports 14 (missing reports_to_email, reports_to_user_id from schema). Schema drift — either narrow the function OR widen the schema. Since OrgLens CAN filter by these via client-side, expand the schema.",
+    "orchestrator.py L386-412 — the role-trigger guard at state==ANON is correct, but `smifs_email = id_mod.extract_smifs_email(message) if state == auth_agent.ANON else None` means a VERIFIED user who pastes another employee's SMIFS email in chat will NOT kick off a new auth flow (correct) AND will route through the specialist branches. Good defensive-coding side-effect; worth a code comment documenting this intent.",
+    "Router tool-ambiguity concern — with 15 directory tools live at T=0, we're seeing non-trivial tool-selection drift on prompts that worked fine with 9 tools in Phase 8 baseline. Consider adding brief 'WHEN TO USE' / 'WHEN NOT TO USE' lines under each of the 6 new tools in the router system prompt to reduce overlap with lookup/search/reporting_chain/departments.",
+    "Test harness note: asyncio.get_event_loop().run_until_complete() is deprecated in Python 3.12+; both my new tests and the existing ones use it. Not urgent; pytest-asyncio already loaded (asyncio: mode=Mode.AUTO). Future refactor: use `asyncio.run()` or pytest-asyncio @pytest.mark.asyncio fixtures."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase8_1_employee_qa.py (NEW — 19 pytest cases covering the entire Phase 8.1 contract)"
+  ],
+  "success_rate": {
+    "backend": "90% overall (38/42 across both suites). Phase 8.1 NEW tests: 17/19 = 89%. Phase 7+8 regression: 21/23 = 91%.",
+    "frontend": "not tested (backend-only scope)"
+  },
+  "test_credentials": "Employee: aaditya.jaiswal@smifs.com / PAN BQPPJ8323M (OrgLens live). Admin token: smifs-admin-2026 (unused this iteration).",
+  "seed_data_creation": "Each test module creates a FRESH verified-employee session id per run via /api/agent/turn (2 turns: email + PAN). A visitor session is also freshly minted. No persistent seed data — 30-day TTL purges naturally.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `pytest /app/backend/tests/test_phase8_1_employee_qa.py tests/test_phase8_directory.py tests/test_phase7_lifecycle.py tests/test_phase7_inheritance_regression.py -v`. The 2 router-drift failures are non-deterministic in the sense that they depend on the router LLM's tool-selection — if main agent strengthens the router prompt, re-run should go green. The Phase 7 stale test (test_employee_verify_writes_hashes_no_plaintext) must be UPDATED, not the Phase 8.1 code — narrowing _RAW_STRIP_FIELDS is the deliberate design. Self-query regression (5/5) is the key success criterion — it proves USER_PROFILE is doing its job.",
+  "rca_of_the_issue": "Router drift RCA: the Phase 8.1 change added 6 new directory_* tools (field_value is the most general — 'get any field of any employee'). At T=0 the function-calling LLM now over-selects directory_field_value for 'Who does my manager report to?' because that prompt could be seen as 'fetch reports_to_name field' — the tool descriptions don't sufficiently disambiguate 'reporting_chain (walk up N levels)' vs 'field_value (get one field of one person)'. Mitigation: strengthen tool descriptions + add explicit 'WHEN NOT TO USE' guidance, or demote field_value priority in the router system prompt. Stale-test RCA: Phase 7 asserted a stricter raw-strip contract than Phase 8.1's design intent — the Phase 8.1 change is correct (email/phone/etc needed in USER_PROFILE; persist-time scrub remains the privacy boundary for user-typed content)."
+}

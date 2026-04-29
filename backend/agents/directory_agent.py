@@ -119,7 +119,18 @@ async def execute(tool_name: str, args: Dict[str, Any],
                 department=args.get("department"),
                 designation=args.get("designation"),
                 location=args.get("location"),
-                employment_status=args.get("status"),
+                employment_status=args.get("status") or args.get("employment_status"),
+                employee_type=args.get("employee_type"),
+                confirmation_status=args.get("confirmation_status"),
+                business_unit=args.get("business_unit"),
+                company=args.get("company"),
+                gender=args.get("gender"),
+                on_notice=args.get("on_notice"),
+                is_absconding=args.get("is_absconding"),
+                reports_to_name=args.get("reports_to_name"),
+                reports_to_email=args.get("reports_to_email"),
+                reports_to_user_id=args.get("reports_to_user_id"),
+                hrbp_name=args.get("hrbp_name"),
                 limit=int(args.get("limit") or 10),
             )
             items = res["items"]
@@ -129,7 +140,14 @@ async def execute(tool_name: str, args: Dict[str, Any],
                 _fmt("dept", args.get("department")),
                 _fmt("designation", args.get("designation")),
                 _fmt("location", args.get("location")),
-                _fmt("status", args.get("status")),
+                _fmt("status", args.get("status") or args.get("employment_status")),
+                _fmt("bu", args.get("business_unit")),
+                _fmt("gender", args.get("gender")),
+                _fmt("hrbp", args.get("hrbp_name")),
+                _fmt("reports_to", args.get("reports_to_name")),
+                _fmt("on_notice", args.get("on_notice")),
+                _fmt("is_absconding", args.get("is_absconding")),
+                _fmt("confirmation", args.get("confirmation_status")),
             ) if f]
             filt_label = " · ".join(filters) if filters else "all filters"
             title = f"Employees matching {filt_label}"
@@ -218,6 +236,115 @@ async def execute(tool_name: str, args: Dict[str, Any],
                                   _directory_list("Org tree", items, res["total"])],
                        "citations": [], "model": None}
 
+        elif tool_name == "directory_filter_by_status":
+            res = await directory.search_employees(
+                employment_status=args.get("status") or args.get("employment_status"),
+                on_notice=args.get("on_notice"),
+                is_absconding=args.get("is_absconding"),
+                confirmation_status=args.get("confirmation_status"),
+                limit=int(args.get("limit") or 15),
+            )
+            filters = [f for f in (
+                _fmt("on_notice", args.get("on_notice")),
+                _fmt("is_absconding", args.get("is_absconding")),
+                _fmt("confirmation", args.get("confirmation_status")),
+                _fmt("status", args.get("status") or args.get("employment_status")),
+            ) if f]
+            filt_label = " · ".join(filters) if filters else "no filter"
+            if not res["items"]:
+                out = _text(f"No employees match: {filt_label}.")
+            else:
+                intro = f"**{res['total']}** employee{'s' if res['total'] != 1 else ''} match: {filt_label}."
+                out = {"blocks": [{"type": "text", "text": intro},
+                                  _directory_list(f"By status: {filt_label}", res["items"], res["total"])],
+                       "citations": [], "model": None}
+
+        elif tool_name == "directory_recent_joins":
+            days = int(args.get("days") or 30)
+            res = await directory.recent_joins(days=days, limit=int(args.get("limit") or 15))
+            if not res["items"]:
+                out = _text(f"No new joiners in the last {days} days.")
+            else:
+                intro = f"**{res['total']}** employee{'s' if res['total'] != 1 else ''} joined in the last {days} days."
+                out = {"blocks": [{"type": "text", "text": intro},
+                                  _directory_list(f"Joined in last {days} days", res["items"], res["total"],
+                                                  summary_fields=["name", "designation", "department", "location"])],
+                       "citations": [], "model": None}
+
+        elif tool_name == "directory_upcoming_confirmations":
+            days = int(args.get("days") or 60)
+            res = await directory.upcoming_confirmations(days=days, limit=int(args.get("limit") or 15))
+            if not res["items"]:
+                out = _text(f"No upcoming confirmations in the next {days} days.")
+            else:
+                intro = f"**{res['total']}** confirmation{'s' if res['total'] != 1 else ''} due in the next {days} days."
+                out = {"blocks": [{"type": "text", "text": intro},
+                                  _directory_list(f"Upcoming confirmations (next {days} days)", res["items"], res["total"])],
+                       "citations": [], "model": None}
+
+        elif tool_name == "directory_by_tenure":
+            res = await directory.by_tenure(
+                min_years=args.get("min_years"),
+                max_years=args.get("max_years"),
+                limit=int(args.get("limit") or 15),
+                sort_desc=bool(args.get("sort_desc", True)),
+            )
+            if not res["items"]:
+                out = _text("No employees match those tenure bounds.")
+            else:
+                label = _tenure_label(args.get("min_years"), args.get("max_years"))
+                intro = f"**{res['total']}** employee{'s' if res['total'] != 1 else ''} with tenure {label}."
+                # Add tenure years into the designation slot for the list UI
+                items_view = [{**e, "designation": f"{e.get('designation') or ''} · {e.get('tenure_years')}y" if e.get('tenure_years') is not None else e.get('designation')} for e in res["items"]]
+                out = {"blocks": [{"type": "text", "text": intro},
+                                  _directory_list(f"Tenure {label}", items_view, res["total"])],
+                       "citations": [], "model": None}
+
+        elif tool_name == "directory_aggregate":
+            res = await directory.aggregate(
+                group_by=args.get("group_by") or "department",
+                department=args.get("department"),
+                location=args.get("location"),
+                employment_status=args.get("employment_status"),
+            )
+            if res.get("error"):
+                out = _text(res["error"])
+            elif not res["items"]:
+                out = _text("No data to aggregate with those filters.")
+            else:
+                pre_filters = [f for f in (
+                    _fmt("dept", args.get("department")),
+                    _fmt("loc", args.get("location")),
+                    _fmt("status", args.get("employment_status")),
+                ) if f]
+                pre = f" (filtered by {' · '.join(pre_filters)})" if pre_filters else ""
+                intro = f"Headcount by **{res['group_by']}**{pre} · {res['total']} employees total."
+                rows = [{"name": it["name"], "designation": f"{it['count']} employees"} for it in res["items"][:20]]
+                out = {"blocks": [{"type": "text", "text": intro},
+                                  _directory_list(f"By {res['group_by']}", rows, res["total"],
+                                                  summary_fields=["name", "designation"])],
+                       "citations": [], "model": None}
+
+        elif tool_name == "directory_field_value":
+            identifier = args.get("identifier") or args.get("person")
+            field = args.get("field")
+            if not identifier or not field:
+                out = _text("I need both a person identifier and a field name.")
+            else:
+                res = await directory.field_value(identifier, field)
+                if not res.get("found"):
+                    out = _text(f"No employee matched '{identifier}'.")
+                elif res.get("redacted"):
+                    out = _text(f"The field '{field}' is restricted and not exposed via directory lookups.")
+                else:
+                    p = res.get("person") or {}
+                    v = res.get("value")
+                    if v is None or v == "":
+                        out = _text(f"{p.get('name') or identifier} has no value for **{field}** on record.")
+                    else:
+                        text = f"**{p.get('name') or identifier}** · {field} = `{v}`"
+                        out = {"blocks": [{"type": "text", "text": text}], "citations": [], "model": None}
+
         else:
             out = _text(f"Unknown directory tool: {tool_name}")
 
@@ -241,7 +368,19 @@ def _text(msg: str) -> Dict[str, Any]:
 
 
 def _fmt(label: str, val: Optional[str]) -> Optional[str]:
-    return f"{label}='{val}'" if val else None
+    if val is None or val == "":
+        return None
+    return f"{label}='{val}'"
+
+
+def _tenure_label(min_years, max_years) -> str:
+    if min_years is not None and max_years is not None:
+        return f"{min_years}–{max_years} years"
+    if min_years is not None:
+        return f"≥{min_years} years"
+    if max_years is not None:
+        return f"≤{max_years} years"
+    return "(any)"
 
 
 # Tool definitions shared with the router — one dict list
@@ -262,16 +401,26 @@ DIRECTORY_TOOLS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "directory_search_employees",
-            "description": "Search SMIFS employees with filters. Use when user asks for a list of colleagues by department, designation, location, or name fragment.",
+            "description": "Search SMIFS employees with rich filters. Use when user asks for a list of colleagues by any combination of: name, department, designation, location, employment status, employee type, confirmation status, business unit, company, gender, on_notice flag, is_absconding flag, reports_to (name or user id), hrbp_name. Returns up to `limit` results and the total matching.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string", "description": "Free-text name fragment."},
+                    "name": {"type": "string", "description": "Free-text name fragment (server-side search)."},
                     "department": {"type": "string", "description": "Exact department, e.g. 'COMPLIANCE', 'Institutional Equities'."},
-                    "designation": {"type": "string", "description": "Exact designation, e.g. 'Senior Manager', 'Research Associate'."},
-                    "location": {"type": "string", "description": "City or office substring, e.g. 'Mumbai', 'Kolkata'."},
-                    "status": {"type": "string", "enum": ["Active", "Inactive"], "description": "Employment status filter."},
-                    "limit": {"type": "integer", "minimum": 1, "maximum": 25, "description": "Max results to return (default 10)."},
+                    "designation": {"type": "string", "description": "Exact designation, e.g. 'Senior Manager'."},
+                    "location": {"type": "string", "description": "City or office substring, e.g. 'Mumbai'."},
+                    "employment_status": {"type": "string", "enum": ["Active", "Inactive"], "description": "Employment status filter."},
+                    "employee_type": {"type": "string", "description": "e.g. 'Permanent', 'Contract'."},
+                    "confirmation_status": {"type": "string", "description": "e.g. 'Confirmed', 'Probation'."},
+                    "business_unit": {"type": "string", "description": "BU substring, e.g. 'Capital Markets'."},
+                    "company": {"type": "string", "description": "Company substring."},
+                    "gender": {"type": "string", "enum": ["Male", "Female", "Other"]},
+                    "on_notice": {"type": "boolean", "description": "Only people currently on notice."},
+                    "is_absconding": {"type": "boolean", "description": "Only people flagged absconding."},
+                    "reports_to_name": {"type": "string", "description": "Manager name substring."},
+                    "reports_to_user_id": {"type": "string", "description": "Exact manager user_id."},
+                    "hrbp_name": {"type": "string", "description": "HRBP name substring."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "Max results to return (default 10)."},
                 },
                 "required": [],
             },
@@ -337,6 +486,103 @@ DIRECTORY_TOOLS: List[Dict[str, Any]] = [
                     "limit": {"type": "integer", "minimum": 5, "maximum": 200},
                 },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "directory_filter_by_status",
+            "description": "Count and list employees matching a status flag — on_notice, is_absconding, confirmation_status, or employment_status. Use for 'how many people are on notice?', 'show me everyone absconding', 'people still on probation', etc.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "on_notice": {"type": "boolean"},
+                    "is_absconding": {"type": "boolean"},
+                    "confirmation_status": {"type": "string", "description": "e.g. 'Probation', 'Confirmed'."},
+                    "employment_status": {"type": "string", "enum": ["Active", "Inactive"]},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "directory_recent_joins",
+            "description": "Employees whose date_of_joining falls within the last N days. Use for 'who joined this month', 'new hires in the last 2 weeks'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "minimum": 1, "maximum": 365, "description": "Look-back window in days (default 30)."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "directory_upcoming_confirmations",
+            "description": "Employees whose date_of_confirmation falls in the next N days and are not yet confirmed. Use for 'who's up for confirmation soon', 'upcoming confirmations'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {"type": "integer", "minimum": 1, "maximum": 365, "description": "Forward window in days (default 60)."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "directory_by_tenure",
+            "description": "Employees filtered by tenure in years (current_experience). Use for 'who's been here more than 10 years', 'newest employees', 'top 10 by tenure'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "min_years": {"type": "number", "description": "Minimum tenure in years (inclusive)."},
+                    "max_years": {"type": "number", "description": "Maximum tenure in years (inclusive)."},
+                    "sort_desc": {"type": "boolean", "description": "True = longest tenure first (default), False = newest first."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "directory_aggregate",
+            "description": "Count employees grouped by a single field (department, location, designation, employment_status, confirmation_status, gender, employee_type, business_unit). Optional pre-filter by department / location / employment_status. Use for 'headcount by location', 'gender breakdown in Compliance', 'how many on probation vs confirmed'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "group_by": {"type": "string", "enum": ["department", "location", "designation", "employment_status", "confirmation_status", "gender", "employee_type", "business_unit"]},
+                    "department": {"type": "string", "description": "Optional pre-filter — only count within this department."},
+                    "location": {"type": "string", "description": "Optional pre-filter — only count within locations matching this substring."},
+                    "employment_status": {"type": "string", "enum": ["Active", "Inactive"]},
+                },
+                "required": ["group_by"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "directory_field_value",
+            "description": "Look up a specific field for a specific employee. Use for 'what is Suman's HRBP?', 'who is Rahul's manager?', 'what department is Awanish in?'. The `field` parameter must match an OrgLens field name.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "identifier": {"type": "string", "description": "Name, email, or employee_id of the person."},
+                    "field": {"type": "string", "description": "OrgLens field name — e.g. 'hrbp_name', 'reports_to_name', 'department', 'designation', 'location', 'date_of_joining', 'confirmation_status', 'on_notice', 'hod_name', 'business_unit'."},
+                },
+                "required": ["identifier", "field"],
             },
         },
     },

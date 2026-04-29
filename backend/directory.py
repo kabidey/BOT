@@ -70,10 +70,12 @@ _SAFE_EMP_FIELDS = (
     "user_id", "employee_id", "name", "first_name", "last_name",
     "designation", "department", "business_unit", "company",
     "location", "location_type", "employment_status", "employee_type",
-    "confirmation_status", "date_of_joining", "current_experience",
+    "confirmation_status", "date_of_joining", "date_of_confirmation",
+    "current_experience",
     "reports_to_name", "reports_to_user_id", "reports_to_employee_id",
     "direct_reports_count", "total_team_size", "hrbp_name", "gender",
-    "on_notice", "is_absconding", "synced_at",
+    "on_notice", "on_notice_text", "is_absconding",
+    "last_working_day", "synced_at",
 )
 
 
@@ -156,35 +158,249 @@ async def search_employees(
     designation: Optional[str] = None,
     location: Optional[str] = None,
     employment_status: Optional[str] = None,
+    employee_type: Optional[str] = None,
+    confirmation_status: Optional[str] = None,
+    business_unit: Optional[str] = None,
+    company: Optional[str] = None,
+    gender: Optional[str] = None,
+    on_notice: Optional[bool] = None,
+    is_absconding: Optional[bool] = None,
+    reports_to_name: Optional[str] = None,
+    reports_to_email: Optional[str] = None,
+    reports_to_user_id: Optional[str] = None,
+    hrbp_name: Optional[str] = None,
     limit: int = 10,
 ) -> Dict[str, Any]:
-    """Call /employees with supported filters. For location (API-side filter
-    is exact-match), we fall back to client-side substring filter across a
-    larger pull when nothing else narrows the query."""
-    params: Dict[str, Any] = {"limit": max(1, min(limit, 25))}
+    """Rich employee search. Server-side accepts: search, department,
+    designation, employment_status, employee_type. Everything else we apply
+    client-side on a wider pull (up to 800 rows from /org-tree or /employees)."""
+    server_params: Dict[str, Any] = {}
     if name:
-        params["search"] = name
+        server_params["search"] = name
     if department:
-        params["department"] = department
+        server_params["department"] = department
     if designation:
-        params["designation"] = designation
+        server_params["designation"] = designation
     if employment_status:
-        params["employment_status"] = employment_status
-    data = await _get("/employees", params)
-    total = data.get("total", 0)
-    items = [_shape_employee(e) for e in (data.get("employees") or [])]
-    # Client-side location filter pass (API doesn't filter reliably)
+        server_params["employment_status"] = employment_status
+    if employee_type:
+        server_params["employee_type"] = employee_type
+
+    # Any client-side filter (location, bool fields, reports_to_*, hrbp, gender, bu, company, confirmation)
+    client_filters_on = any(v is not None for v in (
+        location, on_notice, is_absconding, reports_to_name, reports_to_email,
+        reports_to_user_id, hrbp_name, gender, business_unit, company, confirmation_status,
+    ))
+
+    if client_filters_on:
+        # Need full fields → paginate across /employees (OrgLens caps page at 500)
+        all_emps: List[Dict[str, Any]] = []
+        skip = 0
+        page = 500
+        while True:
+            data = await _get("/employees", {**server_params, "limit": page, "skip": skip})
+            batch = data.get("employees") or []
+            if not batch:
+                break
+            all_emps.extend(batch)
+            total = data.get("total") or len(all_emps)
+            skip += len(batch)
+            if skip >= total or len(all_emps) >= 1000:
+                break
+        emps = all_emps
+    else:
+        params = {**server_params, "limit": max(1, min(limit, 25))}
+        data = await _get("/employees", params)
+        emps = data.get("employees") or []
+
+    # Client-side filtering
+    def _match(e: Dict[str, Any]) -> bool:
+        if location and location.lower() not in (e.get("location") or "").lower():
+            return False
+        if on_notice is not None and bool(e.get("on_notice")) != bool(on_notice):
+            return False
+        if is_absconding is not None and bool(e.get("is_absconding")) != bool(is_absconding):
+            return False
+        if reports_to_name and reports_to_name.lower() not in (e.get("reports_to_name") or "").lower():
+            return False
+        if reports_to_email and reports_to_email.lower() != (e.get("reports_to_email") or "").lower():
+            return False
+        if reports_to_user_id and str(reports_to_user_id) != str(e.get("reports_to_user_id") or ""):
+            return False
+        if hrbp_name and hrbp_name.lower() not in (e.get("hrbp_name") or "").lower():
+            return False
+        if gender and gender.lower() != (e.get("gender") or "").lower():
+            return False
+        if business_unit and business_unit.lower() not in (e.get("business_unit") or "").lower():
+            return False
+        if company and company.lower() not in (e.get("company") or "").lower():
+            return False
+        if confirmation_status and confirmation_status.lower() != (e.get("confirmation_status") or "").lower():
+            return False
+        return True
+
+    if client_filters_on:
+        emps = [e for e in emps if _match(e)]
+
+    total = data.get("total", 0) if not client_filters_on else len(emps)
+    items = [_shape_employee(e) for e in emps[:max(1, limit)]]
+    return {"total": total, "items": items}
+
+
+# --- Phase 8.1 helpers ---
+
+def _parse_dmy(s: str):
+    """Parse OrgLens DD-MM-YYYY. Returns datetime.date or None."""
+    if not s or not isinstance(s, str):
+        return None
+    try:
+        from datetime import datetime as _dt
+        return _dt.strptime(s.strip(), "%d-%m-%Y").date()
+    except Exception:
+        return None
+
+
+def _experience_years(ce: str) -> Optional[float]:
+    if not ce or not isinstance(ce, str):
+        return None
+    import re as _re
+    y = _re.search(r"(\d+)\s*year", ce)
+    m = _re.search(r"(\d+)\s*month", ce)
+    if not y and not m:
+        return None
+    return round((int(y.group(1)) if y else 0) + (int(m.group(1)) if m else 0) / 12.0, 2)
+
+
+async def _fetch_all_employees(max_rows: int = 800) -> List[Dict[str, Any]]:
+    """Paginate /employees until max_rows or exhausted. OrgLens caps limit=500."""
+    all_emps: List[Dict[str, Any]] = []
+    page = 500
+    skip = 0
+    while len(all_emps) < max_rows:
+        data = await _get("/employees", {"limit": page, "skip": skip})
+        batch = data.get("employees") or []
+        if not batch:
+            break
+        all_emps.extend(batch)
+        total = data.get("total") or len(all_emps)
+        skip += len(batch)
+        if skip >= total:
+            break
+    return all_emps[:max_rows]
+
+
+async def recent_joins(days: int = 30, limit: int = 25) -> Dict[str, Any]:
+    from datetime import date, timedelta
+    cutoff = date.today() - timedelta(days=max(1, days))
+    emps = await _fetch_all_employees()
+    hits = []
+    for e in emps:
+        d = _parse_dmy(e.get("date_of_joining") or "")
+        if d and d >= cutoff:
+            shaped = _shape_employee(e)
+            shaped["date_of_joining"] = e.get("date_of_joining")
+            hits.append(shaped)
+    hits.sort(key=lambda x: _parse_dmy(x.get("date_of_joining") or "") or date.min, reverse=True)
+    return {"total": len(hits), "items": hits[:limit]}
+
+
+async def upcoming_confirmations(days: int = 60, limit: int = 25) -> Dict[str, Any]:
+    from datetime import date, timedelta
+    today = date.today()
+    horizon = today + timedelta(days=max(1, days))
+    emps = await _fetch_all_employees()
+    hits = []
+    for e in emps:
+        d = _parse_dmy(e.get("date_of_confirmation") or "")
+        if d and today <= d <= horizon and (e.get("confirmation_status") or "").lower() != "confirmed":
+            shaped = _shape_employee(e)
+            shaped["date_of_confirmation"] = e.get("date_of_confirmation")
+            hits.append(shaped)
+    hits.sort(key=lambda x: _parse_dmy(x.get("date_of_confirmation") or "") or date.max)
+    return {"total": len(hits), "items": hits[:limit]}
+
+
+async def by_tenure(min_years: Optional[float] = None,
+                    max_years: Optional[float] = None,
+                    limit: int = 25,
+                    sort_desc: bool = True) -> Dict[str, Any]:
+    emps = await _fetch_all_employees()
+    hits: List[Dict[str, Any]] = []
+    for e in emps:
+        y = _experience_years(e.get("current_experience") or "")
+        if y is None:
+            continue
+        if min_years is not None and y < min_years:
+            continue
+        if max_years is not None and y > max_years:
+            continue
+        shaped = _shape_employee(e)
+        shaped["tenure_years"] = y
+        hits.append(shaped)
+    hits.sort(key=lambda x: x.get("tenure_years") or 0, reverse=sort_desc)
+    return {"total": len(hits), "items": hits[:limit]}
+
+
+async def aggregate(group_by: str,
+                    department: Optional[str] = None,
+                    location: Optional[str] = None,
+                    employment_status: Optional[str] = None) -> Dict[str, Any]:
+    """Group employees by one of: department, location, designation,
+    employment_status, confirmation_status, gender, employee_type,
+    business_unit. Optional pre-filters narrow the universe."""
+    allowed = {"department", "location", "designation", "employment_status",
+               "confirmation_status", "gender", "employee_type", "business_unit"}
+    key = (group_by or "").strip()
+    if key not in allowed:
+        return {"group_by": group_by, "error": f"unsupported group_by; use one of {sorted(allowed)}", "items": [], "total": 0}
+    emps = await _fetch_all_employees()
+    # Pre-filter
+    if department:
+        emps = [e for e in emps if (e.get("department") or "").lower() == department.lower()]
     if location:
-        loc_lc = location.lower()
-        items = [e for e in items if loc_lc in (e.get("location") or "").lower()]
-        # If we over-filtered because the first page didn't contain matches,
-        # pull a bigger window once.
-        if not items and not name and not department and not designation:
-            data2 = await _get("/employees", {"limit": 100})
-            all_items = [_shape_employee(e) for e in (data2.get("employees") or [])]
-            items = [e for e in all_items if loc_lc in (e.get("location") or "").lower()][:limit]
-            total = len(items)
-    return {"total": total, "items": items[:limit]}
+        emps = [e for e in emps if location.lower() in (e.get("location") or "").lower()]
+    if employment_status:
+        emps = [e for e in emps if (e.get("employment_status") or "").lower() == employment_status.lower()]
+    buckets: Dict[str, int] = {}
+    for e in emps:
+        v = e.get(key) or "Unknown"
+        if key == "location":
+            v = (v or "Unknown").split(",")[0].strip() or "Unknown"
+        buckets[v] = buckets.get(v, 0) + 1
+    items = [{"name": k, "count": v} for k, v in sorted(buckets.items(), key=lambda kv: kv[1], reverse=True)]
+    return {"group_by": key, "total": sum(v for _, v in buckets.items()),
+            "filter": {"department": department, "location": location, "employment_status": employment_status},
+            "items": items}
+
+
+async def field_value(identifier: str, field: str) -> Dict[str, Any]:
+    """Return a single field's value for a specific employee. `identifier`
+    may be a name, email, or employee_code."""
+    emp_raw = None
+    q = (identifier or "").strip()
+    if not q:
+        return {"found": False, "reason": "empty identifier"}
+    if "@" in q:
+        emp_raw = await identity.lookup_employee_by_email(q)
+    elif q.upper().startswith("SMWM-"):
+        data = await _get(f"/employee/by-code/{q}")
+        emp_raw = data.get("employee")
+    else:
+        data = await _get("/employees", {"search": q, "limit": 1})
+        emps = data.get("employees") or []
+        emp_raw = emps[0] if emps else None
+    if not emp_raw:
+        return {"found": False, "identifier": identifier}
+    # Block sensitive fields
+    sensitive = {"pan_number", "aadhar_no", "aadhar", "bank_details", "bank", "account"}
+    if field in sensitive:
+        return {"found": True, "identifier": identifier, "field": field,
+                "value": None, "redacted": True,
+                "reason": "sensitive field — not exposed via directory"}
+    val = emp_raw.get(field)
+    shaped = _shape_employee(emp_raw)
+    return {"found": True, "person": {"name": shaped.get("name"), "employee_id": shaped.get("employee_id")},
+            "field": field, "value": val}
 
 
 async def my_team(reports_to_user_id: str, limit: int = 25) -> Dict[str, Any]:

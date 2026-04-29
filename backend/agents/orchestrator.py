@@ -380,9 +380,11 @@ async def run_turn(db, session_id: Optional[str], message: str,
                   else "AUTH_VERIFIED")
         trace.append({"step": "auth", "from": "awaiting_role", "to": ns})
     else:
-        # ---- Anonymous: detect role triggers (employee email / UCC / hint), else router ----
-        smifs_email = id_mod.extract_smifs_email(message)
-        role_intent = id_mod.detect_role_intent(message)
+        # ---- Anonymous OR Verified. ----
+        # Role-trigger detection ONLY for anonymous users — a VERIFIED user
+        # saying "what's my employee id?" must NOT restart the role flow.
+        smifs_email = id_mod.extract_smifs_email(message) if state == auth_agent.ANON else None
+        role_intent = id_mod.detect_role_intent(message) if state == auth_agent.ANON else None
         if smifs_email:
             await _emit(emit_status, {"step": "auth", "label": "Looking up your employee record"})
             out = await auth_agent.start_employee_flow(db, sid, smifs_email)

@@ -332,20 +332,16 @@ async def probe_permissions() -> Dict[str, Any]:
 # =========================
 # Storage sanitizers
 # =========================
-# Fields stripped from `identity.raw` before persistence — never store
-# financial credentials, government IDs, or raw contact details in Mongo.
+# Phase 8.1 — Fields we STRIP from `identity.raw` (never persisted).
+# Narrowed to truly sensitive credentials — email/phone/DOB/hrbp_email/etc
+# stay in raw so the chat LLM's USER_PROFILE can answer self-queries.
+# The persistence-time PII scrubber (redact_pii_in_text) still masks these
+# values anywhere they appear in user-typed message text.
 _RAW_STRIP_FIELDS = {
-    "pan", "pan_number",                       # PAN — verified via HMAC, never persisted
+    "pan", "pan_number",                       # PAN — HMAC fingerprint only
     "aadhar_no", "aadhar", "aadhaar",          # government ID
     "bank", "bank_details", "bank_account",    # raw bank account info
     "account",                                 # demat / bank account number
-    # Phase 7 — no plaintext contact info
-    "email",
-    "mobile_number", "personal_mobile", "personal_mobile_number",
-    "phone", "telephone",
-    "hod_email", "hrbp_email", "reports_to_email",
-    "date_of_birth",
-    "rm_email", "rm_mobile",
 }
 
 
@@ -450,51 +446,61 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
 # System-prompt context blocks (rich)
 # =========================
 def employee_context_block(identity_obj: Dict[str, Any]) -> str:
-    first = identity_obj.get("first_name") or "the colleague"
-    name = identity_obj.get("name") or first
-    parts = [
-        f"Name: {name} (call by first name '{first}')",
-        f"Employee ID: {identity_obj.get('employee_id')}",
-    ]
-    role = identity_obj.get("designation")
-    dept = identity_obj.get("department")
-    bu = identity_obj.get("business_unit")
-    role_line = f"Designation: {role}, {dept}" if role and dept else (
-        f"Designation: {role}" if role else f"Department: {dept}" if dept else None
-    )
-    if role_line:
-        if bu:
-            role_line += f" (BU: {bu})"
-        parts.append(role_line)
-    if identity_obj.get("location"):
-        parts.append(f"Location: {identity_obj.get('location')}")
-    status_line = f"Status: {identity_obj.get('employment_status')}"
-    if identity_obj.get("date_of_joining"):
-        status_line += f" · Joined {identity_obj.get('date_of_joining')}"
-    if identity_obj.get("current_experience"):
-        status_line += f" ({identity_obj.get('current_experience')} tenure)"
-    parts.append(status_line)
-    if identity_obj.get("reports_to_name"):
-        rt = f"Reports to: {identity_obj.get('reports_to_name')}"
-        ts = identity_obj.get("total_team_size")
-        if ts:
-            rt += f" · Team size: {ts}"
-        dr = identity_obj.get("direct_reports_count")
-        if dr:
-            rt += f" · Direct reports: {dr}"
-        parts.append(rt)
-    if identity_obj.get("hrbp_name"):
-        parts.append(f"HRBP: {identity_obj.get('hrbp_name')}")
+    """Phase 8.1 — emit a compact JSON USER_PROFILE dump so the chat LLM can
+    answer any self-profile question directly without a tool call.
+
+    Source = curated top-level fields ∪ identity.raw (already stripped of
+    PAN/Aadhaar/bank/account at verification time). Nothing here is
+    persisted per-turn — this is an ephemeral system-prompt injection.
+    """
+    import json as _json
+    raw = dict(identity_obj.get("raw") or {})
+    # Merge curated top-level fields on TOP of raw so display-masked emails etc.
+    # don't override the plaintext raw values the LLM needs.
+    merged: Dict[str, Any] = {}
+    merged.update(raw)
+    for k, v in (identity_obj or {}).items():
+        if k == "raw":
+            continue
+        # Don't overwrite plaintext email/phone from raw with *_display fakes.
+        if k.endswith("_display") and k[:-8] in merged:
+            continue
+        if v is not None and v != "":
+            merged[k] = v
+
+    # Derive a numeric tenure in years if current_experience is a string like
+    # "1 years 1 months" — helps the LLM answer "how long have I been here?"
+    ce = merged.get("current_experience") or ""
+    if isinstance(ce, str) and ce:
+        import re as _re
+        y = _re.search(r"(\d+)\s*year", ce)
+        m = _re.search(r"(\d+)\s*month", ce)
+        years = int(y.group(1)) if y else 0
+        months = int(m.group(1)) if m else 0
+        merged["current_experience_years"] = round(years + months / 12.0, 2)
+
+    first = merged.get("first_name") or "the colleague"
+    compact = _json.dumps(merged, default=str, ensure_ascii=False, separators=(",", ": "))
+
     return (
-        "\n\n--- VERIFIED EMPLOYEE CONTEXT ---\n"
-        + "\n".join(parts)
-        + "\nPERSONALIZATION RULE: Open with a respectful peer salutation using the first "
-        f"name (e.g. 'Hi {first},'). Reference 1–2 specific facts from above (department / "
-        "team / manager / tenure) naturally in your reply — keep it warm, not clingy. "
-        "Discuss internal SMIFS product specifics, internal processes, and KB content as a "
-        "knowledgeable colleague. Do not invent compensation or HR-specific information you "
-        "weren't given."
-        "\n--- END EMPLOYEE CONTEXT ---"
+        "\n\n--- VERIFIED EMPLOYEE · USER_PROFILE ---\n"
+        f"USER_PROFILE = {compact}\n"
+        "--- END USER_PROFILE ---\n"
+        "INSTRUCTIONS FOR THIS USER:\n"
+        f"- Open with a respectful peer salutation using the first name (e.g. 'Hi {first},').\n"
+        "- When the user asks ANYTHING about THEMSELVES — their employee id, designation, "
+        "department, manager, HRBP, team, location, office, tenure, date of joining, "
+        "confirmation status, notice status, employment status, compensation, CTC, cost "
+        "centres, shift, weekly off, email on record, phone on record, etc. — the answer "
+        "is in USER_PROFILE. Answer DIRECTLY from that object, citing the specific field "
+        "value. Be concise and warm.\n"
+        "- NEVER say 'I don't have that information about you' when the field exists in USER_PROFILE.\n"
+        "- NEVER punt to a directory lookup for self-queries.\n"
+        "- NEVER fabricate values. If a field is missing or null in USER_PROFILE, say so honestly.\n"
+        "- For questions about OTHER people or org-wide queries, the router will have already "
+        "dispatched a directory_* tool; you will see the structured result in context.\n"
+        "- PAN, Aadhaar, bank account numbers are intentionally NOT in USER_PROFILE. If asked, "
+        "state that those details aren't accessible here for security reasons.\n"
     )
 
 
