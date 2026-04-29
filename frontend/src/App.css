@@ -1099,20 +1099,42 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   word-break: break-word;
 }
 
-/* Secure composer hint */
-.smifs-composer--secure {
-  border-top-color: var(--gold) !important;
-  position: relative;
+/* Secure composer — hint sits ABOVE the input row so the textarea keeps full width on mobile */
+.smifs-composer-wrap {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.smifs-composer-wrap .smifs-composer { margin-top: 0; }
+.smifs-composer-wrap--secure .smifs-composer {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 4px rgba(201, 168, 106, 0.10);
 }
 .smifs-composer--secure .smifs-input {
-  font-family: "JetBrains Mono", monospace;
-  letter-spacing: 0.08em;
+  font-family: "JetBrains Mono", "Menlo", "Consolas", monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  caret-color: var(--gold);
+  min-height: 22px;
+  -webkit-text-security: none; /* belt-and-braces: never password-mask */
+}
+.smifs-composer--secure .smifs-input::placeholder {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: inherit;
+  color: var(--ink-dim);
 }
 .smifs-secure-hint {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 11px; letter-spacing: 0.06em;
-  color: var(--gold); padding: 6px 12px 0;
+  color: var(--gold); padding: 0 4px;
   font-weight: 500;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .smifs-secure-hint { font-size: 10.5px; }
 }
 
 /* ====== Phase 6 — Archives admin tab ====== */

@@ -545,30 +545,39 @@ export default function Chat({ embedded = false }) {
           const lastBot = [...messages].reverse().find((m) => m.role === "assistant" && !m.streaming);
           const sensitive = lastBot?.intent === "AUTH_PAN_REQUEST" || lastBot?.intent === "AUTH_PAN_RETRY";
           return (
-            <div className={`smifs-composer ${sensitive ? "smifs-composer--secure" : ""}`} data-secure={sensitive ? "true" : "false"}>
+            <div className={`smifs-composer-wrap ${sensitive ? "smifs-composer-wrap--secure" : ""}`}>
               {sensitive && (
                 <div className="smifs-secure-hint" data-testid="secure-input-hint">
                   <Lock size={11} strokeWidth={2.5} /> Secure entry · we'll mask this immediately
                 </div>
               )}
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKey}
-                placeholder={sensitive ? "Enter your PAN (e.g. ABCDE1234F) — masked on send" : "Ask your wealth advisor…"}
-                rows={1}
-                className="smifs-input"
-                data-testid="chat-input"
-              />
-              <button
-                className="smifs-send"
-                onClick={() => send()}
-                disabled={!input.trim() || streaming}
-                data-testid="send-button"
-                aria-label="Send message"
+              <div
+                className={`smifs-composer ${sensitive ? "smifs-composer--secure" : ""}`}
+                data-secure={sensitive ? "true" : "false"}
               >
-                <Send size={16} strokeWidth={2.25} />
-              </button>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKey}
+                  placeholder={sensitive ? "Enter your PAN (e.g. ABCDE1234F)" : "Ask your wealth advisor…"}
+                  rows={1}
+                  className="smifs-input"
+                  data-testid="chat-input"
+                  inputMode="text"
+                  autoComplete="off"
+                  autoCapitalize={sensitive ? "characters" : "sentences"}
+                  spellCheck={sensitive ? false : true}
+                />
+                <button
+                  className="smifs-send"
+                  onClick={() => send()}
+                  disabled={!input.trim() || streaming}
+                  data-testid="send-button"
+                  aria-label="Send message"
+                >
+                  <Send size={16} strokeWidth={2.25} />
+                </button>
+              </div>
             </div>
           );
         })()}
