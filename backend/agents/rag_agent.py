@@ -9,8 +9,8 @@ from .llm import chat_with_fallback, extract_reply
 
 logger = logging.getLogger(__name__)
 
-RAG_TOP_K = 5
-RAG_MIN_SCORE = 0.25
+RAG_TOP_K = 8
+RAG_MIN_SCORE = 0.15
 RAG_HISTORY_TURNS = 10
 
 BASE_PROMPT = (
@@ -20,9 +20,24 @@ BASE_PROMPT = (
 )
 
 GROUNDED_INSTR = (
-    "\n\nUse ONLY the KNOWLEDGE BASE passages below for SMIFS-specific facts (figures, regulations, fees, taxation, processes). "
-    "Do NOT invent SMIFS-specific facts. Do NOT enumerate citation IDs in your reply — citations are surfaced separately. "
-    "If the passages do not contain the answer, say so plainly and offer to connect the client with a human advisor."
+    "\n\nWhen KNOWLEDGE BASE passages are provided below, you MUST extract specific facts "
+    "(figures, regulations, fees, taxation, processes, eligibility, tenure, lock-ins, ticket sizes) "
+    "directly from those passages and answer the user's question concretely. "
+    "Synthesise across multiple passages when the answer spans them. "
+    "Do NOT respond with generic punts like 'please consult an advisor' or 'I do not have information' "
+    "when the passages clearly contain the answer — that is a failure mode. "
+    "Do NOT invent SMIFS-specific facts beyond what the passages state. "
+    "Do NOT enumerate citation IDs (e.g. [1], [2]) in your reply — citations are surfaced separately in the UI. "
+    "ONLY if the passages genuinely do not contain the requested information, briefly acknowledge the gap "
+    "and offer to connect the client with a human advisor.\n\n"
+    "EXAMPLE — passages contain the answer:\n"
+    "User: What is the minimum investment for an AIF?\n"
+    "Passages mention: 'SEBI mandates a minimum of ₹1 crore per investor across all AIF categories.'\n"
+    "Good reply: 'For Alternative Investment Funds, SEBI mandates a minimum commitment of ₹1 crore per "
+    "investor, applicable across all three AIF categories. At SMIFS we typically evaluate AIF allocations "
+    "only for clients whose investable surplus comfortably accommodates this threshold.'\n"
+    "Bad reply: 'AIF investment minimums vary; please connect with an advisor.' (← refuses despite "
+    "having the answer — never do this.)"
 )
 
 UNGROUNDED_INSTR = (
@@ -64,15 +79,23 @@ async def answer(message: str, history: List[Dict[str, Any]],
 
     citations: List[Dict[str, Any]] = []
     if grounded:
-        for h in hits[:3]:
-            if h["score"] >= RAG_MIN_SCORE:
-                citations.append({
-                    "doc_id": h["doc_id"],
-                    "doc_title": h["doc_title"],
-                    "section": h["section"],
-                    "score": round(h["score"], 4),
-                    "text": h["text"],
-                })
+        seen_docs: set = set()
+        for h in hits:
+            if h["score"] < RAG_MIN_SCORE:
+                continue
+            # Prefer one citation per distinct doc; fall back to extra chunks if we still have room
+            if h["doc_id"] in seen_docs:
+                continue
+            seen_docs.add(h["doc_id"])
+            citations.append({
+                "doc_id": h["doc_id"],
+                "doc_title": h["doc_title"],
+                "section": h["section"],
+                "score": round(h["score"], 4),
+                "text": h["text"],
+            })
+            if len(citations) >= 5:
+                break
     return {
         "reply_text": reply_text,
         "citations": citations,

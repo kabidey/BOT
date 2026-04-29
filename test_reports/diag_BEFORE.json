@@ -1,0 +1,188 @@
+{
+  "rag": [
+    {
+      "q": "Explain the difference between AIF Cat I, Cat II, and Cat III",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 1344,
+      "top_scores": [
+        0.565,
+        0.503,
+        0.366,
+        0.359,
+        0.308
+      ],
+      "citation_docs": [
+        "aif_overview",
+        "risk_disclosure"
+      ],
+      "reply_text": "The primary distinction among Category I, II, and III Alternative Investment Funds (AIFs) lies in their underlying investment mandates, regulatory classification, and tax treatment.\n\n*   **Category I AIFs:** These funds focus on sectors deemed economically or socially desirable by the government, such as start-ups, SMEs, infrastructure, and social ventures. They often enjoy a pass-through tax status, meaning income is generally taxed at the investor level rather than the fund level.\n*   **Category II AIFs:** This is the most common category for High Net Worth Individuals (HNIs). It encompasses private equity, debt funds, real estate funds, and funds of funds that do not utilize leverage beyond day-to-day operations. Tax treatment involves pass-through status for capital gains and dividends, but business income may be taxed at the fund level.\n*   **Category III AIFs:** These are designed for more complex strategies, involving derivatives, leverage, and short-selling (such as hedge funds). Critically, these funds are taxed on *all* income at the fund level, and investors receive net distributions.\n\nIn summary, Category I targets specific developmental sectors; Category II covers a broad spectrum of established alternatives for HNI portfolios; and Category III employs complex trading strategies with distinct tax implications."
+    },
+    {
+      "q": "How are NCDs taxed in India? List long-term and short-term cases.",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 1219,
+      "top_scores": [
+        0.742,
+        0.571,
+        0.506,
+        0.47,
+        0.464
+      ],
+      "citation_docs": [
+        "ncds_overview",
+        "pms_overview",
+        "risk_disclosure"
+      ],
+      "reply_text": "Regarding the taxation of Non-Convertible Debentures (NCDs) in India, they are taxed under two distinct heads: interest income and capital gains upon sale before maturity.\n\nFor **Interest Income**, this is added to your total income and taxed at your applicable slab rate; there is no concessional rate for interest from listed NCDs.\n\nFor **Capital Gains on Sale Before Maturity**, the taxation depends on whether the listed NCDs are held in a demat form:\n\n*   **Listed NCDs held for more than 12 months:** The gain is treated as long-term capital gains at 10% without indexation.\n*   **Listed NCDs held for 12 months or less:** The gain is treated as short-term capital gains, taxed at your slab rate.\n\nFor **Unlisted NCDs**, the rules are different:\n\n*   **Unlisted NCDs held for more than 36 months:** The gain is treated as long-term capital gains at 20% with indexation.\n\nPlease note that while Tax Deducted at Source (TDS) is generally not deducted on listed NCDs held in demat form, it remains the investor's responsibility to declare the interest income.\n\nShould you require detailed guidance tailored to your specific holdings or tax situation, I would be pleased to connect you with one of our human advisors."
+    },
+    {
+      "q": "What is the minimum investment for PMS at SMIFS?",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 267,
+      "top_scores": [
+        0.721,
+        0.616,
+        0.569,
+        0.565,
+        0.559
+      ],
+      "citation_docs": [
+        "compliance_kyc",
+        "pms_overview"
+      ],
+      "reply_text": "While the SEBI-mandated minimum for Portfolio Management Services (PMS) is \u20b950 lakh per investor, SMIFS recommends pursuing PMS only when your equity allocation comfortably exceeds \u20b92 crore to ensure adequate diversification across at least three managers and styles."
+    },
+    {
+      "q": "Tell me about KYC requirements for AIF investments",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 1759,
+      "top_scores": [
+        0.617,
+        0.614,
+        0.582,
+        0.541,
+        0.54
+      ],
+      "citation_docs": [
+        "aif_overview",
+        "compliance_kyc"
+      ],
+      "reply_text": "For Alternative Investment Fund (AIF) investments, SMIFS requires adherence to specific Know Your Customer (KYC) protocols.\n\nGenerally, for onboarding, the mandatory KYC documentation varies based on whether you are an Indian resident or an NRI client. For Indian residents, key documents include:\n\n*   **Identity Proof:** A PAN Card is mandatory and non-substitutable.\n*   **Address Proof:** Documents such as Aadhaar Card, Voter ID, Passport, or Driving Licence are accepted. If the current address differs from the document's address, a recent utility bill or bank statement (not older than 90 days) is also required.\n*   **Photograph:** A recent passport-size photograph for physical KYC, or a selfie for digital KYC (CKYC).\n*   **Bank Proof:** A cancelled cheque or a recent bank statement showing the account number and IFSC.\n*   **Income Proof:** For High Net Worth Individual (HNI) and Portfolio Management Services (PMS) onboarding, salary slips, Form 16, or Income Tax Returns (ITR) for the last two assessment years are required.\n\nFor NRI clients, additional documentation is necessary, including a passport with a valid visa, OCI/PIO card if applicable, NRE/NRO bank account proof, and a FATCA self-declaration.\n\nFurthermore, once submitted, your KYC will be registered with one of SEBI's KYC Registration Agencies (KRAs), resulting in the issuance of a CKYC Identification Number (CKYC ID). SMIFS clients can complete this process digitally via Aadhaar-based eKYC in under 10 minutes.\n\nPlease note that for AIF units specifically, subscription is restricted to accredited investors who meet certain criteria, such as HNIs with the \u20b91 crore minimum investment. We conduct a structured suitability assessment before recommending any AIF allocation."
+    },
+    {
+      "q": "Are NCDs secured? What's the difference between secured and unsecured NCDs?",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 861,
+      "top_scores": [
+        0.704,
+        0.563,
+        0.471,
+        0.38,
+        0.355
+      ],
+      "citation_docs": [
+        "ncds_overview"
+      ],
+      "reply_text": "Non-Convertible Debentures (NCDs) can be structured as either secured or unsecured.\n\nThe distinction lies in the backing of the instrument:\n\n*   **Secured NCDs** are backed by a charge on identified assets of the issuer, such as receivables, fixed assets, or a hypothecation of book debts. Should the issuer default, holders of these notes have a priority claim. SMIFS strongly recommends secured NCDs for first-time fixed-income investors.\n*   **Unsecured NCDs** rank with general unsecured creditors and typically offer higher coupons to compensate for the absence of collateral. These are only suitable for investors who can absorb credit risk and who maintain diversification across multiple issuers.\n\nIn essence, securing the debt provides a layer of protection through identified assets, which is a key consideration when evaluating fixed-income exposure."
+    }
+  ],
+  "synth": [
+    {
+      "q": "Compare AIF and PMS for an HNI investor with 2 crore",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 1784,
+      "top_scores": [
+        0.635,
+        0.586,
+        0.565,
+        0.554,
+        0.539
+      ],
+      "citation_docs": [
+        "aif_overview",
+        "pms_overview"
+      ],
+      "reply_text": "For an HNWI investor with a surplus of \u20b92 crore, both Alternative Investment Funds (AIFs) and Portfolio Management Services (PMS) offer sophisticated avenues for asset allocation, but they carry distinct structural characteristics.\n\n**Key Considerations:**\n\n*   **Minimum Thresholds:**\n    *   For **PMS**, the SEBI-mandated minimum investment is \u20b950 lakh per investor. SMIFS recommends PMS when your equity allocation comfortably exceeds \u20b92 crore to ensure adequate diversification across at least three managers and styles.\n    *   For **AIFs**, SEBI mandates a minimum investment of \u20b91 crore per investor, irrespective of category. Furthermore, SMIFS evaluates AIF allocations only for clients whose total investable surplus can accommodate this \u20b91 crore commitment without compromising liquidity for goals within a five-year horizon.\n\n*   **Risk Profile:**\n    *   Both strategies carry risks beyond conventional vehicles. With **PMS**, the portfolio is typically concentrated in 15\u201330 securities to drive alpha, which amplifies single-name risk.\n    *   For **AIFs**, the risks are varied by category; for instance, Category III AIFs may employ leverage and derivatives, meaning losses can approach (but not exceed) the original investment. Additionally, most Category I and II AIFs involve multi-year lock-ins as they are close-ended.\n\n**In summary:** Given your capital base, you meet the minimum entry criteria for both. However, our recommendation hinges on a detailed assessment of your liquidity needs, time horizon, and specific risk appetite, which we must cover in a structured suitability assessment before proceeding with either investment class.\n\nI recommend scheduling a dedicated consultation so we can tailor this comparison to your precise financial architecture."
+    },
+    {
+      "q": "What are SMIFS's offerings for fixed-income investors?",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 640,
+      "top_scores": [
+        0.688,
+        0.666,
+        0.632,
+        0.622,
+        0.587
+      ],
+      "citation_docs": [
+        "about_smifs",
+        "ipo_services",
+        "risk_disclosure"
+      ],
+      "reply_text": "Our practice at SMIFS Management Services Limited is centered on wealth management and capital markets advisory for high-net-worth individuals, ultra-high-net-worth families, corporate treasuries, and institutional clients.\n\nWhile we offer comprehensive services across various areas, including primary market access through IPOs, FPOs, and Rights Issues, the provided materials do not detail our specific offerings exclusively for fixed-income investors.\n\nI would be pleased to connect you with one of our human advisors who can provide a detailed consultation regarding how our services align with your fixed-income investment objectives."
+    }
+  ],
+  "followup": [
+    {
+      "q": "What is an AIF?",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 1364,
+      "top_scores": [
+        0.619,
+        0.572,
+        0.504,
+        0.498,
+        0.49
+      ],
+      "citation_docs": [
+        "aif_overview"
+      ],
+      "reply_text": "Alternative Investment Funds (AIFs) are privately-pooled investment vehicles that have been registered with SEBI under the SEBI (Alternative Investment Funds) Regulations, 2012.\n\nThese funds collect capital from sophisticated investors and deploy it into asset classes that fall outside the scope of conventional mutual funds. Examples of these asset classes include private equity, venture capital, structured credit, distressed assets, real estate, hedge strategies, and listed market opportunities. SMIFS Management Services Limited curates AIF allocations for high-net-worth and ultra-high-net-worth clients seeking differentiated risk-return profiles.\n\nSEBI classifies AIFs into three categories based on their mandates and regulatory treatment:\n\n*   **Category I AIF:** These funds invest in areas deemed economically and socially desirable, such as start-ups, SMEs, infrastructure, and social ventures.\n*   **Category II AIF:** This is the most common category for HNIs, covering private equity, debt funds, real estate funds, and funds of funds that do not use leverage beyond day-to-day operations.\n*   **Category III AIF:** These employ more complex trading strategies, including derivatives and short-selling, such as hedge funds.\n\nPlease let me know if you would like a more detailed discussion on the suitability or structure of any specific category."
+    },
+    {
+      "q": "What's the minimum investment for that?",
+      "intent": "KNOWLEDGE",
+      "model": "gemma-4-E4B",
+      "grounded": true,
+      "citations": 3,
+      "chars": 422,
+      "top_scores": [
+        0.496,
+        0.441,
+        0.43,
+        0.429,
+        0.409
+      ],
+      "citation_docs": [
+        "about_smifs",
+        "aif_overview"
+      ],
+      "reply_text": "For an Alternative Investment Fund (AIF), SEBI mandates a minimum investment of \u20b91 crore per investor, irrespective of the category. Additionally, the minimum corpus required for an AIF scheme is \u20b920 crore.\n\nAt SMIFS, we evaluate AIF allocations only for clients whose total investable surplus comfortably accommodates this \u20b91 crore commitment without compromising liquidity necessary for goals within a five-year horizon."
+    }
+  ]
+}

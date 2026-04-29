@@ -19,17 +19,17 @@ LLMHUB_API_KEY = os.environ.get("LLMHUB_API_KEY", "")
 LLMHUB_BASE_URL = os.environ.get("LLMHUB_BASE_URL", "").rstrip("/")
 
 CHAT_CHAIN = [
-    "gemma-4-E4B",
-    "llama-3.3-70b-versatile",
-    "claude-haiku-4-5-20251001",
     "auto",
+    "llama-3.3-70b-versatile",
+    "gemma-4-E4B",
+    "claude-haiku-4-5-20251001",
 ]
 
 ROUTER_CHAIN = [
+    "auto",
     "llama-3.3-70b-versatile",
     "gemma-4-E4B",
     "claude-haiku-4-5-20251001",
-    "auto",
 ]
 
 _LAST_OK: Dict[str, str] = {}
