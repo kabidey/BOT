@@ -1,0 +1,52 @@
+{
+  "summary": "Phase 7 RETEST after the lifecycle.maybe_expire_and_mint hash-inheritance fix and the TurnResponse model widening. ALL backend tests now pass — 9/9 in the original /app/backend/tests/test_phase7_lifecycle.py suite (previously 7/9), plus 2/2 in a new dedicated regression file /app/backend/tests/test_phase7_inheritance_regression.py that directly inspects Mongo for inherited identity hashes and asserts the widened TurnResponse exposes prior_session_id + resume_offer at the response root. The two previously-failing cases — TestRehydrationCandidatesEndpoint::test_get_candidates_returns_prior and TestResume::test_resume_matching_identity_succeeds — are GREEN. Cross-user 403, decline_resume, 30-day TTL, and end-to-end employee OrgLens auth (aaditya.jaiswal@smifs.com + BQPPJ8323M) all still pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "lifecycle.maybe_expire_and_mint now INSERTS the new session row eagerly with inherited IDENTITY_HASH_FIELDS (emp_id_hash, email_hash, pan_hash; ucc_hash/phone_hash propagated when present), lifecycle='active', prior_session_id reference. Verified via direct Mongo find_one on the new sid — every prior hash is exactly mirrored.",
+    "No plaintext PII leaked onto the inherited row (no pan/email/phone/aadhar root keys).",
+    "GET /api/sessions/{new_sid}/rehydration_candidates now returns the prior session id with full {summary, message_count, ended_at, session_type} contract.",
+    "POST /api/sessions/{new_sid}/resume {prior_session_id: old} → 200, returns merged history (>=2 messages).",
+    "POST /api/sessions/{sid}/resume with non-overlapping fabricated hashes → 403 (cross-user block intact).",
+    "POST /api/sessions/{sid}/decline_resume still flips matching priors to lifecycle='ended' and returns ended_prior_sessions count.",
+    "TurnResponse widened — /api/agent/turn root response now carries prior_session_id (== expired sid) and resume_offer (non-empty list of candidates) after idle expiry. Pydantic no longer strips them.",
+    "30-day TTL index on sessions.updated_at_dt confirmed (expireAfterSeconds=2592000).",
+    "Identity-hash storage + PII scrub still hold: emp_id_hash/email_hash/pan_hash present on verified docs, no plaintext PAN/email/mobile/aadhar at root or in identity.raw."
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_phase7_lifecycle.py",
+    "/app/backend/tests/test_phase7_inheritance_regression.py",
+    "/app/test_reports/pytest/phase7_results.xml",
+    "/app/test_reports/pytest/phase7_inheritance_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "lifecycle.py:115-122 — the try/except around insert_one falls back to update_one with the inherited hashes. If the concurrent inserter wrote the row WITHOUT hashes (e.g. blank shell from get_or_create_session_row), the patch correctly backfills them. Good. Consider tightening the except to DuplicateKeyError specifically so unrelated insert errors are not silently masked.",
+    "lifecycle.py:131 — when prepending the just-expired session as the top candidate, the call passes `await _summary_for(db, session_id)` inside a list-literal. Order of evaluation is fine here, but readability would improve by computing the summary on its own line first.",
+    "lifecycle._candidates_from_hashes still uses lifecycle != 'ended' which includes 'active' AND 'expired'. Multi-tab risk persists — a parallel active session sharing emp_id_hash could be offered for resume. Low probability for the SMIFS use case but worth a `lifecycle: 'expired'` tightening or a recency guard.",
+    "server.py:83 TurnResponse now correctly exposes prior_session_id + resume_offer at the root. Frontend consumers of /agent/turn (non-stream) can rely on these fields directly.",
+    "Tests: I added /app/backend/tests/test_phase7_inheritance_regression.py focusing specifically on Mongo hash-inheritance and TurnResponse top-level surfacing. Keep both files; they exercise the fix from two angles."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase7_inheritance_regression.py (new — 2 regression cases verifying the lifecycle fix + TurnResponse widening)",
+    "/app/test_reports/pytest/phase7_inheritance_results.xml (new JUnit output)",
+    "/app/test_reports/pytest/phase7_results.xml (refreshed — 9/9 PASS)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 pytest cases across 2 files)",
+    "frontend": "not retested this iteration — backend-only request"
+  },
+  "test_credentials": "Employee auth: aaditya.jaiswal@smifs.com + PAN BQPPJ8323M (OrgLens live). Admin token: smifs-admin-2026 (unused).",
+  "seed_data_creation": "Each verified-employee test creates a real session via /agent/turn → OrgLens. Cross-user resume + decline_resume tests insert+delete fabricated session rows with self-cleanup. Older expired sessions auto-purge via the 30-day TTL.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 7 lifecycle is now stable. Regression suites: /app/backend/tests/test_phase7_lifecycle.py (11 cases incl. cross-user 403 + decline_resume) and /app/backend/tests/test_phase7_inheritance_regression.py (Mongo-direct hash inheritance + TurnResponse top-level). Run both with `pytest /app/backend/tests/test_phase7*.py -v --junitxml=/app/test_reports/pytest/phase7_results.xml`. Use Mongo backdate (updated_at_dt -= 3min) to simulate idle — never wait 120s in tests. Frontend resume UX (idle-warning, idle-lockout, idle-resume-btn, resume-offer-card) was not retested this iteration; backend-only request.",
+  "rca_of_the_issue": "RESOLVED. Previous iteration's bug — lifecycle.maybe_expire_and_mint minted a new uuid but never wrote a session row, so when get_or_create_session_row later created one it had no identity hashes — is FIXED. The function now eagerly INSERTS a row at mint time carrying {_id: new_id, lifecycle:'active', prior_session_id: old_sid, **inherited_hashes} (lifecycle.py:103-122). Verified by direct Mongo inspection: emp_id_hash/email_hash/pan_hash on the new row exactly equal the prior's hashes; rehydration_candidates returns the prior; resume succeeds with merged history."
+}

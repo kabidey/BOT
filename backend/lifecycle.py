@@ -96,6 +96,30 @@ async def maybe_expire_and_mint(db, session_id: Optional[str]) -> Dict[str, Any]
                 {"$set": {"lifecycle": "expired"}},
             )
         new_id = str(uuid.uuid4())
+        # Inherit identity hashes onto the newly-minted session row so that:
+        # 1) /rehydration_candidates on the new sid can locate prior sessions
+        # 2) /resume's identity-overlap check passes for the same user
+        # Plaintext PII is intentionally NOT copied — hashes only.
+        now_dt = _now()
+        inherited = {f: sess.get(f) for f in IDENTITY_HASH_FIELDS if sess.get(f)}
+        new_doc: Dict[str, Any] = {
+            "_id": new_id,
+            "lifecycle": "active",
+            "created_at": now_dt.isoformat(),
+            "updated_at": now_dt.isoformat(),
+            "updated_at_dt": now_dt,
+            "session_type": sess.get("session_type", "visitor"),
+            "prior_session_id": session_id,
+            **inherited,
+        }
+        try:
+            await db.sessions.insert_one(new_doc)
+        except Exception:
+            # If a concurrent turn already inserted the row, patch inherited hashes on it.
+            await db.sessions.update_one(
+                {"_id": new_id},
+                {"$set": {**inherited, "prior_session_id": session_id}},
+            )
         result["session_id"] = new_id
         result["prior_session_id"] = session_id
         result["expired"] = True

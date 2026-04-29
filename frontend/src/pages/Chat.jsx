@@ -120,6 +120,9 @@ export default function Chat({ embedded = false }) {
           blocks: [{ type: "resume_offer", data: { candidates } }],
           citations: [],
         }]));
+      } else {
+        setErrorMsg("No prior conversation to restore — please continue below.");
+        setTimeout(() => setErrorMsg(""), 4000);
       }
     } catch (_) { /* non-fatal */ }
   }, [sessionId, resetIdleTimers]);

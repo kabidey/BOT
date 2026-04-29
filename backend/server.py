@@ -87,6 +87,8 @@ class TurnResponse(BaseModel):
     citations: List[Dict[str, Any]] = []
     model: Optional[str] = None
     intent: Optional[str] = None
+    prior_session_id: Optional[str] = None
+    resume_offer: Optional[List[Dict[str, Any]]] = None
 
 
 class RagSearchRequest(BaseModel):
