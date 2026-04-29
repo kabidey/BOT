@@ -57,6 +57,12 @@ _HMAC_KEY = (
     or b"smifs-fallback-pan-hmac-key"
 )
 
+# Phase 7 — identity-keyed rehydration. Dedicated secret so operators can
+# rotate independently of the LLM / OrgLens keys. Falls back to the combined
+# PAN HMAC key when unset (logged as a warning by server.startup).
+IDENTITY_HASH_SECRET = os.environ.get("IDENTITY_HASH_SECRET") or ""
+_IDENTITY_KEY = (IDENTITY_HASH_SECRET.encode("utf-8") if IDENTITY_HASH_SECRET else _HMAC_KEY)
+
 
 # =========================
 # PAN privacy helpers
@@ -73,6 +79,61 @@ def pan_hash(pan: str) -> str:
     """HMAC-SHA256 fingerprint of the normalized PAN. Never reversible."""
     norm = normalize_pan(pan)
     return hmac.new(_HMAC_KEY, norm.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+# =========================
+# Identity-key hashes for rehydration lookup (Phase 7)
+# =========================
+def _identity_hmac(value: str) -> str:
+    if not value:
+        return ""
+    return hmac.new(_IDENTITY_KEY, value.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def email_hash(email: Optional[str]) -> str:
+    if not email:
+        return ""
+    return _identity_hmac(email.strip().lower())
+
+
+def phone_hash(phone: Optional[str]) -> str:
+    """Normalize to last-10-digits (Indian mobile convention) and HMAC."""
+    if not phone:
+        return ""
+    digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) > 10:
+        digits = digits[-10:]
+    if len(digits) < 10:
+        return ""
+    return _identity_hmac(digits)
+
+
+def emp_id_hash(eid: Optional[str]) -> str:
+    if not eid:
+        return ""
+    return _identity_hmac(eid.strip().upper())
+
+
+def ucc_hash(ucc: Optional[str]) -> str:
+    if not ucc:
+        return ""
+    return _identity_hmac(str(ucc).strip())
+
+
+def mask_email_display(email: Optional[str]) -> str:
+    if not email or "@" not in email:
+        return ""
+    local, _, domain = email.partition("@")
+    return f"{local[:2]}***@{domain}"
+
+
+def mask_phone_display(phone: Optional[str]) -> str:
+    if not phone:
+        return ""
+    digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) < 4:
+        return "***"
+    return f"***{digits[-4:]}"
 
 
 def mask_pan(pan: str) -> str:
@@ -235,12 +296,19 @@ async def probe_permissions() -> Dict[str, Any]:
 # Storage sanitizers
 # =========================
 # Fields stripped from `identity.raw` before persistence — never store
-# financial credentials or government IDs in Mongo.
+# financial credentials, government IDs, or raw contact details in Mongo.
 _RAW_STRIP_FIELDS = {
     "pan", "pan_number",                       # PAN — verified via HMAC, never persisted
     "aadhar_no", "aadhar", "aadhaar",          # government ID
     "bank", "bank_details", "bank_account",    # raw bank account info
     "account",                                 # demat / bank account number
+    # Phase 7 — no plaintext contact info
+    "email",
+    "mobile_number", "personal_mobile", "personal_mobile_number",
+    "phone", "telephone",
+    "hod_email", "hrbp_email", "reports_to_email",
+    "date_of_birth",
+    "rm_email", "rm_mobile",
 }
 
 
@@ -279,13 +347,13 @@ def sanitize_employee_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
         "date_of_confirmation": rec.get("date_of_confirmation"),
         "current_experience": rec.get("current_experience"),
         "reports_to_name": rec.get("reports_to_name") or rec.get("hod_name"),
-        "reports_to_email": rec.get("reports_to_email") or rec.get("hod_email"),
+        "reports_to_email_display": mask_email_display(rec.get("reports_to_email") or rec.get("hod_email")),
         "reports_to_employee_id": rec.get("reports_to_employee_id") or rec.get("hod_employee_id"),
         "direct_reports_count": rec.get("direct_reports_count"),
         "total_team_size": rec.get("total_team_size"),
         "hrbp_name": rec.get("hrbp_name"),
-        "hrbp_email": rec.get("hrbp_email"),
-        "email": rec.get("email"),
+        "hrbp_email_display": mask_email_display(rec.get("hrbp_email")),
+        "email_display": mask_email_display(rec.get("email")),
         "gender": rec.get("gender"),
         "on_notice": rec.get("on_notice"),
         "is_absconding": rec.get("is_absconding"),
@@ -315,8 +383,8 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
         "ucc": rec.get("ucc"),
         "name": rec.get("client_name"),  # may be absent in current schema
         "first_name": first,
-        "email": email,
-        "telephone": rec.get("telephone"),
+        "email_display": mask_email_display(email),
+        "telephone_display": mask_phone_display(rec.get("telephone")),
         "gender": rec.get("gender"),
         "status": rec.get("status"),
         "branch_name": rec.get("dp_name"),
@@ -325,8 +393,8 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
         "sub_broker_name": rec.get("sub_broker_name"),
         "rm_code": rec.get("rm_code"),
         "rm_name": rec.get("rm_name"),
-        "rm_email": rec.get("rm_email"),
-        "rm_mobile": rec.get("rm_mobile"),
+        "rm_email_display": mask_email_display(rec.get("rm_email")),
+        "rm_mobile_display": mask_phone_display(rec.get("rm_mobile")),
         "crm_name": rec.get("crm_name"),
         "risk_profile": rec.get("risk_profile"),
         "city": rec.get("city"),

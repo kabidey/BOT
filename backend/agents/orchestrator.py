@@ -47,6 +47,7 @@ async def _append_messages(db, session_id: str, new_msgs: List[Dict[str, Any]]) 
     """All persisted text is run through redact_pan_in_text — plaintext PANs
     are masked to XXXXX####X before they ever land on disk."""
     now = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
     stamped: List[Dict[str, Any]] = []
     for m in new_msgs:
         cleaned = dict(m)
@@ -59,6 +60,12 @@ async def _append_messages(db, session_id: str, new_msgs: List[Dict[str, Any]]) 
     await db.conversations.update_one(
         {"session_id": session_id},
         {"$push": {"messages": {"$each": stamped}}, "$set": {"updated_at": now}},
+    )
+    # Phase 7 — bump session activity timestamp on every turn so idle expiry
+    # is measured from the last chat, not the last auth state transition.
+    await db.sessions.update_one(
+        {"_id": session_id},
+        {"$set": {"updated_at": now, "updated_at_dt": now_dt, "lifecycle": "active"}},
     )
 
 
@@ -286,7 +293,14 @@ async def run_turn(db, session_id: Optional[str], message: str,
                    emit_status: StatusEmitter = None,
                    emit_token: TokenEmitter = None,
                    emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
-    convo = await _get_or_create_session(db, session_id)
+    # Phase 7 — idle expiry & rehydration offer
+    import lifecycle as _lc
+    expiry = await _lc.maybe_expire_and_mint(db, session_id)
+    effective_sid = expiry["session_id"]
+    prior_session_id = expiry.get("prior_session_id")
+    expiry_resume_offer = expiry.get("resume_offer")
+
+    convo = await _get_or_create_session(db, effective_sid)
     sid = convo["session_id"]
     history = convo.get("messages", [])
     auth_row = await auth_agent.get_or_create_session_row(db, sid)
@@ -415,6 +429,18 @@ async def run_turn(db, session_id: Optional[str], message: str,
         "model": out.get("model"),
         "intent": intent,
     }
+    # Phase 7 — if this turn was a fresh-mint from idle-expiry, expose the
+    # prior id + any resume offers so the FE can render the rehydration card.
+    if prior_session_id:
+        payload["prior_session_id"] = prior_session_id
+    if expiry_resume_offer:
+        payload["resume_offer"] = expiry_resume_offer
+        payload["blocks"] = [
+            {"type": "resume_offer", "data": {"candidates": expiry_resume_offer}}
+        ] + payload["blocks"]
+    # If the auth_agent attached a resume offer (on verification), forward it.
+    if isinstance(out, dict) and out.get("resume_offer") and not expiry_resume_offer:
+        payload["resume_offer"] = out["resume_offer"]
     await _append_messages(db, sid, [
         {"role": "user", "content": message},
         {

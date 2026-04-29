@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle } from "lucide-react";
 
 import TextBlock from "@/components/blocks/TextBlock";
 import FormBlock from "@/components/blocks/FormBlock";
@@ -8,6 +8,7 @@ import MarketCardBlock from "@/components/blocks/MarketCardBlock";
 import ClientCardBlock from "@/components/blocks/ClientCardBlock";
 import EmployeeCardBlock from "@/components/blocks/EmployeeCardBlock";
 import EscalationBlock from "@/components/blocks/EscalationBlock";
+import ResumeOfferBlock from "@/components/blocks/ResumeOfferBlock";
 
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
 const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
@@ -84,6 +85,84 @@ export default function Chat({ embedded = false }) {
       try { window.parent.postMessage({ type: "mackertich:assistant_message" }, "*"); } catch (_) {}
     }
   }, [embedded, messages]);
+
+  // ---- Phase 7 — 2-min idle watcher ----
+  const [idleState, setIdleState] = useState("fresh"); // "fresh" | "warning" | "expired"
+  const idleTimersRef = useRef({ warn: null, expire: null });
+  const resetIdleTimers = useCallback(() => {
+    if (idleTimersRef.current.warn) clearTimeout(idleTimersRef.current.warn);
+    if (idleTimersRef.current.expire) clearTimeout(idleTimersRef.current.expire);
+    setIdleState("fresh");
+    idleTimersRef.current.warn = setTimeout(() => setIdleState("warning"), 110_000);
+    idleTimersRef.current.expire = setTimeout(() => setIdleState("expired"), 120_000);
+  }, []);
+  // Reset on mount and whenever messages change (any turn counts as activity).
+  useEffect(() => {
+    resetIdleTimers();
+    return () => {
+      if (idleTimersRef.current.warn) clearTimeout(idleTimersRef.current.warn);
+      if (idleTimersRef.current.expire) clearTimeout(idleTimersRef.current.expire);
+    };
+  }, [resetIdleTimers, messages.length]);
+
+  // Fetch rehydration candidates when the user clicks "Resume" after expiry
+  // (session was frozen client-side; see if any prior sessions are recoverable).
+  const offerResumeAfterExpiry = useCallback(async () => {
+    resetIdleTimers();
+    if (!sessionId) return;
+    try {
+      const { data } = await axios.get(`${API}/sessions/${sessionId}/rehydration_candidates`);
+      const candidates = data?.candidates || [];
+      if (candidates.length > 0) {
+        setMessages((prev) => ([...prev, {
+          role: "assistant",
+          intent: "RESUME_OFFER",
+          blocks: [{ type: "resume_offer", data: { candidates } }],
+          citations: [],
+        }]));
+      }
+    } catch (_) { /* non-fatal */ }
+  }, [sessionId, resetIdleTimers]);
+
+  // Resume / Decline handlers
+  const handleResume = useCallback(async (priorSessionId) => {
+    if (!sessionId || !priorSessionId) return;
+    try {
+      const { data } = await axios.post(`${API}/sessions/${sessionId}/resume`,
+        { prior_session_id: priorSessionId });
+      // Merged session — rebuild messages from the returned history
+      const restored = (data.history || []).map((h) => {
+        if (h.role === "user") return { role: "user", content: h.text || "" };
+        return {
+          role: "assistant",
+          blocks: h.blocks || [{ type: "text", text: "" }],
+          citations: h.citations || [],
+          intent: h.intent,
+          model: h.model,
+        };
+      });
+      setMessages(restored);
+      if (data.identity) setIdentity(data.identity);
+      if (data.client) setClient(data.client);
+      resetIdleTimers();
+    } catch (e) {
+      const d = e?.response?.data?.detail || e.message;
+      setErrorMsg(`Could not resume: ${d}`);
+    }
+  }, [sessionId, resetIdleTimers]);
+
+  const handleDecline = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      await axios.post(`${API}/sessions/${sessionId}/decline_resume`);
+      // Strip any resume_offer blocks from the current view
+      setMessages((prev) => prev.map((m) => (
+        m.role === "assistant" && Array.isArray(m.blocks)
+          ? { ...m, blocks: m.blocks.filter((b) => b.type !== "resume_offer") }
+          : m
+      )));
+    } catch (_) { /* non-fatal */ }
+  }, [sessionId]);
 
   // Health ping on mount
   useEffect(() => {
@@ -309,6 +388,8 @@ export default function Chat({ embedded = false }) {
   const send = (textOverride) => {
     const text = (textOverride ?? input).trim();
     if (!text || streaming) return;
+    if (idleState === "expired") return; // composer locked until user clicks Resume
+    resetIdleTimers();
     setInput("");
     sendStreaming(text);
   };
@@ -376,6 +457,15 @@ export default function Chat({ embedded = false }) {
         return <ClientCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "employee_card":
         return <EmployeeCardBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "resume_offer":
+        return (
+          <ResumeOfferBlock
+            key={key}
+            block={block}
+            onResume={(priorId) => handleResume(priorId)}
+            onDecline={() => handleDecline()}
+          />
+        );
       case "escalation_card":
         return <EscalationBlock key={key} block={block} msgIdx={msgIdx} onRequestCallback={requestCallback} />;
       default:
@@ -544,22 +634,48 @@ export default function Chat({ embedded = false }) {
         {(() => {
           const lastBot = [...messages].reverse().find((m) => m.role === "assistant" && !m.streaming);
           const sensitive = lastBot?.intent === "AUTH_PAN_REQUEST" || lastBot?.intent === "AUTH_PAN_RETRY";
+          const locked = idleState === "expired";
+          const warning = idleState === "warning";
           return (
             <div className={`smifs-composer-wrap ${sensitive ? "smifs-composer-wrap--secure" : ""}`}>
-              {sensitive && (
+              {warning && !locked && (
+                <div className="smifs-idle-warning" data-testid="idle-warning">
+                  <Clock size={12} strokeWidth={2.5} />
+                  <span>Still there? This session will freeze in ~10 seconds due to inactivity.</span>
+                </div>
+              )}
+              {locked && (
+                <div className="smifs-idle-lockout" data-testid="idle-lockout" role="status">
+                  <div className="smifs-idle-lockout-text">
+                    <Lock size={12} strokeWidth={2.5} />
+                    <span>Session paused after 2 minutes of inactivity. Continue to resume.</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="smifs-idle-resume-btn"
+                    onClick={offerResumeAfterExpiry}
+                    data-testid="idle-resume-btn"
+                  >
+                    <PlayCircle size={12} strokeWidth={2.5} /> Resume
+                  </button>
+                </div>
+              )}
+              {sensitive && !locked && (
                 <div className="smifs-secure-hint" data-testid="secure-input-hint">
                   <Lock size={11} strokeWidth={2.5} /> Secure entry · we'll mask this immediately
                 </div>
               )}
               <div
-                className={`smifs-composer ${sensitive ? "smifs-composer--secure" : ""}`}
+                className={`smifs-composer ${sensitive ? "smifs-composer--secure" : ""} ${locked ? "smifs-composer--locked" : ""}`}
                 data-secure={sensitive ? "true" : "false"}
+                data-locked={locked ? "true" : "false"}
               >
                 <textarea
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => { setInput(e.target.value); if (idleState !== "expired") resetIdleTimers(); }}
                   onKeyDown={onKey}
-                  placeholder={sensitive ? "Enter your PAN (e.g. ABCDE1234F)" : "Ask your wealth advisor…"}
+                  onFocus={() => { if (idleState !== "expired") resetIdleTimers(); }}
+                  placeholder={locked ? "Session paused — click Resume to continue" : (sensitive ? "Enter your PAN (e.g. ABCDE1234F)" : "Ask your wealth advisor…")}
                   rows={1}
                   className="smifs-input"
                   data-testid="chat-input"
@@ -567,11 +683,12 @@ export default function Chat({ embedded = false }) {
                   autoComplete="off"
                   autoCapitalize={sensitive ? "characters" : "sentences"}
                   spellCheck={sensitive ? false : true}
+                  disabled={locked}
                 />
                 <button
                   className="smifs-send"
                   onClick={() => send()}
-                  disabled={!input.trim() || streaming}
+                  disabled={!input.trim() || streaming || locked}
                   data-testid="send-button"
                   aria-label="Send message"
                 >

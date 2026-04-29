@@ -293,6 +293,11 @@ async def submit_lead(req: LeadSubmitRequest, request: Request):
     if req.form_type not in {"lead_capture", "callback"}:
         raise HTTPException(status_code=400, detail=f"Unknown form_type: {req.form_type}")
     lead_id = str(uuid.uuid4())
+    fields = req.fields or {}
+    lead_email = (fields.get("email") or "").strip() or None
+    lead_phone = (fields.get("phone") or fields.get("phone_number") or "").strip() or None
+    e_hash = id_mod.email_hash(lead_email) if lead_email else ""
+    p_hash = id_mod.phone_hash(lead_phone) if lead_phone else ""
     doc = {
         "_id": lead_id,
         "lead_id": lead_id,
@@ -300,12 +305,26 @@ async def submit_lead(req: LeadSubmitRequest, request: Request):
         "parent_company": "SMIFS Ltd",
         "session_id": req.session_id,
         "form_type": req.form_type,
-        "fields": req.fields,
+        "fields": fields,
         "context": req.context,
         "status": "new",
+        "email_hash": e_hash,
+        "phone_hash": p_hash,
+        "email_display": id_mod.mask_email_display(lead_email) if lead_email else None,
+        "phone_display": id_mod.mask_phone_display(lead_phone) if lead_phone else None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.leads.insert_one(doc)
+    # Phase 7 — write hashes to the session row for rehydration lookup
+    if req.session_id and (e_hash or p_hash):
+        set_fields: Dict[str, Any] = {}
+        if e_hash:
+            set_fields["email_hash"] = e_hash
+        if p_hash:
+            set_fields["phone_hash"] = p_hash
+        await db.sessions.update_one(
+            {"_id": req.session_id}, {"$set": set_fields}, upsert=False,
+        )
     return LeadSubmitResponse(
         lead_id=lead_id,
         message="Thank you. A Mackertich ONE senior advisor will reach out within one business day.",
@@ -387,7 +406,13 @@ async def get_session(session_id: str):
 @api_router.post("/sessions/{session_id}/signout")
 async def session_signout(session_id: str):
     from agents import auth_agent
+    import lifecycle as _lc
     row = await auth_agent.signout(db, session_id)
+    # Phase 7 — explicit sign-out marks the session ended (no rehydration)
+    await db.sessions.update_one(
+        {"_id": session_id},
+        {"$set": {"lifecycle": "ended", "ended_at": datetime.now(timezone.utc).isoformat()}},
+    )
     return {
         "session_id": session_id,
         "session_type": row.get("session_type", "visitor"),
@@ -396,6 +421,38 @@ async def session_signout(session_id: str):
         "client": None,
         "message": "Signed out. You may continue as a visitor.",
     }
+
+
+# ---------------- Phase 7 — rehydration endpoints ----------------
+class ResumeRequest(BaseModel):
+    prior_session_id: str = Field(..., min_length=1)
+
+
+@api_router.get("/sessions/{session_id}/rehydration_candidates")
+async def get_rehydration_candidates(session_id: str):
+    import lifecycle as _lc
+    candidates = await _lc.rehydration_candidates_for_session(db, session_id)
+    return {"session_id": session_id, "candidates": candidates}
+
+
+@api_router.post("/sessions/{session_id}/resume")
+async def session_resume(session_id: str, req: ResumeRequest):
+    import lifecycle as _lc
+    try:
+        await _lc.resume(db, session_id, req.prior_session_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    # Return merged history in the same shape as /api/sessions/{id}
+    return await get_session(session_id)
+
+
+@api_router.post("/sessions/{session_id}/decline_resume")
+async def session_decline_resume(session_id: str):
+    import lifecycle as _lc
+    n = await _lc.decline_all_priors(db, session_id)
+    return {"session_id": session_id, "ended_prior_sessions": n}
 
 
 # --- Phase 5 public widget config ---
@@ -463,7 +520,22 @@ async def startup_event():
                 await rag.ensure_index_loaded(db)
         await mocks.seed_if_empty(db)
         try:
-            await db.sessions.create_index("updated_at_dt", expireAfterSeconds=86400, name="ttl_updated_at_dt")
+            # Phase 7 — sessions TTL is 30 days (was 24h). Drop legacy index if present.
+            existing = await db.sessions.index_information()
+            for name, info in existing.items():
+                if info.get("expireAfterSeconds") == 86400:
+                    await db.sessions.drop_index(name)
+                    logger.info("Dropped legacy 24h TTL index on sessions: %s", name)
+                    break
+            await db.sessions.create_index("updated_at_dt", expireAfterSeconds=2592000, name="ttl_updated_at_dt_30d")
+            # Phase 7 — identity-hash lookup indexes
+            await db.sessions.create_index("emp_id_hash", name="emp_id_hash_idx", sparse=True)
+            await db.sessions.create_index("ucc_hash", name="ucc_hash_idx", sparse=True)
+            await db.sessions.create_index("email_hash", name="email_hash_idx", sparse=True)
+            await db.sessions.create_index("phone_hash", name="phone_hash_idx", sparse=True)
+            await db.sessions.create_index("lifecycle", name="lifecycle_idx", sparse=True)
+            await db.leads.create_index("email_hash", name="leads_email_hash_idx", sparse=True)
+            await db.leads.create_index("phone_hash", name="leads_phone_hash_idx", sparse=True)
             await db.llm_calls.create_index("created_at_dt", expireAfterSeconds=90 * 86400, name="ttl_created_at_dt")
             await db.llm_calls.create_index([("created_at", -1)], name="created_at_desc")
             await db.leads.create_index([("created_at", -1)], name="leads_created_at_desc")
@@ -486,6 +558,10 @@ async def startup_event():
                         perms.get("key_id"), perms.get("permissions"))
         except Exception as e:
             logger.warning("OrgLens self-check failed: %s", str(e)[:160])
+        # Phase 7 — warn on fallback identity-hash secret
+        if not id_mod.IDENTITY_HASH_SECRET:
+            logger.warning("⚠️  IDENTITY_HASH_SECRET is not set — falling back to combined PAN HMAC key. "
+                           "Set a dedicated 32-byte secret in env before production traffic.")
         try:
             probe = await router_agent.classify("What is an AIF?", history=[])
             logger.info("Router self-check OK — model=%s intent=%s confidence=%.2f",

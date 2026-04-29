@@ -1,0 +1,70 @@
+{
+  "summary": "Phase 7 (idle expiry + identity-keyed rehydration) tested end-to-end. Backend pytest suite (new /app/backend/tests/test_phase7_lifecycle.py): 7/9 PASSED, 2 FAILED — both failures expose a single CRITICAL backend bug that breaks the resume flow from the frontend. Frontend Phase 7 UI loads; idle-warning appears at ~110s and idle-lockout at ~120s with disabled composer, but clicking idle-resume-btn cannot produce a ResumeOfferBlock because the backend returns zero candidates for the freshly-minted sid.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/sessions/{new_sid}/rehydration_candidates  AND  POST /api/sessions/{new_sid}/resume",
+        "issue": "After idle expiry, lifecycle.maybe_expire_and_mint() creates a NEW session id via uuid.uuid4(). That new session row is later created by _get_or_create_session / auth_agent.get_or_create_session_row with NO identity hashes (emp_id_hash/email_hash/ucc_hash/phone_hash all null). As a consequence: (a) GET /sessions/{new_sid}/rehydration_candidates returns candidates=[] because _candidates_from_hashes has no hashes on the reference session to build its $or query; (b) POST /sessions/{new_sid}/resume with any prior_session_id → 403 'Identity keys do not match — cross-user resume denied' because resume() compares hashes on current vs prior and current has none. Net effect: the user can SEE the resume_offer block (because it is built from the EXPIRED session's hashes inside maybe_expire_and_mint before mint), but the FE's idle-resume-btn fetch and the ResumeOfferBlock's 'Resume' button both fail on the backend. Reproduced via test_idle_turn_returns_new_sid_and_resume_offer (passes — block is present) followed by test_get_candidates_returns_prior and test_resume_matching_identity_succeeds (both FAIL). Confirmed by direct Mongo query: the new minted session has emp_id_hash=None, email_hash=None, lifecycle=active.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/agent/turn",
+        "issue": "TurnResponse Pydantic model (server.py:83-89) does NOT declare prior_session_id or resume_offer fields, so Pydantic strips them from the JSON response. Only the resume_offer BLOCK inside `blocks[]` survives (orchestrator prepends it). If the frontend relies on top-level response.resume_offer or response.prior_session_id for the /agent/turn path, it will be missing. The stream endpoint (/agent/turn/stream) passes the full dict through on the 'result' event, so it is preserved there. Recommend adding these fields to TurnResponse."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Idle → Lockout → Resume",
+        "issue": "idle-resume-btn click triggers /api/sessions/{sid}/rehydration_candidates. Backend returns {candidates: []} for the freshly-minted sid (see backend critical). Hence no resume-offer-card ever renders via this path. Additionally, clicking idle-resume-btn appears to reset the idle banners (the idle-warning/idle-lockout disappeared from the DOM after the click without a visible resume card taking their place), leaving the user in an ambiguous state.",
+        "affected_selectors": ["[data-testid='idle-resume-btn']", "[data-testid='resume-offer-card']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "30-day TTL index on sessions.updated_at_dt confirmed (expireAfterSeconds=2592000)",
+    "Identity hash storage verified: emp_id_hash, email_hash, pan_hash all present on verified session doc. NO plaintext PAN, email, mobile_number, aadhaar at session root. identity.raw correctly strips email/mobile/phone/pan/aadhar — Phase 6 privacy guardrails hold",
+    "Idle expiry correctly mints a new uuid + prepends resume_offer block with {prior_session_id, summary, message_count, ended_at, session_type} candidates (1–3 entries, sorted by recency)",
+    "Cross-user resume correctly denied (403) when hashes do not overlap — verified with fabricated hashes",
+    "POST /decline_resume correctly marks all matching priors as lifecycle=ended and returns ended_prior_sessions count",
+    "Prior session's lifecycle is flipped to 'expired' after mint (never deleted) — matches 30-day TTL design",
+    "Frontend: idle-warning banner appears at ~110s with copy 'Still there? This session will freeze in ~10 seconds due to inactivity.'",
+    "Frontend: idle-lockout banner appears at ~120s, chat-input and send-button get disabled attribute, idle-resume-btn rendered",
+    "Basic turns + employee OrgLens auth (aaditya.jaiswal@smifs.com + BQPPJ8323M) still works; rate limiting unaffected"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_phase7_lifecycle.py",
+    "/app/test_reports/pytest/phase7_results.xml"
+  ],
+  "action_items": [
+    "(CRITICAL) In lifecycle.maybe_expire_and_mint(): when minting the new session id for an idle-expired prior, COPY the prior session's identity hashes (emp_id_hash, ucc_hash, pan_hash, email_hash, phone_hash) onto the new session row on first touch. That way the freshly-minted sid can (a) look up rehydration candidates via its own hashes and (b) satisfy resume()'s overlap check. Alternative fix: change resume() to treat 'current has no hashes' as an implicit trust-on-first-use anchor, but the cleaner fix is to inherit hashes on mint. Without this fix, the Resume flow is completely broken for any post-idle interaction.",
+    "(MINOR) Add `prior_session_id: Optional[str] = None` and `resume_offer: Optional[List[Dict[str, Any]]] = None` to TurnResponse in server.py so the non-stream /agent/turn also carries them at the root (they are currently stripped by Pydantic).",
+    "(MINOR) Frontend Chat.jsx idle-resume-btn handler: if rehydration_candidates returns []/empty, surface a gentle toast ('No prior session to restore — start a new chat') instead of silently resetting the idle banners, so the user is not left in a confusing state."
+  ],
+  "critical_code_review_comments": [
+    "lifecycle.py — maybe_expire_and_mint mints a new uuid but never propagates hashes/auth state onto the new row. This is the root cause of the broken resume. Consider: `await db.sessions.insert_one({'_id': new_id, **{f: sess.get(f) for f in IDENTITY_HASH_FIELDS}, 'lifecycle':'active', 'updated_at_dt': _now(), ...})` inside the expire branch, before returning.",
+    "server.py:83 TurnResponse is too strict — it drops prior_session_id and resume_offer that orchestrator sets at lines 434-443. Either return a plain dict or widen the model.",
+    "lifecycle.resume — the overlap check is correct for cross-user, but becomes unreachable for the primary 'same-user-after-idle' happy path because the new session has no hashes (see above). Needs the hash-inheritance fix to enable it.",
+    "lifecycle._candidates_from_hashes uses lifecycle != 'ended' filter which includes 'active' AND 'expired'. If a user has multiple parallel active sessions sharing hashes (multi-tab), Resume could pull in an in-flight conversation. Consider adding `updated_at_dt <= now-30s` guard.",
+    "Chat.jsx idle watcher — wiring looks good (timers reset on typing/sending/new messages). Consider adding a `data-testid='idle-countdown'` with seconds remaining inside the warning banner for accessibility and tests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase7_lifecycle.py (new — 9 test cases across 6 classes)",
+    "/app/test_reports/pytest/phase7_results.xml (new — JUnit output)"
+  ],
+  "success_rate": {
+    "backend": "78% (7/9 pytest cases; 2 failures expose 1 critical backend defect)",
+    "frontend": "66% (idle-warning + idle-lockout + disabled composer all work; Resume button integration broken due to upstream backend bug)"
+  },
+  "test_credentials": "Employee auth: aaditya.jaiswal@smifs.com + PAN BQPPJ8323M (OrgLens live). Admin token: smifs-admin-2026 (unused this iteration).",
+  "seed_data_creation": "Created several verified employee sessions during test flow. Test class TestResume/test_resume_cross_user_forbidden and TestDeclineResume insert+delete temporary sessions, so cleanup is self-contained. Older test artefacts from TestIdleExpiryAndResumeOffer remain (with lifecycle=expired) — they TTL-delete after 30 days.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Phase 7 regression suite is /app/backend/tests/test_phase7_lifecycle.py. Run with `pytest /app/backend/tests/test_phase7_lifecycle.py -v --junitxml=/app/test_reports/pytest/phase7_results.xml`. The two currently-failing cases (TestRehydrationCandidatesEndpoint::test_get_candidates_returns_prior and TestResume::test_resume_matching_identity_succeeds) are intentional — they document the hash-inheritance-on-mint bug. Once main agent applies the fix in lifecycle.maybe_expire_and_mint to copy identity hashes onto the newly-minted session row, both should go green. The test uses Mongo backdate (updated_at_dt -= 3min) to simulate idle — no need to wait 120s. Frontend idle timers are real-time so FE tests need the 112s/124s waits (see .screenshots/phase7_idle_state.png captured this run). Frontend testids for Phase 7: idle-warning, idle-lockout, idle-resume-btn, resume-offer-card, resume-btn-primary, resume-btn-decline, resume-summary. The Made-with-Emergent badge and Chat UI load cleanly.",
+  "rca_of_the_issue": "ROOT CAUSE: lifecycle.maybe_expire_and_mint() does `new_id = str(uuid.uuid4()); result['session_id'] = new_id` but never creates a sessions row with the prior's identity hashes. Downstream, when the new row is finally created (by _get_or_create_session in orchestrator.run_turn), it's a blank row with no hashes. This breaks BOTH (a) _candidates_from_hashes(new_sess) → returns [] because `or_clauses` list is empty, and (b) resume(current=new_sid, prior) → overlap=False because current_hashes dict is empty. REPRO: 1) Verify a user, 2) db.sessions.updateOne({_id:sid}, {$set:{updated_at_dt: 3min ago}}), 3) POST /api/agent/turn {session_id:sid, message:'hi'} → response body has new session_id + resume_offer block; 4) GET /api/sessions/{new_sid}/rehydration_candidates → {candidates:[]} ← BUG; 5) POST /api/sessions/{new_sid}/resume {prior_session_id:old_sid} → 403 ← BUG. MITIGATION: In the expire branch of maybe_expire_and_mint, upsert a new sessions doc carrying the prior's IDENTITY_HASH_FIELDS before returning. Example: `await db.sessions.insert_one({'_id': new_id, 'lifecycle':'active', 'updated_at_dt': _now(), 'updated_at': _now().isoformat(), **{f: sess.get(f) for f in IDENTITY_HASH_FIELDS if sess.get(f)}, 'session_type': sess.get('session_type','visitor')})`."
+}

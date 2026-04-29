@@ -1268,3 +1268,96 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   background: rgba(201, 168, 106, 0.08); color: var(--gold);
   border: 1px solid rgba(201,168,106,0.22);
 }
+
+
+/* ====== Phase 7 — Idle expiry + Resume UI ====== */
+.smifs-idle-warning {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 0 4px 8px;
+  padding: 7px 12px;
+  background: rgba(201, 168, 106, 0.08);
+  border: 1px solid rgba(201, 168, 106, 0.28);
+  color: var(--gold-soft);
+  font-size: 11.5px;
+  letter-spacing: 0.015em;
+  border-radius: 8px;
+  animation: smifs-idle-fade 180ms ease-out;
+}
+.smifs-idle-lockout {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px;
+  margin: 0 4px 8px;
+  padding: 9px 12px;
+  background: rgba(120, 80, 60, 0.12);
+  border: 1px solid rgba(201, 168, 106, 0.35);
+  color: var(--ink);
+  font-size: 11.5px;
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+.smifs-idle-lockout-text { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-dim); }
+.smifs-idle-resume-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600;
+  color: var(--navy-900); background: var(--gold);
+  border: none; padding: 6px 12px; border-radius: 999px;
+  cursor: pointer; font-family: inherit;
+  transition: background 140ms ease, transform 140ms ease;
+}
+.smifs-idle-resume-btn:hover { background: var(--gold-soft); transform: translateY(-1px); }
+.smifs-composer--locked {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.smifs-composer--locked .smifs-input { cursor: not-allowed; }
+@keyframes smifs-idle-fade {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Resume-offer card rendered inline in the thread */
+.smifs-resume-card {
+  background: linear-gradient(180deg, rgba(201,168,106,0.06), rgba(201,168,106,0.02));
+  border: 1px solid rgba(201,168,106,0.28);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-top: 6px;
+  max-width: 560px;
+}
+.smifs-resume-head {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--gold);
+  font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.smifs-resume-quote {
+  margin: 0 0 8px;
+  padding: 0;
+  border-left: 2px solid rgba(201,168,106,0.35);
+  padding-left: 10px;
+  color: var(--ink);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.5;
+}
+.smifs-resume-meta {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin: 0 0 10px;
+  letter-spacing: 0.02em;
+}
+.smifs-resume-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.smifs-resume-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 600;
+  padding: 7px 14px; border-radius: 999px;
+  cursor: pointer; font-family: inherit;
+  border: 1px solid transparent;
+  transition: background 140ms ease, transform 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.smifs-resume-btn--primary { background: var(--gold); color: var(--navy-900); border-color: var(--gold); }
+.smifs-resume-btn--primary:hover { background: var(--gold-soft); transform: translateY(-1px); }
+.smifs-resume-btn--ghost { background: transparent; color: var(--ink-dim); border-color: var(--line); }
+.smifs-resume-btn--ghost:hover { color: var(--ink); border-color: rgba(201,168,106,0.35); }

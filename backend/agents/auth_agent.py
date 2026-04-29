@@ -298,6 +298,8 @@ async def _do_employee_lookup(db, session_id: str, email: str) -> Dict[str, Any]
         pending_identifier=email,
         pending_record=sanitized,
         expected_pan_hash=expected,
+        # Phase 7 — stash email_hash NOW so we never touch plaintext email again.
+        email_hash=identity.email_hash(rec.get("email") or email),
         failed_attempts=0,
     )
     first = sanitized.get("first_name") or sanitized.get("name", "").split()[0] or "there"
@@ -371,6 +373,9 @@ async def _do_client_lookup(db, session_id: str, ucc: str) -> Dict[str, Any]:
         pending_identifier=ucc,
         pending_record=sanitized,
         expected_pan_hash=expected,
+        # Phase 7 — client record's registered email (if any)
+        email_hash=identity.email_hash(rec.get("email")) if rec.get("email") else None,
+        phone_hash=identity.phone_hash(rec.get("telephone")) if rec.get("telephone") else None,
         failed_attempts=0,
     )
     first = sanitized.get("first_name") or "there"
@@ -460,23 +465,41 @@ async def _finalise_verified(db, session_id: str, session_type: str,
                              pending: Dict[str, Any], pan_fp: str) -> Dict[str, Any]:
     now_iso = _now().isoformat()
     consent_default = True if session_type == "employee" else False
-    await _atomic_set(
-        db, session_id,
-        session_type=session_type,
-        auth_state=VERIFIED,
-        identity=pending,
-        pan_hash=pan_fp,
-        verified_at=now_iso,
-        failed_attempts=0,
-        pending_session_type=None,
-        pending_identifier=None,
-        pending_record=None,
-        expected_pan_hash=None,
-        consent_to_ingest=consent_default,
-    )
+    # Phase 7 — identity hashes were already stashed on AWAIT_PAN. Final-set
+    # only the verification-specific fields; don't overwrite hashes.
+    fields: Dict[str, Any] = {
+        "session_type": session_type,
+        "auth_state": VERIFIED,
+        "identity": pending,
+        "pan_hash": pan_fp,
+        "verified_at": now_iso,
+        "failed_attempts": 0,
+        "pending_session_type": None,
+        "pending_identifier": None,
+        "pending_record": None,
+        "expected_pan_hash": None,
+        "consent_to_ingest": consent_default,
+        "lifecycle": "active",
+    }
     if session_type == "employee":
-        return _employee_verified_payload(pending)
-    return _client_verified_payload(pending)
+        fields["emp_id_hash"] = identity.emp_id_hash(pending.get("employee_id"))
+    elif session_type == "client":
+        fields["ucc_hash"] = identity.ucc_hash(pending.get("ucc"))
+    await _atomic_set(db, session_id, **fields)
+
+    # Phase 7 — rehydration offer on successful verification
+    import lifecycle  # late import to avoid cycles
+    offers = await lifecycle.rehydration_candidates_for_session(db, session_id)
+    if session_type == "employee":
+        payload = _employee_verified_payload(pending)
+    else:
+        payload = _client_verified_payload(pending)
+    if offers:
+        payload["blocks"] = [
+            {"type": "resume_offer", "data": {"candidates": offers}},
+        ] + payload["blocks"]
+        payload["resume_offer"] = offers
+    return payload
 
 
 def _employee_verified_payload(emp: Dict[str, Any]) -> Dict[str, Any]:
