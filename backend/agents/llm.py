@@ -18,6 +18,36 @@ logger = logging.getLogger(__name__)
 LLMHUB_API_KEY = os.environ.get("LLMHUB_API_KEY", "")
 LLMHUB_BASE_URL = os.environ.get("LLMHUB_BASE_URL", "").rstrip("/")
 
+# ---- Hub AI routing hints (re-probed Apr 2026 — see HUB_AI_CAPABILITIES.md) ----
+# Hub recognises exactly one keyword today: prefer:"fast" → llama-3.3-70b-versatile (groq).
+# Field & values are env-tunable so we can adopt new keywords as Hub expands its vocabulary.
+HUB_HINT_FIELD = os.environ.get("HUB_HINT_FIELD", "routing_hint").strip()
+HUB_HINT_CHAT_RAW = os.environ.get("HUB_HINT_CHAT", '{"prefer":"fast"}').strip()
+HUB_HINT_ROUTER_RAW = os.environ.get("HUB_HINT_ROUTER", "").strip()
+
+
+def _parse_hint(raw: str) -> Optional[Dict[str, Any]]:
+    """Parse an env-supplied hint. Empty string means 'no hint'."""
+    if not raw:
+        return None
+    try:
+        import json as _json
+        v = _json.loads(raw)
+        return v if isinstance(v, dict) and v else None
+    except Exception:
+        logger.warning("Could not parse hint JSON: %s", raw)
+        return None
+
+
+HUB_HINT_CHAT = _parse_hint(HUB_HINT_CHAT_RAW)
+HUB_HINT_ROUTER = _parse_hint(HUB_HINT_ROUTER_RAW)
+
+
+def hint_for(task: str) -> Optional[Dict[str, Any]]:
+    if task == "router":
+        return HUB_HINT_ROUTER
+    return HUB_HINT_CHAT
+
 CHAT_CHAIN = [
     "auto",
     "llama-3.3-70b-versatile",
@@ -53,7 +83,8 @@ def bind_db(db) -> None:
 
 async def _post(messages: List[Dict[str, str]], model: str, temperature: float,
                 max_tokens: Optional[int], response_format: Optional[Dict[str, str]],
-                context_chunks: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+                context_chunks: Optional[List[Dict[str, Any]]] = None,
+                routing_hint: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     url = f"{LLMHUB_BASE_URL}/chat/completions"
     headers = {"Authorization": f"Bearer {LLMHUB_API_KEY}", "Content-Type": "application/json"}
     payload: Dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature}
@@ -63,6 +94,10 @@ async def _post(messages: List[Dict[str, str]], model: str, temperature: float,
         payload["response_format"] = response_format
     if context_chunks:
         payload["context_chunks"] = context_chunks
+    # Hub honours routing_hint:{"prefer":"fast"} only when model=="auto" — see HUB_AI_CAPABILITIES.md.
+    # Sending it on a named model is harmless (silently echoed back as routing_resolved).
+    if routing_hint and model == "auto":
+        payload[HUB_HINT_FIELD] = routing_hint
     async with httpx.AsyncClient(timeout=30.0) as http:
         resp = await http.post(url, headers=headers, json=payload)
         resp.raise_for_status()
@@ -84,12 +119,14 @@ async def call_with_fallback(
     chain = ROUTER_CHAIN if task == "router" else CHAT_CHAIN
     cached = _LAST_OK.get(task)
     ordered = ([cached] + [m for m in chain if m != cached]) if cached else list(chain)
+    rh = hint_for(task)
 
     last_err: Optional[Exception] = None
     for model in ordered:
         t0 = time.monotonic()
         try:
-            data = await _post(messages, model, temperature, max_tokens, response_format, context_chunks=context_chunks)
+            data = await _post(messages, model, temperature, max_tokens, response_format,
+                               context_chunks=context_chunks, routing_hint=rh)
             _LAST_OK[task] = model
             local_latency_ms = int((time.monotonic() - t0) * 1000)
             if _db_handle is not None:
@@ -105,7 +142,8 @@ async def call_with_fallback(
             last_err = e
             if response_format and "response_format" in body:
                 try:
-                    data = await _post(messages, model, temperature, max_tokens, None, context_chunks=context_chunks)
+                    data = await _post(messages, model, temperature, max_tokens, None,
+                                       context_chunks=context_chunks, routing_hint=rh)
                     _LAST_OK[task] = model
                     local_latency_ms = int((time.monotonic() - t0) * 1000)
                     if _db_handle is not None:
@@ -157,6 +195,7 @@ async def stream_chat_with_fallback(
     chain = CHAT_CHAIN
     cached = _LAST_OK.get("chat")
     ordered = ([cached] + [m for m in chain if m != cached]) if cached else list(chain)
+    rh = hint_for("chat")
 
     url = f"{LLMHUB_BASE_URL}/chat/completions"
     headers = {"Authorization": f"Bearer {LLMHUB_API_KEY}", "Content-Type": "application/json"}
@@ -170,6 +209,8 @@ async def stream_chat_with_fallback(
             payload["max_tokens"] = max_tokens
         if context_chunks:
             payload["context_chunks"] = context_chunks
+        if rh and model == "auto":
+            payload[HUB_HINT_FIELD] = rh
 
         t0 = time.monotonic()
         try:

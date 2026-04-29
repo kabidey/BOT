@@ -74,11 +74,17 @@ def _build_messages(message: str, history: List[Dict[str, Any]],
 
 
 def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Surface up to 5 citations: prefer distinct doc_ids, but if fewer than 3 distinct
+    docs pass the score threshold, fall back to including additional chunks from the
+    top-scoring docs so the UI always has a meaningful citation set."""
+    qualifying = [h for h in hits if h["score"] >= RAG_MIN_SCORE]
+    if not qualifying:
+        return []
+
     citations: List[Dict[str, Any]] = []
     seen_docs: set = set()
-    for h in hits:
-        if h["score"] < RAG_MIN_SCORE:
-            continue
+    # First pass: one chunk per distinct doc.
+    for h in qualifying:
         if h["doc_id"] in seen_docs:
             continue
         seen_docs.add(h["doc_id"])
@@ -91,6 +97,25 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         })
         if len(citations) >= 5:
             break
+    # Second pass: if we have <3 distinct docs but more chunks available, add the
+    # next-highest-scoring chunks regardless of doc_id (Hub-embedded semantically tight
+    # corpora may yield 6+ hits all from the same doc — that's still useful context).
+    if len(citations) < 3:
+        existing_keys = {(c["doc_id"], c["section"]) for c in citations}
+        for h in qualifying:
+            key = (h["doc_id"], h["section"])
+            if key in existing_keys:
+                continue
+            existing_keys.add(key)
+            citations.append({
+                "doc_id": h["doc_id"],
+                "doc_title": h["doc_title"],
+                "section": h["section"],
+                "score": round(h["score"], 4),
+                "text": h["text"],
+            })
+            if len(citations) >= 5:
+                break
     return citations
 
 

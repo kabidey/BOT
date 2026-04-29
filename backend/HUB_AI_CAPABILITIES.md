@@ -57,16 +57,31 @@ Confirmed-working models for tool-calling:
 
 **Implication:** tool-calling REQUIRES naming a tool-capable model directly. Don't use `auto` when sending `tools`.
 
+## ✅ Routing hints (re-probed Apr 2026 — NOW LIVE)
+**Confirmed working field:** `routing_hint` (top-level, **must be a dict**; sending a string returns `HTTP 422 dict_type` Pydantic error). Synonyms: `route` (also expects dict). Top-level `prefer:"fast"` also works.
+
+**Vocabulary tested — Hub recognises exactly ONE keyword today:**
+
+| Sent | Resolved model | Provider | Honored? |
+|---|---|---|---|
+| `routing_hint:{"prefer":"fast"}` | `llama-3.3-70b-versatile` | groq | ✅ |
+| `routing_hint:{"prefer":"quality"\|"cheap"\|"premium"\|"speed"\|"reasoning"\|"smart"\|"groq"\|"openai"\|"claude"\|"llama"\|"gpt-4"\|...}` | `gemma-4-e4b` | local | ❌ ignored (defaults) |
+| `routing_hint:{"task":...}`, `{"quality":...}`, `{"latency":...}`, `{"intent":...}`, `{"cost":...}`, `{"tier":...}`, `{"provider":...}` | `gemma-4-e4b` | local | ❌ all ignored |
+
+So Hub today honours **only** `prefer:"fast"` → groq llama-3.3-70b-versatile. Everything else stays on the local default. Hub also echoes `routing_resolved` in the response confirming the hint received (useful for telemetry).
+
+**Verified curl:**
+```bash
+curl -X POST -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"model":"auto","messages":[{"role":"user","content":"Compare AIF and PMS"}],"routing_hint":{"prefer":"fast"}}' \
+  "$BASE/chat/completions"
+# {"model":"llama-3.3-70b-versatile","provider":"groq","routing":"auto:groq/llama-3.3-70b-versatile",
+#  "routing_resolved":{"prefer":"fast"}, ...}
+```
+
+**Embeddings:** `routing_hint` is accepted but produces no observable change — `model:"auto"` always resolves to `text-embedding-3-small`.
+
 ## ❌ Still not supported
-
-### Routing hints — silently ignored
-Tested 15 candidate fields against `model:"auto"` with `"hi"`:
-- `routing_hint`, `task`, `task_type`, `quality`, `priority`, `tier`, `cost_preference`, `route`, `meta.routing_hint`
-- All produced identical resolved model (`gemma-4-e4b`).
-
-The new response field `routing` (e.g. `"auto:local/gemma-4-e4b"`) is **prompt-content driven**, not hint driven. Probing 5 different prompt complexities only reroutes between local models (`gemma-4-e4b` vs `deepseek-coder-v2-lite-16b`); never to paid OpenAI/Anthropic. The "intelligent prompt routing engine" is real but **it routes by analysing the prompt, not by client hints.**
-
-**Workaround for differentiation between router-task and chat-task models:** name the model directly per task (router → `llama-3.3-70b-versatile` for native tool calling; chat → `auto` so Hub picks the free local model for cost). This produces the requested `by_model` differentiation in the cost ledger without any client-side hint.
 
 ### `GET /openapi.json`, `/docs`, `/` | 404 (unchanged)
 ### `POST /route`, `/classify`, `/intent` | 404 (unchanged)
