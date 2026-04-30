@@ -1486,3 +1486,92 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   width: 8px; display: flex; justify-content: center;
 }
 
+
+/* ====== Phase 9 — SMIFS Knowledge API panel + official citations ====== */
+.smifs-kb-api-panel {
+  background: linear-gradient(180deg, rgba(201,168,106,0.08), rgba(201,168,106,0.02));
+  border: 1px solid rgba(201,168,106,0.32);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin: 12px 0 18px;
+}
+.smifs-kb-api-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px; flex-wrap: wrap;
+}
+.smifs-kb-api-title {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--gold); font-weight: 600; font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.smifs-kb-api-meta { margin: 4px 0 0; font-size: 11px; color: var(--ink-dim); }
+.smifs-kb-api-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; padding: 2px 8px; border-radius: 999px;
+  font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+  margin-left: 8px;
+}
+.smifs-kb-api-badge--ok {
+  background: rgba(127,200,141,0.10); color: #7fc88d;
+  border: 1px solid rgba(127,200,141,0.30);
+}
+.smifs-kb-api-badge--warn {
+  background: rgba(220,160,100,0.10); color: #dca064;
+  border: 1px solid rgba(220,160,100,0.30);
+}
+.smifs-kb-api-actions { display: flex; gap: 8px; }
+.smifs-kb-counts {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 10px; margin-top: 14px;
+}
+.smifs-kb-count {
+  padding: 10px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(201,168,106,0.15);
+  text-align: center;
+}
+.smifs-kb-count--primary {
+  background: rgba(201,168,106,0.08);
+  border-color: rgba(201,168,106,0.35);
+}
+.smifs-kb-count--warn {
+  background: rgba(220,160,100,0.06);
+  border-color: rgba(220,160,100,0.20);
+}
+.smifs-kb-count-value {
+  display: block; font-size: 22px; font-weight: 600; color: var(--ink);
+  line-height: 1; font-variant-numeric: tabular-nums;
+}
+.smifs-kb-count-label {
+  display: block; font-size: 10px; color: var(--ink-dim);
+  letter-spacing: 0.04em; text-transform: uppercase; margin-top: 4px;
+}
+.smifs-kb-api-syncing {
+  margin: 10px 0 0; font-size: 11px; color: var(--gold-soft);
+  font-style: italic;
+}
+@media (max-width: 720px) {
+  .smifs-kb-counts { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Official citation badge */
+.smifs-cite--official {
+  border-color: rgba(201,168,106,0.55) !important;
+  background: rgba(201,168,106,0.08) !important;
+}
+.smifs-cite-official-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 2px rgba(201,168,106,0.22);
+  flex-shrink: 0;
+}
+.smifs-cite-official-label {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(201,168,106,0.12);
+}
+

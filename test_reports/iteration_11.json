@@ -1,0 +1,49 @@
+{
+  "summary": "Phase 9 SMIFS Knowledge API integration — 11/11 green on new test_phase9_knowledge.py covering status, delta sync (dry-run + idempotent real), RAG debug gating + source weighting, verified-employee Mackertich ONE citations with is_official badge, invented-product refusal + escalation, hallucination_events accumulation, and visitor cross-role product-gating. All Phase 6/7/7.1/8/8.1 regression suites also 52/52 green in isolation (Phase 6 10/10, Phase 7 lifecycle 9/9, Phase 7 inheritance 2/2, Phase 8 directory 12/12, Phase 8.1 employee Q&A 19/19). Combined 63/63 backend tests passing.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "positive_findings": [
+    "SMIFS Knowledge sync is truly idempotent: re-running delta immediately after a real delta returns skipped=1801, upserted=0, removed=0 (content-hash idempotency confirmed).",
+    "dry_run mode returns {fetched:1801, upserted:0, skipped:1801, removed:0, preview:[]} — no writes hit doc_chunks.",
+    "GET /api/admin/knowledge/status shows api_reachable=true, total_smifs_chunks=1801, counts_by_source={smifs_knowledge:1801, seed:53}, last_sync.last_sync_at ISO-stamped, hallucination_events_7d int.",
+    "RAG debug for 'What is the minimum ticket size for an AIF?' returns is_product_topic=true, restrict_sources=['smifs_knowledge','seed'], analysis.has_smifs_strong=true, hits all populated with source field.",
+    "Source-weight ordering on 'AIF' query: hits[0].source == 'smifs_knowledge' (weighting is doing its job).",
+    "Verified employee asking 'What is Mackertich ONE?' and 'What products does Mackertich ONE offer?' both return at least one citation with source='smifs_knowledge' AND is_official=true (gold-badge data contract intact).",
+    "Invented-product hallucination refusal: 'What is the lock-in period for Mackertich ONE Sapphire AIF Category IV?' returns a proper refusal+escalation ('provided context doesn't cover ... recommend connecting with a Mackertich ONE advisor') WITHOUT asserting any concrete months/years lock-in.",
+    "hallucination_events collection accumulates with action in {'refused','unchecked_claim'} after invented-product probes.",
+    "Visitor session asking a product question does NOT leak upload/archive sources into citations (SMIFS-gating upheld cross-role).",
+    "Phase 7/7.1/8/8.1 regressions remain fully green individually (63/63 total with Phase 9)."
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_phase9_knowledge.py",
+    "/app/test_reports/pytest/iteration_11_phase9.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIXED THIS RUN — /api/admin/knowledge/sync was crashing with HTTP 500 PydanticUserError('TypeAdapter[...KBSyncPayload] is not fully defined') because KBSyncPayload was declared as a nested class inside build_admin_router() closure. FastAPI's request_body_to_args() generated a ForwardRef it couldn't resolve, and additionally FastAPI was treating payload as a query param (loc=['query','payload']) because the nested-class reference was opaque to its param analyser. Moved KBSyncPayload to module scope alongside LeadStatusUpdate/ArchiveConsentUpdate/ArchiveIngestRequest, added explicit `= Body(default_factory=KBSyncPayload)`, and added Body to the fastapi import. Endpoint now returns 200 for both dry_run and real deltas. Main agent should keep all future Pydantic payload models at module scope — nested-in-closure BaseModel + FastAPI 0.11x + Pydantic 2.12 is a minefield.",
+    "Style nit (non-blocking): /admin/knowledge/sync with an empty POST body now no longer 422s — it defaults to mode='delta', dry_run=False. If you want stricter behaviour, drop the default_factory. Current behaviour is friendlier for the admin UI's one-click sync buttons.",
+    "Observation (not a bug): hallucination_events_7d counter ticks up every test run that probes invented products. If the admin status panel displays it prominently, consider visually distinguishing test-origin vs production-origin events (e.g., a session-id prefix filter).",
+    "Test hygiene note carried over from iteration_10: rehydration_candidates top-3 limit in lifecycle.py can starve legitimate resumable priors when multiple test files mint sessions for the same identity. The autouse cleanup fixture in test_phase7_lifecycle.py keeps that test deterministic; no product fix required."
+  ],
+  "updated_files": [
+    "/app/backend/admin.py (moved KBSyncPayload to module scope, added Body import + explicit Body(default_factory=) in /knowledge/sync signature — fixes HTTP 500 PydanticUserError)",
+    "/app/backend/tests/test_phase9_knowledge.py (NEW — 11 tests covering Phase 9 end-to-end)"
+  ],
+  "success_rate": {
+    "backend": "100% (63/63 across Phase 6, 7, 7.1, 8, 8.1, 9 when run per-file)",
+    "frontend": "not tested (backend-only scope per review request)"
+  },
+  "test_credentials": "Admin: X-Admin-Token: smifs-admin-2026. Employee: aaditya.jaiswal@smifs.com / PAN BQPPJ8323M (OrgLens live). SMIFS Knowledge API key already in /app/backend/.env.",
+  "seed_data_creation": "No new seed data; tests use the live 1801-chunk SMIFS index already ingested by startup_sync_if_empty. Invented-product probes add rows to hallucination_events collection (harmless, served by the collection's normal append semantics).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run per-file to avoid OrgLens live rate-limit flake: `cd /app/backend && for f in test_phase7_lifecycle.py test_phase7_inheritance_regression.py test_phase8_directory.py test_phase8_1_employee_qa.py test_identity_phase6.py test_phase9_knowledge.py; do python -m pytest tests/$f -v --tb=line; sleep 4; done`. Expected: 63/63 green. The KBSyncPayload was hoisted to module scope — do NOT move it back inside build_admin_router or the /knowledge/sync endpoint will 500 with PydanticUserError('not fully defined'). Frontend-side Phase 9 verification (KB tab SMIFS panel + 5 counter tiles + 2 sync buttons, and gold 'SMIFS Official' badge on citation chips) still needs a UI agent — main agent's screenshot at /tmp/phase9_kb_tab.png confirmed the panel renders but automated FE testing not done this run.",
+  "rca_of_the_issue": "Root cause of the 3 initial Phase 9 test failures: (1 & 2) POST /api/admin/knowledge/sync returned HTTP 422 then HTTP 500 because KBSyncPayload was a nested class inside the build_admin_router() closure — FastAPI's dependency-resolution code treated it as a query parameter (422 loc=['query','payload']) and when coerced via Body(), Pydantic 2.12 raised PydanticUserError about an unresolved ForwardRef (500). Mitigation: moved the model to module scope + explicit Body(default_factory=KBSyncPayload). (3) test_invented_product_refusal_no_specific_lockin — the refusal detection regex was too narrow; the actual (correct) model output used phrases 'provided context doesn't cover' and 'recommend connecting with a Mackertich ONE advisor', which weren't in my initial keyword allow-list. Mitigation: widened the allow-list in the test. The underlying product behaviour (no concrete months/years asserted + escalation offered) was correct all along."
+}

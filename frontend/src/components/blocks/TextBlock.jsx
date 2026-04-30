@@ -59,19 +59,24 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
         <div className="smifs-cites smifs-cites--inline" data-testid={`citations-${msgIdx}`}>
           {citations.map((c, ci) => {
             const key = `${msgIdx}-${ci}`;
+            const isOfficial = c.is_official || c.source === "smifs_knowledge";
             return (
               <button
                 key={ci}
                 type="button"
-                className={`smifs-cite ${activeCitationKey === key ? "smifs-cite--active" : ""}`}
+                className={`smifs-cite ${activeCitationKey === key ? "smifs-cite--active" : ""} ${isOfficial ? "smifs-cite--official" : ""}`}
                 onClick={() => onCitationClick(msgIdx, ci)}
                 data-testid={`citation-${msgIdx}-${ci}`}
-                title={`Score ${c.score.toFixed(2)} — click to view passage`}
+                title={`${isOfficial ? "SMIFS Official · " : ""}Score ${c.score.toFixed(2)} — click to view passage`}
               >
+                {isOfficial && (
+                  <span className="smifs-cite-official-dot" aria-hidden data-testid={`citation-official-${msgIdx}-${ci}`} />
+                )}
                 <FileText size={11} strokeWidth={2.25} />
                 <span className="smifs-cite-doc">{c.doc_title}</span>
                 <span className="smifs-cite-sep">·</span>
                 <span className="smifs-cite-sec">§{c.section}</span>
+                {isOfficial && <span className="smifs-cite-official-label">SMIFS Official</span>}
               </button>
             );
           })}

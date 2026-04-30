@@ -571,6 +571,12 @@ async def startup_event():
                         probe.get("model"), probe.get("intent"), probe.get("confidence", 0.0))
         except Exception:
             logger.exception("Router self-check failed (non-fatal).")
+        # Phase 9 — SMIFS Knowledge API auto-sync (background, non-blocking)
+        try:
+            import knowledge_sync
+            asyncio.create_task(knowledge_sync.startup_sync_if_empty(db))
+        except Exception:
+            logger.exception("SMIFS KB auto-sync scheduling failed (non-fatal).")
     except Exception:
         logger.exception("Startup initialization failed.")
 

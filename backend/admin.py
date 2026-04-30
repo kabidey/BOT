@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,11 @@ class ArchiveConsentUpdate(BaseModel):
 class ArchiveIngestRequest(BaseModel):
     dry_run: bool = False
     role: str = "all"  # "all" | "employee" | "client"
+
+
+class KBSyncPayload(BaseModel):
+    mode: str = "delta"   # "full" | "delta"
+    dry_run: bool = False
 
 
 def build_admin_router(db) -> APIRouter:
@@ -363,6 +368,51 @@ def build_admin_router(db) -> APIRouter:
     async def ingest_archives_to_rag(payload: ArchiveIngestRequest):
         import archives as _arc
         return await _arc.ingest_archives_to_rag(db, dry_run=payload.dry_run, role=payload.role)
+
+    # ---------- Phase 9 — SMIFS Knowledge API ----------
+    @router.post("/knowledge/sync")
+    async def knowledge_sync_now(payload: KBSyncPayload = Body(default_factory=KBSyncPayload)):
+        import knowledge_sync as _ks
+        if payload.mode not in ("full", "delta"):
+            raise HTTPException(status_code=400, detail="mode must be 'full' or 'delta'")
+        return await _ks.sync(db, mode=payload.mode, dry_run=payload.dry_run)
+
+    @router.get("/knowledge/status")
+    async def knowledge_status():
+        import knowledge_sync as _ks
+        import guardrails as _gd
+        stat = await _ks.status(db)
+        stat["hallucination_events_7d"] = await _gd.recent_count(db, days=7)
+        return stat
+
+    @router.get("/knowledge/hallucination_events")
+    async def hallucination_events(limit: int = 50):
+        limit = max(1, min(limit, 200))
+        cursor = db.hallucination_events.find({}, {"_id": 0}).sort("created_at", -1).limit(limit)
+        return {"events": await cursor.to_list(length=limit)}
+
+    @router.get("/rag/debug")
+    async def rag_debug(q: str, top_k: int = 8, gate_product: bool = True):
+        """Audit endpoint — see what the retriever actually returns for a query."""
+        import rag as _rag
+        import guardrails as _gd
+        restrict = None
+        is_prod = _gd.is_product_topic(q)
+        if gate_product and is_prod:
+            restrict = ["smifs_knowledge", "seed"]
+        hits = await _rag.search_weighted(q, top_k=top_k, restrict_sources=restrict)
+        return {
+            "query": q,
+            "is_product_topic": is_prod,
+            "restrict_sources": restrict,
+            "analysis": _gd.analyse_retrieval(hits),
+            "hits": [{
+                "doc_id": h["doc_id"], "doc_title": h["doc_title"],
+                "section": h["section"], "source": h.get("source"),
+                "score": round(h["score"], 4), "raw_score": round(h.get("raw_score", h["score"]), 4),
+                "preview": (h["text"] or "")[:200],
+            } for h in hits],
+        }
 
     return router
 

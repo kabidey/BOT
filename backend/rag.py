@@ -242,12 +242,22 @@ async def _persist_chunks(db, chunks: List[Dict[str, Any]], embeddings: np.ndarr
 
 
 async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, Any]]]:
-    cursor = db.doc_chunks.find({}, {"embedding": 1, "doc_id": 1, "doc_title": 1, "section": 1, "text": 1})
-    rows = await cursor.to_list(length=10000)
+    cursor = db.doc_chunks.find({}, {
+        "embedding": 1, "doc_id": 1, "doc_title": 1, "section": 1, "text": 1,
+        "source": 1, "subsource": 1, "smifs_metadata": 1, "smifs_id": 1,
+    })
+    rows = await cursor.to_list(length=5000)
     if not rows:
         return None, []
     vecs = np.asarray([r["embedding"] for r in rows], dtype=np.float32)
-    meta = [{"doc_id": r["doc_id"], "doc_title": r["doc_title"], "section": r["section"], "text": r["text"]} for r in rows]
+    meta = [{
+        "doc_id": r["doc_id"], "doc_title": r["doc_title"],
+        "section": r["section"], "text": r["text"],
+        "source": r.get("source") or "seed",
+        "subsource": r.get("subsource"),
+        "smifs_metadata": r.get("smifs_metadata") or {},
+        "smifs_id": r.get("smifs_id"),
+    } for r in rows]
     return _normalize(vecs), meta
 
 
@@ -366,7 +376,7 @@ async def reload_index_from_db(db) -> int:
 
 
 async def search(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-    """Cosine similarity search. Returns [{text, doc_title, section, doc_id, score}]."""
+    """Cosine similarity search. Returns [{text, doc_title, section, doc_id, source, score}]."""
     if _index_matrix is None or not _index_meta:
         return []
     q = await _embed_query_cached(query)
@@ -375,7 +385,51 @@ async def search(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for i in top:
         m = _index_meta[int(i)]
-        out.append({**m, "score": float(scores[int(i)])})
+        out.append({**m, "score": float(scores[int(i)]), "raw_score": float(scores[int(i)])})
+    return out
+
+
+# Phase 9 — source-weighted retrieval.
+# SMIFS official KB > seed docs > uploads > session archives.
+SOURCE_WEIGHTS: Dict[str, float] = {
+    "smifs_knowledge": 1.15,
+    "seed":            1.00,
+    "upload":          0.90,
+    "session_archive": 0.80,
+}
+
+
+async def search_weighted(query: str, top_k: int = 8,
+                          restrict_sources: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """Phase 9 primary retrieval.
+
+    1. Cosine over the full in-memory index (cheap).
+    2. Multiply each score by SOURCE_WEIGHTS[source] (SMIFS official wins ties).
+    3. If `restrict_sources` is given, drop everything else (hard gate).
+    4. Return top_k with both `score` (post-weight) and `raw_score` (cosine).
+    """
+    if _index_matrix is None or not _index_meta:
+        return []
+    q = await _embed_query_cached(query)
+    raw = (_index_matrix @ q).astype(float)
+
+    # Build per-row weighted scores.
+    weighted = raw.copy()
+    for i, m in enumerate(_index_meta):
+        w = SOURCE_WEIGHTS.get(m.get("source") or "seed", 1.0)
+        weighted[i] = raw[i] * w
+        if restrict_sources and (m.get("source") not in restrict_sources):
+            weighted[i] = -1.0  # exclude
+
+    order = np.argsort(-weighted)
+    out: List[Dict[str, Any]] = []
+    for i in order:
+        if weighted[int(i)] < 0:
+            continue
+        m = _index_meta[int(i)]
+        out.append({**m, "score": float(weighted[int(i)]), "raw_score": float(raw[int(i)])})
+        if len(out) >= top_k:
+            break
     return out
 
 

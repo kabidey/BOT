@@ -1,12 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { Upload, Trash2, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Upload, Trash2, FileText, CheckCircle2, AlertTriangle, Database, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 
 export default function KnowledgeBaseTab({ api }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [toast, setToast] = useState(null); // {kind, msg}
+  const [toast, setToast] = useState(null);
   const inputRef = useRef(null);
+  // Phase 9 — SMIFS Knowledge API status
+  const [kbStatus, setKbStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const loadStatus = async () => {
+    try {
+      const { data } = await api.get("/admin/knowledge/status");
+      setKbStatus(data);
+    } catch (e) { /* non-fatal */ }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -18,7 +28,7 @@ export default function KnowledgeBaseTab({ api }) {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { load(); loadStatus(); /* eslint-disable-next-line */ }, []);
 
   const showToast = (kind, msg) => {
     setToast({ kind, msg });
@@ -64,12 +74,88 @@ export default function KnowledgeBaseTab({ api }) {
     }
   };
 
+  const runSync = async (mode) => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post("/admin/knowledge/sync", { mode, dry_run: false });
+      const errs = (data.errors || []).length;
+      if (errs > 0) {
+        showToast("err", `Sync finished with ${errs} error(s) · fetched ${data.fetched}, upserted ${data.upserted}`);
+      } else {
+        showToast("ok", `Sync ${mode} done · fetched ${data.fetched} · upserted ${data.upserted} · skipped ${data.skipped} · removed ${data.removed}`);
+      }
+      await loadStatus();
+      await load();
+    } catch (e) {
+      showToast("err", e?.response?.data?.detail || e.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="smifs-admin-page">
       <header className="smifs-admin-page-head">
-        <p className="smifs-admin-eyebrow">Embeddings · sentence-transformers · 384-dim</p>
+        <p className="smifs-admin-eyebrow">Embeddings · Hub AI text-embedding-3-small · 1536-dim</p>
         <h2 className="smifs-admin-title">Knowledge Base</h2>
       </header>
+
+      {/* Phase 9 — SMIFS Knowledge API status + sync */}
+      {kbStatus && (
+        <section className="smifs-kb-api-panel" data-testid="kb-smifs-panel">
+          <div className="smifs-kb-api-head">
+            <div>
+              <div className="smifs-kb-api-title">
+                <Database size={14} strokeWidth={2.25} />
+                SMIFS Knowledge API
+                {kbStatus.api_reachable
+                  ? <span className="smifs-kb-api-badge smifs-kb-api-badge--ok" data-testid="kb-api-status"><ShieldCheck size={10} strokeWidth={2.5} /> Reachable</span>
+                  : <span className="smifs-kb-api-badge smifs-kb-api-badge--warn" data-testid="kb-api-status"><ShieldAlert size={10} strokeWidth={2.5} /> Offline</span>
+                }
+              </div>
+              <p className="smifs-kb-api-meta">
+                Last sync {kbStatus.last_sync?.last_sync_at ? new Date(kbStatus.last_sync.last_sync_at).toLocaleString() : "never"}
+                {kbStatus.last_sync?.last_mode ? ` · ${kbStatus.last_sync.last_mode}` : ""}
+              </p>
+            </div>
+            <div className="smifs-kb-api-actions">
+              <button type="button" className="smifs-btn smifs-btn--ghost"
+                disabled={syncing || !kbStatus.api_reachable}
+                onClick={() => runSync("delta")} data-testid="kb-sync-delta-btn">
+                <RefreshCw size={12} strokeWidth={2.5} /> Delta sync
+              </button>
+              <button type="button" className="smifs-btn smifs-btn--primary"
+                disabled={syncing || !kbStatus.api_reachable}
+                onClick={() => runSync("full")} data-testid="kb-sync-full-btn">
+                <RefreshCw size={12} strokeWidth={2.5} /> Full sync
+              </button>
+            </div>
+          </div>
+          <div className="smifs-kb-counts">
+            <div className="smifs-kb-count smifs-kb-count--primary" data-testid="kb-count-smifs">
+              <span className="smifs-kb-count-value">{kbStatus.total_smifs_chunks ?? 0}</span>
+              <span className="smifs-kb-count-label">SMIFS official</span>
+            </div>
+            <div className="smifs-kb-count" data-testid="kb-count-seed">
+              <span className="smifs-kb-count-value">{kbStatus.total_seed_chunks ?? 0}</span>
+              <span className="smifs-kb-count-label">Seed docs</span>
+            </div>
+            <div className="smifs-kb-count" data-testid="kb-count-upload">
+              <span className="smifs-kb-count-value">{kbStatus.total_uploaded_chunks ?? 0}</span>
+              <span className="smifs-kb-count-label">Uploaded</span>
+            </div>
+            <div className="smifs-kb-count" data-testid="kb-count-archive">
+              <span className="smifs-kb-count-value">{kbStatus.total_archive_chunks ?? 0}</span>
+              <span className="smifs-kb-count-label">Archives</span>
+            </div>
+            <div className="smifs-kb-count smifs-kb-count--warn" data-testid="kb-count-hallucination">
+              <span className="smifs-kb-count-value">{kbStatus.hallucination_events_7d ?? 0}</span>
+              <span className="smifs-kb-count-label">Low-conf · 7d</span>
+            </div>
+          </div>
+          {syncing && <p className="smifs-kb-api-syncing">Syncing from deck.pesmifs.com …</p>}
+        </section>
+      )}
 
       <section
         className="smifs-kb-drop"
