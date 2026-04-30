@@ -426,6 +426,34 @@ async def session_signout(session_id: str):
     }
 
 
+# ---------------- Phase 10 — explicit role gate ----------------
+class SelectRoleRequest(BaseModel):
+    role: str = Field(..., description="'client' | 'employee' | 'visitor'")
+
+
+@api_router.post("/sessions/{session_id}/select_role")
+async def session_select_role(session_id: str, payload: SelectRoleRequest):
+    from agents import auth_agent, orchestrator
+    result = await auth_agent.select_role(db, session_id, payload.role)
+    # Persist the bot's reply to conversations so GET /sessions can replay it
+    if result and result.get("blocks"):
+        await orchestrator._append_messages(
+            db, session_id,
+            [{"role": "assistant",
+              "content": orchestrator._flatten_text(result["blocks"]),
+              "blocks": result["blocks"],
+              "citations": result.get("citations") or []}],
+        )
+    sess = await db.sessions.find_one({"_id": session_id}, {"_id": 0}) or {}
+    return {
+        "session_id": session_id,
+        "session_type": sess.get("session_type"),
+        "auth_state": sess.get("auth_state"),
+        "blocks": result.get("blocks", []),
+        "intent": result.get("intent_hint"),
+    }
+
+
 # ---------------- Phase 7 — rehydration endpoints ----------------
 class ResumeRequest(BaseModel):
     prior_session_id: str = Field(..., min_length=1)

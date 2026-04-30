@@ -395,13 +395,27 @@ def sanitize_employee_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _normalize_client_keys(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """OrgLens client fields come with Excel CRLF artefacts like
+    ``client_x000d__name``. Collapse them to plain underscore keys. Also
+    keep the original key copies so anything downstream that reads the raw
+    key still works."""
+    if not isinstance(rec, dict):
+        return rec
+    out: Dict[str, Any] = {}
+    for k, v in rec.items():
+        if "_x000d__" in k:
+            out[k.replace("_x000d__", "_")] = v
+        out[k] = v
+    return out
+
+
 def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
     """Curated top-level fields + the full record under `raw` (PAN/Aadhaar/bank
-    account stripped). The OrgLens client record contains no top-level
-    `client_name` field — `first_name` is heuristically derived from the
-    registered email when available."""
+    account stripped + Windows CRLF key artefacts normalised)."""
     if not rec:
         return {}
+    rec = _normalize_client_keys(rec)
     raw = _strip_sensitive_for_raw(rec)
     email = (rec.get("email") or "").strip() or None
     first = derive_first_name_from_email(email)
@@ -410,36 +424,82 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
     SEG_KEYS = ("nse", "bse", "pms", "nfo", "bfo", "mcfo", "ncfo", "cnfo",
                 "icfo", "cbfo", "nbfc", "bmfs", "nmfs", "nsel", "cse",
                 "mxeq", "mxfo")
-    segments = {k: rec.get(k) for k in SEG_KEYS if rec.get(k)}
+    segments = {k: rec.get(k) for k in SEG_KEYS if rec.get(k) and rec.get(k) != "No"}
     return {
         "type": "client",
         "ucc": rec.get("ucc"),
-        "name": rec.get("client_name"),  # may be absent in current schema
-        "first_name": first,
+        "name": rec.get("client_name"),
+        "first_name": first or (rec.get("client_name") or "").split()[0].title() if (rec.get("client_name") or "").strip() else first,
         "email_display": mask_email_display(email),
-        "telephone_display": mask_phone_display(rec.get("telephone")),
+        "telephone_display": mask_phone_display(rec.get("telephone") or rec.get("mobile")),
         "gender": rec.get("gender"),
         "status": rec.get("status"),
+        "client_category": rec.get("client_category"),
         "branch_name": rec.get("dp_name"),
         "branch_code": rec.get("dp_id"),
         "sub_broker_code": rec.get("sub_broker_code"),
         "sub_broker_name": rec.get("sub_broker_name"),
         "rm_code": rec.get("rm_code"),
         "rm_name": rec.get("rm_name"),
-        "rm_email_display": mask_email_display(rec.get("rm_email")),
-        "rm_mobile_display": mask_phone_display(rec.get("rm_mobile")),
+        "rm_email": None,                 # filled by enrich_client_rm_contact
+        "rm_mobile": None,
+        "rm_email_display": None,
+        "rm_mobile_display": None,
         "crm_name": rec.get("crm_name"),
         "risk_profile": rec.get("risk_profile"),
-        "city": rec.get("city"),
-        "state": rec.get("state"),
         "occupation": rec.get("occupation"),
         "income_range": rec.get("income_range"),
-        "active_date": rec.get("active_date"),  # may be absent
-        "kra_done_on": rec.get("kra_done_on"),  # may be absent — newer records
+        "city": rec.get("city"),
+        "state": rec.get("state"),
+        "active_date": rec.get("active_date"),
+        "original_active_date": rec.get("original_active_date"),
         "poa": rec.get("poa"),
+        "poa_holder_name": rec.get("poa_holder_name"),
+        "poa_execution_date": rec.get("poa_execution_date"),
         "segments": segments,
         "raw": raw,
     }
+
+
+async def enrich_client_rm_contact(identity_obj: Dict[str, Any]) -> Dict[str, Any]:
+    """Best-effort: find the verified client's RM in the employee directory
+    by name and copy over the (plaintext for USER_PROFILE, masked for UI)
+    email + mobile. Non-fatal — if no match, rm_email/rm_mobile stay None."""
+    rm_name = (identity_obj or {}).get("rm_name") or ""
+    if not rm_name.strip():
+        return identity_obj
+    try:
+        if not ORGLENS_BASE_URL or not ORGLENS_API_KEY:
+            return identity_obj
+        import httpx
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{ORGLENS_BASE_URL}/employees",
+                            headers={"X-API-Key": ORGLENS_API_KEY, "Accept": "application/json"},
+                            params={"search": rm_name, "limit": 3})
+        if r.status_code != 200:
+            return identity_obj
+        emps = r.json().get("employees") or []
+        # Prefer exact name match; else first active; else first result.
+        match = None
+        for e in emps:
+            if (e.get("name") or "").strip().lower() == rm_name.strip().lower():
+                match = e
+                break
+        if not match:
+            match = next((e for e in emps if (e.get("employment_status") or "").lower() == "active"), None) or (emps[0] if emps else None)
+        if not match:
+            return identity_obj
+        rm_email = match.get("email") or None
+        rm_mobile = match.get("mobile_number") or match.get("personal_mobile") or None
+        if rm_email:
+            identity_obj["rm_email"] = rm_email
+            identity_obj["rm_email_display"] = mask_email_display(rm_email)
+        if rm_mobile:
+            identity_obj["rm_mobile"] = rm_mobile
+            identity_obj["rm_mobile_display"] = mask_phone_display(rm_mobile)
+    except Exception:
+        pass
+    return identity_obj
 
 
 # =========================
@@ -505,48 +565,86 @@ def employee_context_block(identity_obj: Dict[str, Any]) -> str:
 
 
 def client_context_block(identity_obj: Dict[str, Any]) -> str:
-    first = identity_obj.get("first_name") or "valued investor"
-    rm = identity_obj.get("rm_name") or "your relationship manager"
-    risk = identity_obj.get("risk_profile") or "your risk profile"
-    parts = [
-        f"First name (heuristic, derived from registered email): {first}",
-        f"UCC: {identity_obj.get('ucc')} · Status: {identity_obj.get('status')}",
-        f"Risk profile: {risk}",
-    ]
-    branch = identity_obj.get("branch_name")
-    if branch:
-        bline = f"Branch: {branch}"
-        if identity_obj.get("branch_code"):
-            bline += f" ({identity_obj.get('branch_code')})"
-        parts.append(bline)
-    rm_line = f"Relationship Manager: {rm}"
-    if identity_obj.get("rm_code"):
-        rm_line += f" ({identity_obj.get('rm_code')})"
-    if identity_obj.get("rm_email"):
-        rm_line += f" · {identity_obj.get('rm_email')}"
-    if identity_obj.get("rm_mobile"):
-        rm_line += f" · {identity_obj.get('rm_mobile')}"
-    parts.append(rm_line)
-    if identity_obj.get("sub_broker_name"):
-        parts.append(f"Sub-broker: {identity_obj.get('sub_broker_name')}")
-    seg_yes = [k.upper() for k, v in (identity_obj.get("segments") or {}).items() if v == "Yes"]
-    if seg_yes:
-        parts.append(f"Active segments: {', '.join(seg_yes)}")
-    if identity_obj.get("city") or identity_obj.get("state"):
-        region = " · ".join(s for s in (identity_obj.get("city"), identity_obj.get("state")) if s)
-        parts.append(f"Region: {region}")
-    if identity_obj.get("occupation"):
-        parts.append(f"Occupation: {identity_obj.get('occupation')}")
-    if identity_obj.get("active_date"):
-        parts.append(f"Active since: {identity_obj.get('active_date')}")
+    """Phase 10 — emit a CLIENT_PROFILE JSON dump so the chat LLM can answer
+    any self-profile question directly for a verified client. Mirrors the
+    USER_PROFILE pattern used for employees. PAN / Aadhaar / bank are
+    intentionally absent (stripped at storage time)."""
+    import json as _json
+    raw = dict(identity_obj.get("raw") or {})
+    merged: Dict[str, Any] = {}
+    merged.update(raw)
+    for k, v in (identity_obj or {}).items():
+        if k == "raw":
+            continue
+        if k.endswith("_display") and k[:-8] in merged:
+            continue
+        if v is not None and v != "":
+            merged[k] = v
+    first = merged.get("first_name") or "there"
+    rm = merged.get("rm_name") or "your relationship manager"
+    rm_email = merged.get("rm_email") or ""
+    rm_mobile = merged.get("rm_mobile") or ""
+    rm_contact = rm
+    if rm_email or rm_mobile:
+        rm_contact = f"{rm} ({rm_email}{', ' + rm_mobile if rm_email and rm_mobile else rm_mobile})"
+    elif merged.get("rm_code"):
+        rm_contact = f"{rm} (RM code {merged.get('rm_code')})"
+    compact = _json.dumps(merged, default=str, ensure_ascii=False, separators=(",", ": "))
     return (
-        "\n\n--- VERIFIED CLIENT CONTEXT ---\n"
-        + "\n".join(parts)
-        + f"\nPERSONALIZATION RULE: Address the client by '{first}' once at the start. "
-        "Reference 1–2 specific facts from above (RM by name, risk profile, active "
-        "segments, region) naturally in the reply — warm and professional, not clingy. "
-        f"When suggesting next-best actions or escalating, refer them to {rm} for "
-        "execution. Do not invent specific holdings, NAVs, or transactions; for portfolio "
-        "specifics, offer to involve their RM."
-        "\n--- END CLIENT CONTEXT ---"
+        "\n\n--- VERIFIED CLIENT · CLIENT_PROFILE ---\n"
+        f"CLIENT_PROFILE = {compact}\n"
+        "--- END CLIENT_PROFILE ---\n"
+        "INSTRUCTIONS FOR THIS CLIENT:\n"
+        f"- Address them as '{first}' once at the start of the reply.\n"
+        "- Answer ANY question about themselves, their account, their RM, branch, risk "
+        "profile, KYC status, active segments, POA, sub-broker, registered email/phone, "
+        "demat, region, etc. DIRECTLY from CLIENT_PROFILE.\n"
+        "- You DO NOT have access to SMIFS Knowledge (that is reserved for SMIFS staff). "
+        "Do not claim specific Mackertich ONE product details (minimums, fees, returns, "
+        "lock-ins, NAVs, past performance).\n"
+        "- For ANY question outside their CLIENT_PROFILE (product details, market view, "
+        "research recommendations, historical NAVs, holdings, transactions, portfolio), "
+        f"reply with this verbatim fallback: \"I don't have that information in your "
+        f"record. Please connect with your Wealth Manager — {rm_contact}.\"\n"
+        "- NEVER fabricate values. If a field is null/missing in CLIENT_PROFILE, say so honestly.\n"
+        "- PAN, Aadhaar, bank account numbers are intentionally NOT in CLIENT_PROFILE. If "
+        "asked, state that those details aren't accessible here for security reasons.\n"
+    )
+
+
+def visitor_context_block() -> str:
+    """Phase 10 — visitor-only system prompt addon: strictly generic."""
+    return (
+        "\n\n--- VISITOR MODE ---\n"
+        "This user has NOT verified as a SMIFS client or employee. "
+        "You DO NOT have access to SMIFS Knowledge or OrgLens directory.\n"
+        "- You may provide generic educational context about investing concepts "
+        "(AIF, PMS, ELSS, SIP, etc.) at a high level.\n"
+        "- You must NEVER state specific Mackertich ONE product details (minimums, "
+        "fees, returns, tenures, lock-ins, regulatory registrations) — these are "
+        "reserved for verified clients/employees.\n"
+        "- For any specific question about Mackertich ONE offerings, say: "
+        "\"Please connect with a Mackertich ONE Wealth Manager — I can submit a "
+        "callback request for you.\" and we will render the callback form.\n"
+        "--- END VISITOR MODE ---\n"
+    )
+
+
+def wealth_manager_fallback_text(identity_obj: Optional[Dict[str, Any]]) -> str:
+    """Build the canonical WM fallback for verified clients."""
+    if not identity_obj:
+        return (
+            "I don't have that information in your record. Please connect with your "
+            "Wealth Manager — I'll escalate this for you."
+        )
+    rm = identity_obj.get("rm_name") or "your relationship manager"
+    rm_email = identity_obj.get("rm_email") or ""
+    rm_mobile = identity_obj.get("rm_mobile") or ""
+    contact_bits = [b for b in (rm_email, rm_mobile) if b]
+    contact = f" ({', '.join(contact_bits)})" if contact_bits else ""
+    if not contact and identity_obj.get("rm_code"):
+        contact = f" (RM code {identity_obj.get('rm_code')})"
+    return (
+        f"I don't have that information in your record. Please connect with your "
+        f"Wealth Manager — {rm}{contact}."
     )

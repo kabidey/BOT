@@ -190,6 +190,26 @@ ROUTER_SYSTEM_TOOLS = (
     "Do not call multiple tools. Always call exactly one."
 )
 
+ROUTER_SYSTEM_TOOLS_CLIENT = ROUTER_SYSTEM_TOOLS + (
+    "\n\nThe verified user is an SMIFS CLIENT. The chat specialist has CLIENT_PROFILE "
+    "in its system prompt containing ALL of the client's account fields (ucc, status, "
+    "rm_name, rm_email, rm_mobile, risk_profile, segments, branch, city/state, occupation, "
+    "income_range, POA, sub-broker, active_date, etc.).\n"
+    "\n"
+    "ROUTING RULES for CLIENT:\n"
+    "1. If the question is about the CLIENT THEMSELVES ('my risk profile', 'who is my RM', "
+    "'what segments am I active in', 'when did my account open', 'what is my branch', 'am I "
+    "POA', etc.) → DO NOT call lookup_client. Route to answer_from_knowledge_base; the chat "
+    "specialist will answer directly from CLIENT_PROFILE.\n"
+    "2. lookup_client is ONLY for the FIRST turn after verification (to render the account "
+    "summary card) or when the user EXPLICITLY asks 'show my account summary' / 'show my card'.\n"
+    "3. For any product / market / research question ('what's the minimum for X', 'NAV of Y', "
+    "'returns on Z'), route to answer_from_knowledge_base — the chat specialist will emit "
+    "the Wealth Manager fallback with the client's RM contact.\n"
+    "4. capture_lead / request_callback are still valid if the client explicitly asks to "
+    "be contacted about a NEW product.\n"
+)
+
 ROUTER_SYSTEM_TOOLS_EMPLOYEE = ROUTER_SYSTEM_TOOLS + (
     "\n\nThe verified user is an SMIFS EMPLOYEE. The chat specialist already has a USER_PROFILE "
     "object in its system prompt containing ALL of the user's own employment fields "
@@ -278,11 +298,18 @@ async def _classify_via_tools(message: str, history: List[Dict[str, Any]],
         and session_context.get("session_type") == "employee"
         and session_context.get("auth_state") == "verified"
     )
+    is_verified_client = bool(
+        session_context
+        and session_context.get("session_type") == "client"
+        and session_context.get("auth_state") == "verified"
+    )
     tools = list(INTENT_TOOLS)
     system_prompt = ROUTER_SYSTEM_TOOLS
     if is_verified_employee:
         tools = INTENT_TOOLS + DIRECTORY_TOOLS
         system_prompt = ROUTER_SYSTEM_TOOLS_EMPLOYEE
+    elif is_verified_client:
+        system_prompt = ROUTER_SYSTEM_TOOLS_CLIENT
 
     trimmed = history[-8:]
     convo_lines = "\n".join(f"{m['role'].upper()}: {m['content'][:400]}" for m in trimmed)

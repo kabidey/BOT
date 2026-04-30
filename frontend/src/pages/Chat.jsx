@@ -8,6 +8,7 @@ import MarketCardBlock from "@/components/blocks/MarketCardBlock";
 import ClientCardBlock from "@/components/blocks/ClientCardBlock";
 import EmployeeCardBlock from "@/components/blocks/EmployeeCardBlock";
 import EscalationBlock from "@/components/blocks/EscalationBlock";
+import RoleGate from "@/components/RoleGate";
 import ResumeOfferBlock from "@/components/blocks/ResumeOfferBlock";
 import DirectoryCardBlock from "@/components/blocks/DirectoryCardBlock";
 import DirectoryListBlock from "@/components/blocks/DirectoryListBlock";
@@ -31,6 +32,7 @@ const DEFAULT_SUGGESTIONS = [
 export default function Chat({ embedded = false }) {
   const STORAGE_KEY = embedded ? STORAGE_KEY_EMBED : STORAGE_KEY_DEFAULT;
   const [sessionId, setSessionId] = useState(() => localStorage.getItem(STORAGE_KEY) || null);
+  const [authState, setAuthState] = useState(null);  // Phase 10 — drives role gate visibility
   // messages: [{role, blocks?, content?, citations?, error?, intent?, model?}]
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -162,13 +164,17 @@ export default function Chat({ embedded = false }) {
     if (!sessionId) return;
     try {
       await axios.post(`${API}/sessions/${sessionId}/decline_resume`);
-      // Strip any resume_offer blocks from the current view
-      setMessages((prev) => prev.map((m) => (
-        m.role === "assistant" && Array.isArray(m.blocks)
-          ? { ...m, blocks: m.blocks.filter((b) => b.type !== "resume_offer") }
-          : m
-      )));
     } catch (_) { /* non-fatal */ }
+    // Phase 10 — decline resume fully clears the window and returns to the role gate.
+    localStorage.removeItem(STORAGE_KEY);
+    setSessionId(null);
+    setMessages([]);
+    setClient(null);
+    setIdentity(null);
+    setAuthState(null);
+    setIdleState("fresh");
+    setActiveCitation(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   // Health ping on mount
@@ -194,6 +200,7 @@ export default function Chat({ embedded = false }) {
       try {
         const { data } = await axios.get(`${API}/sessions/${sessionId}`);
         if (cancelled) return;
+        setAuthState(data.auth_state || null);
         if (data.client) setClient(data.client);
         else setClient(null);
         if (data.identity) setIdentity(data.identity);
@@ -416,6 +423,8 @@ export default function Chat({ embedded = false }) {
     setErrorMsg("");
     setActiveCitation(null);
     setClient(null);
+    setIdentity(null);
+    setAuthState(null);
   };
 
   const signOut = async () => {
@@ -424,11 +433,32 @@ export default function Chat({ embedded = false }) {
       await axios.post(`${API}/sessions/${sessionId}/signout`);
     } catch (_) { /* still proceed with local clear */ }
     setClient(null);
-    // Also clear thread for a clean slate
+    setIdentity(null);
+    setAuthState(null);
     localStorage.removeItem(STORAGE_KEY);
     setSessionId(null);
     setMessages([]);
     setActiveCitation(null);
+  };
+
+  // Phase 10 — role gate: create a new session, POST select_role, show the bot's first reply.
+  const handleSelectRole = async (role) => {
+    const freshSid = crypto.randomUUID();
+    localStorage.setItem(STORAGE_KEY, freshSid);
+    setSessionId(freshSid);
+    setMessages([]);
+    setErrorMsg("");
+    setClient(null);
+    setIdentity(null);
+    try {
+      const { data } = await axios.post(`${API}/sessions/${freshSid}/select_role`, { role });
+      setAuthState(data.auth_state || null);
+      if (data.blocks && data.blocks.length) {
+        setMessages([{ role: "assistant", blocks: data.blocks, citations: [] }]);
+      }
+    } catch (e) {
+      setErrorMsg(e?.response?.data?.detail || "Couldn't start the session.");
+    }
   };
 
   const onCitationClick = (msgIdx, citIdx) => {
@@ -569,30 +599,34 @@ export default function Chat({ embedded = false }) {
             </div>
           )}
           {messages.length === 0 && !hydrating && (
-            <div className="smifs-welcome" data-testid="welcome-card">
-              <p className="smifs-eyebrow">Private advisory · Confidential</p>
-              <h2 className="smifs-welcome-title">{embedded && widgetCfg?.welcome_message ? widgetCfg.welcome_message : "A considered conversation about your wealth."}</h2>
-              {!embedded && (
-                <p className="smifs-welcome-body">
-                  Our multi-agent advisor routes your question to the right specialist —
-                  research, market data, your account, or our human team — and grounds every
-                  product fact in the Mackertich ONE knowledge base.
-                </p>
-              )}
-              <div className="smifs-suggestions">
-                {SUGGESTIONS.map((s, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    className="smifs-suggestion"
-                    onClick={() => send(s)}
-                    data-testid={`suggestion-${i}`}
-                  >
-                    {s}
-                  </button>
-                ))}
+            (!sessionId || authState === "awaiting_role") ? (
+              <RoleGate onSelect={handleSelectRole} disabled={false} />
+            ) : (
+              <div className="smifs-welcome" data-testid="welcome-card">
+                <p className="smifs-eyebrow">Private advisory · Confidential</p>
+                <h2 className="smifs-welcome-title">{embedded && widgetCfg?.welcome_message ? widgetCfg.welcome_message : "A considered conversation about your wealth."}</h2>
+                {!embedded && (
+                  <p className="smifs-welcome-body">
+                    Our multi-agent advisor routes your question to the right specialist —
+                    research, market data, your account, or our human team — and grounds every
+                    product fact in the Mackertich ONE knowledge base.
+                  </p>
+                )}
+                <div className="smifs-suggestions">
+                  {SUGGESTIONS.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className="smifs-suggestion"
+                      onClick={() => send(s)}
+                      data-testid={`suggestion-${i}`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )
           )}
 
           {messages.map((m, i) => {
@@ -646,7 +680,7 @@ export default function Chat({ embedded = false }) {
           </div>
         )}
 
-        {(() => {
+        {messages.length > 0 && (() => {
           const lastBot = [...messages].reverse().find((m) => m.role === "assistant" && !m.streaming);
           const sensitive = lastBot?.intent === "AUTH_PAN_REQUEST" || lastBot?.intent === "AUTH_PAN_RETRY";
           const locked = idleState === "expired";

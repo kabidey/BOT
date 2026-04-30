@@ -74,13 +74,18 @@ def _hits_to_chunks(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _build_messages(message: str, history: List[Dict[str, Any]],
-                    grounded: bool, client_context: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
+                    grounded: bool, client_context: Optional[Dict[str, Any]],
+                    session_type: Optional[str] = None) -> List[Dict[str, str]]:
     system_content = BASE_PROMPT + (GROUNDED_INSTR if grounded else UNGROUNDED_INSTR)
     if client_context:
         from .auth_agent import context_block_for
         block = context_block_for(client_context)
         if block:
             system_content = system_content + block
+    # Phase 10 — visitor gets an explicit "no product specifics" addon.
+    if (session_type == "visitor") or (session_type is None and not client_context):
+        import identity as _id
+        system_content = system_content + _id.visitor_context_block()
     trimmed = history[-(RAG_HISTORY_TURNS * 2):]
     history_msgs = [{"role": m["role"], "content": m["content"]} for m in trimmed]
     return [{"role": "system", "content": system_content}] + history_msgs + [
@@ -131,12 +136,25 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return citations
 
 
-async def _retrieve(message: str) -> Tuple[List[Dict[str, Any]], bool, Dict[str, Any]]:
-    """Phase 9 retrieval with source weighting + product-topic gating."""
-    restrict: Optional[List[str]] = None
-    if guardrails.is_product_topic(message):
-        # Hard-gate product / offering questions to official corpora.
-        restrict = ["smifs_knowledge", "seed"]
+async def _retrieve(message: str, session_type: Optional[str] = None,
+                    auth_state: Optional[str] = None) -> Tuple[List[Dict[str, Any]], bool, Dict[str, Any]]:
+    """Phase 9 retrieval + Phase 10 role gating.
+
+    - employee + verified → all sources (smifs_knowledge, seed, upload, archive)
+    - client + verified   → seed ONLY (no smifs_knowledge; product specifics
+                            must come from CLIENT_PROFILE or escalate to RM)
+    - visitor (anonymous) → seed ONLY (generic education only)
+    - mid-verification    → retrieval disabled; return empty
+    """
+    if auth_state not in (None, "verified", "anonymous"):
+        return [], False, guardrails.analyse_retrieval([])
+    if session_type == "employee" and auth_state == "verified":
+        restrict: Optional[List[str]] = None
+        if guardrails.is_product_topic(message):
+            restrict = ["smifs_knowledge", "seed"]
+    else:
+        # Client + visitor: never see SMIFS Knowledge.
+        restrict = ["seed"]
     hits = await rag.search_weighted(message, top_k=RAG_TOP_K, restrict_sources=restrict)
     grounded = bool(hits) and any(h["score"] >= RAG_MIN_SCORE for h in hits)
     analysis = guardrails.analyse_retrieval(hits)
@@ -146,37 +164,51 @@ async def _retrieve(message: str) -> Tuple[List[Dict[str, Any]], bool, Dict[str,
 async def answer(message: str, history: List[Dict[str, Any]],
                  client_context: Optional[Dict[str, Any]] = None,
                  session_id: Optional[str] = None,
+                 session_type: Optional[str] = None,
+                 auth_state: Optional[str] = None,
                  db=None) -> Dict[str, Any]:
     """Non-streaming entry point. Returns {reply_text, citations, grounded, model}."""
-    hits, grounded, analysis = await _retrieve(message)
+    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state)
     citations = _build_citations(hits) if grounded else []
 
-    # Phase 9 — refusal enforcement: for product topics without KB coverage,
-    # short-circuit with an honest escalation instead of letting the LLM riff.
-    if db is not None and guardrails.should_refuse_product_query(message, analysis):
+    # Phase 10 — refusal for product topics when caller is NOT a verified employee.
+    # The KB isn't available; redirect to RM (clients) or callback (visitors).
+    if db is not None and guardrails.is_product_topic(message) and not (
+        session_type == "employee" and auth_state == "verified"
+    ):
+        import fallback as _fb
+        fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
         await guardrails.log_event(
             db, session_id=session_id, message=message,
-            reply_text=guardrails.REFUSAL_REPLY, analysis=analysis,
-            claims=[], action="refused",
+            reply_text=fb["reply_text"], analysis=analysis, claims=[], action="refused",
         )
         return {
-            "reply_text": guardrails.REFUSAL_REPLY,
-            "citations": citations,
-            "grounded": False,
-            "model": None,
-            "intent_hint": "ESCALATION",
+            "reply_text": fb["reply_text"], "citations": citations,
+            "grounded": False, "model": None,
+            "intent_hint": fb.get("intent_hint", "ESCALATION"),
+            "fallback_blocks": fb.get("extra_blocks") or [],
         }
 
-    messages = _build_messages(message, history, grounded, client_context)
-    chunks = _hits_to_chunks(hits) if grounded else None
+    # Phase 9 — refusal for employees too if KB has no strong coverage.
+    if db is not None and guardrails.should_refuse_product_query(message, analysis) and (
+        session_type == "employee" and auth_state == "verified"
+    ):
+        await guardrails.log_event(
+            db, session_id=session_id, message=message,
+            reply_text=guardrails.REFUSAL_REPLY, analysis=analysis, claims=[], action="refused",
+        )
+        return {
+            "reply_text": guardrails.REFUSAL_REPLY, "citations": citations,
+            "grounded": False, "model": None, "intent_hint": "ESCALATION",
+        }
 
+    messages = _build_messages(message, history, grounded, client_context, session_type=session_type)
+    chunks = _hits_to_chunks(hits) if grounded else None
     result = await chat_with_fallback(
         messages, context_chunks=chunks, session_id=session_id, intent="KNOWLEDGE",
     )
     reply_text = extract_reply(result["data"])
     model_used = result["data"].get("model") or result["model"]
-
-    # Phase 9 — post-gen flagging: detect unsupported confident claims.
     if db is not None and reply_text:
         claims = guardrails.detect_claims(reply_text)
         if claims and not guardrails.citation_supports_claims(claims, reply_text, citations):
@@ -185,49 +217,57 @@ async def answer(message: str, history: List[Dict[str, Any]],
                 reply_text=reply_text, analysis=analysis,
                 claims=claims, action="unchecked_claim",
             )
-
     return {
-        "reply_text": reply_text,
-        "citations": citations,
-        "grounded": grounded,
-        "model": model_used,
+        "reply_text": reply_text, "citations": citations,
+        "grounded": grounded, "model": model_used,
     }
 
 
 async def stream_answer(message: str, history: List[Dict[str, Any]],
                         client_context: Optional[Dict[str, Any]] = None,
                         session_id: Optional[str] = None,
+                        session_type: Optional[str] = None,
+                        auth_state: Optional[str] = None,
                         db=None) -> AsyncGenerator[Tuple[str, Any], None]:
-    """Streaming entry point.
-    Yields (event_type, payload):
-      - ('citations', [...])  — emitted ONCE up-front so the UI can render citation chips early
-      - ('token', str)        — incremental content tokens
-      - ('done', {'reply_text','citations','grounded','model'})
-    """
-    hits, grounded, analysis = await _retrieve(message)
+    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state)
     citations = _build_citations(hits) if grounded else []
     yield ("citations", citations)
 
-    # Phase 9 — refusal short-circuit for product queries with no KB coverage.
-    if db is not None and guardrails.should_refuse_product_query(message, analysis):
+    # Phase 10 — non-employee product-topic short-circuit.
+    if db is not None and guardrails.is_product_topic(message) and not (
+        session_type == "employee" and auth_state == "verified"
+    ):
+        import fallback as _fb
+        fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
         await guardrails.log_event(
             db, session_id=session_id, message=message,
-            reply_text=guardrails.REFUSAL_REPLY, analysis=analysis,
-            claims=[], action="refused",
+            reply_text=fb["reply_text"], analysis=analysis, claims=[], action="refused",
         )
-        yield ("token", guardrails.REFUSAL_REPLY)
+        yield ("token", fb["reply_text"])
         yield ("done", {
-            "reply_text": guardrails.REFUSAL_REPLY,
-            "citations": citations,
-            "grounded": False,
-            "model": None,
-            "intent_hint": "ESCALATION",
+            "reply_text": fb["reply_text"], "citations": citations,
+            "grounded": False, "model": None,
+            "intent_hint": fb.get("intent_hint", "ESCALATION"),
+            "fallback_blocks": fb.get("extra_blocks") or [],
         })
         return
 
-    messages = _build_messages(message, history, grounded, client_context)
-    chunks = _hits_to_chunks(hits) if grounded else None
+    if db is not None and guardrails.should_refuse_product_query(message, analysis) and (
+        session_type == "employee" and auth_state == "verified"
+    ):
+        await guardrails.log_event(
+            db, session_id=session_id, message=message,
+            reply_text=guardrails.REFUSAL_REPLY, analysis=analysis, claims=[], action="refused",
+        )
+        yield ("token", guardrails.REFUSAL_REPLY)
+        yield ("done", {
+            "reply_text": guardrails.REFUSAL_REPLY, "citations": citations,
+            "grounded": False, "model": None, "intent_hint": "ESCALATION",
+        })
+        return
 
+    messages = _build_messages(message, history, grounded, client_context, session_type=session_type)
+    chunks = _hits_to_chunks(hits) if grounded else None
     full_text = ""
     model_used: Optional[str] = None
     try:
@@ -249,7 +289,6 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
         model_used = result["data"].get("model") or result["model"]
         yield ("token", full_text)
 
-    # Phase 9 — post-gen claim flagging (best-effort)
     if db is not None and full_text:
         claims = guardrails.detect_claims(full_text)
         if claims and not guardrails.citation_supports_claims(claims, full_text, citations):
@@ -260,8 +299,6 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
             )
 
     yield ("done", {
-        "reply_text": full_text,
-        "citations": citations,
-        "grounded": grounded,
-        "model": model_used,
+        "reply_text": full_text, "citations": citations,
+        "grounded": grounded, "model": model_used,
     })

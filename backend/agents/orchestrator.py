@@ -142,17 +142,19 @@ async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
                             session_id: Optional[str] = None,
                             emit_token: TokenEmitter = None,
                             emit_citations: CitationsEmitter = None,
-                            db=None) -> Dict[str, Any]:
-    # rag_agent already supports a `client_context` kwarg; we pass our identity
-    # blob (employee or client) since both inject equivalently.
+                            db=None,
+                            session_type: Optional[str] = None,
+                            auth_state: Optional[str] = None) -> Dict[str, Any]:
     if emit_token is not None:
         full_text = ""
         citations: List[Dict[str, Any]] = []
         grounded = False
         model: Optional[str] = None
         intent_hint: Optional[str] = None
+        fallback_blocks: List[Dict[str, Any]] = []
         async for ev, data in rag_agent.stream_answer(
-            message, history, client_context=identity_obj, session_id=session_id, db=db,
+            message, history, client_context=identity_obj, session_id=session_id,
+            session_type=session_type, auth_state=auth_state, db=db,
         ):
             if ev == "citations":
                 citations = data
@@ -167,13 +169,20 @@ async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
                 grounded = bool(data.get("grounded"))
                 model = data.get("model")
                 intent_hint = data.get("intent_hint")
+                fallback_blocks = data.get("fallback_blocks") or []
         blocks: List[Dict[str, Any]] = [{"type": "text", "text": full_text, "grounded": grounded}]
+        blocks.extend(fallback_blocks)
         result: Dict[str, Any] = {"blocks": blocks, "citations": citations, "model": model}
         if intent_hint:
             result["intent_hint"] = intent_hint
         return result
-    out = await rag_agent.answer(message, history, client_context=identity_obj, session_id=session_id, db=db)
+    out = await rag_agent.answer(
+        message, history, client_context=identity_obj, session_id=session_id,
+        session_type=session_type, auth_state=auth_state, db=db,
+    )
     blocks = [{"type": "text", "text": out["reply_text"], "grounded": out["grounded"]}]
+    if out.get("fallback_blocks"):
+        blocks.extend(out["fallback_blocks"])
     result = {"blocks": blocks, "citations": out["citations"], "model": out["model"]}
     if out.get("intent_hint"):
         result["intent_hint"] = out["intent_hint"]
@@ -449,10 +458,12 @@ async def run_turn(db, session_id: Optional[str], message: str,
             identity_obj = await auth_agent.get_verified_identity(db, sid)
 
             if intent == "KNOWLEDGE":
-                out = await _branch_knowledge(message, history, identity_obj, session_id=sid,
-                                              emit_token=emit_token, emit_citations=emit_citations, db=db)
-                # Phase 9 — refusal returns intent_hint=ESCALATION so the FE
-                # trace tag is honest about what happened.
+                out = await _branch_knowledge(
+                    message, history, identity_obj, session_id=sid,
+                    emit_token=emit_token, emit_citations=emit_citations, db=db,
+                    session_type=session_context.get("session_type"),
+                    auth_state=session_context.get("auth_state"),
+                )
                 if isinstance(out, dict) and out.get("intent_hint"):
                     intent = out["intent_hint"]
             elif intent == "LEAD_CAPTURE":

@@ -1575,3 +1575,71 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   background: rgba(201,168,106,0.12);
 }
 
+
+/* ====== Phase 10 — Role Gate ====== */
+.smifs-role-gate {
+  display: flex; align-items: center; justify-content: center;
+  padding: 48px 24px;
+  animation: smifs-role-fade-in 400ms ease-out;
+}
+.smifs-role-gate-inner {
+  max-width: 560px; width: 100%;
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center;
+}
+.smifs-role-eyebrow {
+  font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--gold); font-weight: 600; margin: 0 0 10px;
+}
+.smifs-role-title {
+  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-size: 30px; font-weight: 500; color: var(--ink);
+  letter-spacing: 0.005em; margin: 0 0 6px;
+}
+.smifs-role-sub {
+  font-size: 12.5px; color: var(--ink-dim);
+  max-width: 420px; margin: 0 0 28px; line-height: 1.55;
+}
+.smifs-role-pills {
+  display: flex; flex-direction: column; gap: 10px;
+  width: 100%; max-width: 440px;
+}
+.smifs-role-pill {
+  display: flex; gap: 14px; align-items: center;
+  width: 100%;
+  padding: 16px 20px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(201,168,106,0.22);
+  border-radius: 14px;
+  color: var(--ink); font-family: inherit;
+  cursor: pointer; text-align: left;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+.smifs-role-pill:hover {
+  border-color: rgba(201,168,106,0.55);
+  background: rgba(201,168,106,0.05);
+  transform: translateY(-1px);
+}
+.smifs-role-pill:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 2px;
+}
+.smifs-role-pill:disabled { opacity: 0.5; cursor: not-allowed; }
+.smifs-role-pill-icon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(201,168,106,0.10);
+  color: var(--gold);
+  border: 1px solid rgba(201,168,106,0.28);
+}
+.smifs-role-pill-label { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.smifs-role-pill-title { font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
+.smifs-role-pill-sub { font-size: 11px; color: var(--ink-dim); letter-spacing: 0.02em; }
+.smifs-role-footnote {
+  font-size: 10.5px; color: var(--ink-dim);
+  margin: 22px 0 0; letter-spacing: 0.03em; max-width: 400px;
+}
+@keyframes smifs-role-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

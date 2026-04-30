@@ -75,7 +75,7 @@ async def get_or_create_session_row(db, session_id: str) -> Dict[str, Any]:
         "_id": session_id,
         "session_id": session_id,
         "session_type": "visitor",
-        "auth_state": ANON,
+        "auth_state": AWAIT_ROLE,
         "pending_session_type": None,
         "pending_identifier": None,
         "pending_record": None,
@@ -173,6 +173,39 @@ async def handle_role_response(db, session_id: str, message: str) -> Dict[str, A
             "Just to be sure — please reply with **client** or **employee** so I can pull up the right record."
         )}],
         "citations": [], "model": None,
+    }
+
+
+# --------------- Phase 10: explicit role selection ---------------
+async def select_role(db, session_id: str, role: str) -> Dict[str, Any]:
+    """Role gate endpoint handler. Drive the state machine into the right
+    AWAIT_* state and return the friendly next-turn prompt."""
+    role = (role or "").strip().lower()
+    if role not in ("client", "employee", "visitor"):
+        return {
+            "blocks": [{"type": "text", "text": "Please pick one of: client, employee, visitor."}],
+            "citations": [], "model": None,
+        }
+    await get_or_create_session_row(db, session_id)
+    if role == "employee":
+        return await start_employee_flow(db, session_id, email=None)
+    if role == "client":
+        return await start_client_flow(db, session_id, ucc=None)
+    # Visitor
+    await _atomic_set(
+        db, session_id,
+        session_type="visitor", auth_state=ANON,
+        pending_session_type=None, pending_identifier=None,
+        pending_record=None, expected_pan_hash=None, failed_attempts=0,
+    )
+    return {
+        "blocks": [{"type": "text", "text": (
+            "Welcome to Mackertich ONE. I can share generic wealth-management concepts, "
+            "and when you're ready, connect you with a Wealth Manager who can tailor "
+            "specific recommendations to your goals. How can I help?"
+        )}],
+        "citations": [], "model": None,
+        "intent_hint": "VISITOR_WELCOME",
     }
 
 
@@ -485,6 +518,13 @@ async def _finalise_verified(db, session_id: str, session_type: str,
         fields["emp_id_hash"] = identity.emp_id_hash(pending.get("employee_id"))
     elif session_type == "client":
         fields["ucc_hash"] = identity.ucc_hash(pending.get("ucc"))
+        # Phase 10 — enrich client identity with the RM's work email/mobile
+        # (the client OrgLens record doesn't return these). Best-effort.
+        try:
+            pending = await identity.enrich_client_rm_contact(pending)
+            fields["identity"] = pending
+        except Exception:
+            pass
     await _atomic_set(db, session_id, **fields)
 
     # Phase 7 — rehydration offer on successful verification
