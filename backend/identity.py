@@ -397,16 +397,15 @@ def sanitize_employee_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
 
 def _normalize_client_keys(rec: Dict[str, Any]) -> Dict[str, Any]:
     """OrgLens client fields come with Excel CRLF artefacts like
-    ``client_x000d__name``. Collapse them to plain underscore keys. Also
-    keep the original key copies so anything downstream that reads the raw
-    key still works."""
+    ``client_x000d__name``. Collapse them to plain underscore keys.
+    Only the cleaned keys are kept — the `_x000d__` copies are dropped to
+    avoid duplicating every field in `identity.raw` / CLIENT_PROFILE."""
     if not isinstance(rec, dict):
         return rec
     out: Dict[str, Any] = {}
     for k, v in rec.items():
-        if "_x000d__" in k:
-            out[k.replace("_x000d__", "_")] = v
-        out[k] = v
+        cleaned_k = k.replace("_x000d__", "_") if "_x000d__" in k else k
+        out[cleaned_k] = v
     return out
 
 
@@ -435,8 +434,10 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
         "gender": rec.get("gender"),
         "status": rec.get("status"),
         "client_category": rec.get("client_category"),
-        "branch_name": rec.get("dp_name"),
-        "branch_code": rec.get("dp_id"),
+        "branch_name": rec.get("branch_name"),
+        "branch_code": rec.get("branch_code"),
+        "dp_name": rec.get("dp_name"),
+        "dp_id": rec.get("dp_id"),
         "sub_broker_code": rec.get("sub_broker_code"),
         "sub_broker_name": rec.get("sub_broker_name"),
         "rm_code": rec.get("rm_code"),
@@ -452,7 +453,7 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
         "city": rec.get("city"),
         "state": rec.get("state"),
         "active_date": rec.get("active_date"),
-        "original_active_date": rec.get("original_active_date"),
+        "original_active_date": rec.get("original_active_date") or rec.get("orginal_active_date"),
         "poa": rec.get("poa"),
         "poa_holder_name": rec.get("poa_holder_name"),
         "poa_execution_date": rec.get("poa_execution_date"),
