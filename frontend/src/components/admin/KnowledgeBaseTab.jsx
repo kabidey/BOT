@@ -117,6 +117,12 @@ export default function KnowledgeBaseTab({ api }) {
                 Last sync {kbStatus.last_sync?.last_sync_at ? new Date(kbStatus.last_sync.last_sync_at).toLocaleString() : "never"}
                 {kbStatus.last_sync?.last_mode ? ` · ${kbStatus.last_sync.last_mode}` : ""}
               </p>
+              {kbStatus.auto_sync_enabled && (
+                <p className="smifs-kb-api-meta" data-testid="kb-auto-sync-info">
+                  Auto-sync every {Math.round((kbStatus.auto_sync_interval_seconds || 900) / 60)} min ·
+                  next at {kbStatus.next_scheduled_sync_at ? new Date(kbStatus.next_scheduled_sync_at).toLocaleTimeString() : "—"}
+                </p>
+              )}
             </div>
             <div className="smifs-kb-api-actions">
               <button type="button" className="smifs-btn smifs-btn--ghost"
@@ -154,6 +160,23 @@ export default function KnowledgeBaseTab({ api }) {
             </div>
           </div>
           {syncing && <p className="smifs-kb-api-syncing">Syncing from deck.pesmifs.com …</p>}
+          {kbStatus?.last_run_summary && kbStatus.last_run_summary.length > 0 && (
+            <details className="smifs-kb-history" data-testid="kb-sync-history">
+              <summary>Last {kbStatus.last_run_summary.length} runs</summary>
+              <ul>
+                {kbStatus.last_run_summary.map((r, i) => (
+                  <li key={i} data-testid={`kb-run-${i}`}>
+                    <span className="smifs-mono">{(r.started_at || "").slice(0, 19).replace("T", " ")}</span>
+                    <span className={`smifs-status-pill smifs-status-pill--${r.trigger === "scheduler" ? "qualified" : "new"}`}>{r.trigger}</span>
+                    <span>{r.mode}</span>
+                    <span>fetched {r.fetched} · upserted {r.upserted} · skipped {r.skipped} · removed {r.removed}</span>
+                    <span className="smifs-table-cell-sub">{r.duration_ms}ms</span>
+                    {(r.errors || []).length > 0 && <span className="smifs-status-pill smifs-status-pill--new">{r.errors.length} error(s)</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       )}
 

@@ -17,7 +17,7 @@ import hashlib
 import logging
 import os
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -35,6 +35,15 @@ KB_DOC_PREFIX = "smifs_kb_"
 KB_MAX_RPS = 10
 KB_PAGE_LIMIT = 2000  # API returns all 1801 chunks in one shot
 KB_HTTP_TIMEOUT = 60
+
+# ---- Phase 11: background delta-sync scheduler ----
+# How often to run a delta sync (seconds). 0 disables the scheduler.
+KB_DELTA_SYNC_INTERVAL = int(os.environ.get("KB_DELTA_SYNC_INTERVAL_SECONDS", "900") or 0)
+# Mongo-based mutex to keep manual + scheduled runs from colliding.
+KB_SYNC_LOCK_ID = f"{KB_SOURCE}:sync_lock"
+KB_SYNC_LOCK_TTL_SECONDS = 900  # lock expires after 15 min so a crashed run doesn't wedge scheduler
+KB_RUNS_HISTORY_CAP = 200        # we keep most recent N rows in knowledge_sync_runs
+_NEXT_SYNC_AT_ISO: Optional[str] = None
 
 
 def _headers() -> Dict[str, str]:
@@ -285,6 +294,9 @@ async def status(db) -> Dict[str, Any]:
     async for row in counts_cursor:
         counts[row["_id"] or "unknown"] = row["count"]
     meta = await db.kb_sync_meta.find_one({"_id": KB_SOURCE}, {"_id": 0})
+    # Phase 11 — scheduler info
+    runs_cur = db.knowledge_sync_runs.find({}, {"_id": 0}).sort("started_at", -1).limit(5)
+    last_runs = await runs_cur.to_list(length=5)
     return {
         "api_configured": configured(),
         "api_reachable": await probe_reachable(),
@@ -294,7 +306,130 @@ async def status(db) -> Dict[str, Any]:
         "total_uploaded_chunks": counts.get("upload", 0),
         "total_archive_chunks": counts.get("session_archive", 0),
         "last_sync": meta or {},
+        # Phase 11 — scheduler visibility
+        "auto_sync_enabled": KB_DELTA_SYNC_INTERVAL > 0,
+        "auto_sync_interval_seconds": KB_DELTA_SYNC_INTERVAL,
+        "next_scheduled_sync_at": _NEXT_SYNC_AT_ISO,
+        "last_run_summary": last_runs,
     }
+
+
+async def _acquire_mutex(db) -> bool:
+    """Try to acquire the sync mutex. Returns True on success, False if
+    another run is still holding it. A stale lock (older than TTL) is
+    forcibly reclaimed."""
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    expires_iso = (now + timedelta(seconds=KB_SYNC_LOCK_TTL_SECONDS)).isoformat()
+    from pymongo.errors import DuplicateKeyError  # type: ignore
+    try:
+        await db.kb_sync_locks.insert_one({
+            "_id": KB_SYNC_LOCK_ID, "acquired_at": now_iso, "expires_at": expires_iso,
+        })
+        return True
+    except DuplicateKeyError:
+        existing = await db.kb_sync_locks.find_one({"_id": KB_SYNC_LOCK_ID})
+        if existing and existing.get("expires_at", "") < now_iso:
+            await db.kb_sync_locks.replace_one(
+                {"_id": KB_SYNC_LOCK_ID},
+                {"_id": KB_SYNC_LOCK_ID, "acquired_at": now_iso, "expires_at": expires_iso,
+                 "stolen_from": existing.get("acquired_at")},
+            )
+            logger.warning("SMIFS KB sync: stole stale lock acquired_at=%s", existing.get("acquired_at"))
+            return True
+        return False
+
+
+async def _release_mutex(db) -> None:
+    try:
+        await db.kb_sync_locks.delete_one({"_id": KB_SYNC_LOCK_ID})
+    except Exception:
+        pass
+
+
+async def _record_run(db, run_doc: Dict[str, Any]) -> None:
+    try:
+        await db.knowledge_sync_runs.insert_one(run_doc)
+        # Trim history to cap
+        count = await db.knowledge_sync_runs.count_documents({})
+        if count > KB_RUNS_HISTORY_CAP:
+            cur = db.knowledge_sync_runs.find({}, {"_id": 1}).sort("started_at", 1).limit(count - KB_RUNS_HISTORY_CAP)
+            old_ids = [d["_id"] async for d in cur]
+            if old_ids:
+                await db.knowledge_sync_runs.delete_many({"_id": {"$in": old_ids}})
+    except Exception as e:
+        logger.warning("knowledge_sync_runs insert failed: %s", e)
+
+
+async def run_sync(db, *, mode: str = "delta", dry_run: bool = False,
+                   trigger: str = "manual") -> Dict[str, Any]:
+    """Phase 11 wrapper around `sync()` that adds mutex + run history.
+
+    Returns the same shape as `sync()` plus `trigger` + `conflict` flags.
+    """
+    t_start = datetime.now(timezone.utc)
+    lock = await _acquire_mutex(db)
+    if not lock:
+        return {
+            "mode": mode, "dry_run": dry_run, "trigger": trigger,
+            "conflict": True, "started_at": t_start.isoformat(),
+            "finished_at": t_start.isoformat(),
+            "fetched": 0, "upserted": 0, "skipped": 0, "removed": 0,
+            "errors": ["another sync is in progress"],
+        }
+    try:
+        result = await sync(db, mode=mode, dry_run=dry_run)
+    finally:
+        await _release_mutex(db)
+    result["trigger"] = trigger
+    result["conflict"] = False
+    try:
+        duration_ms = int((datetime.now(timezone.utc) - t_start).total_seconds() * 1000)
+        await _record_run(db, {
+            "started_at": result.get("started_at"),
+            "finished_at": result.get("finished_at"),
+            "mode": result.get("mode"),
+            "dry_run": result.get("dry_run"),
+            "trigger": trigger,
+            "fetched": result.get("fetched", 0),
+            "upserted": result.get("upserted", 0),
+            "skipped": result.get("skipped", 0),
+            "removed": result.get("removed", 0),
+            "errors": result.get("errors", []),
+            "duration_ms": duration_ms,
+        })
+    except Exception:
+        logger.exception("knowledge_sync_runs record failed (non-fatal)")
+    return result
+
+
+async def delta_sync_loop(db) -> None:
+    """Phase 11 — long-running background task: every KB_DELTA_SYNC_INTERVAL
+    seconds (±jitter), run a delta sync. Set the env var to 0 to disable.
+    Idempotent via the mutex."""
+    global _NEXT_SYNC_AT_ISO
+    if KB_DELTA_SYNC_INTERVAL <= 0:
+        logger.info("SMIFS KB delta-sync scheduler DISABLED (KB_DELTA_SYNC_INTERVAL_SECONDS=0)")
+        return
+    if not configured():
+        logger.info("SMIFS KB delta-sync scheduler skipped — env not configured")
+        return
+    logger.info("SMIFS KB delta-sync scheduler ACTIVE — interval=%ds", KB_DELTA_SYNC_INTERVAL)
+    import datetime as _dt  # noqa: F401 (kept for clarity; not used directly)
+    while True:
+        # Jitter ±60s; never less than 30s between runs.
+        jitter = random.randint(-60, 60)
+        wait_s = max(30, KB_DELTA_SYNC_INTERVAL + jitter)
+        _NEXT_SYNC_AT_ISO = (datetime.now(timezone.utc) + timedelta(seconds=wait_s)).isoformat()
+        try:
+            await asyncio.sleep(wait_s)
+        except asyncio.CancelledError:
+            logger.info("SMIFS KB delta-sync scheduler cancelled — shutting down loop")
+            return
+        try:
+            await run_sync(db, mode="delta", trigger="scheduler")
+        except Exception:
+            logger.exception("SMIFS KB scheduler sync failed (non-fatal — will retry)")
 
 
 async def startup_sync_if_empty(db) -> None:

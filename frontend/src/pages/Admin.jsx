@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive } from "lucide-react";
+import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive, TrendingDown } from "lucide-react";
 
 import OverviewTab from "@/components/admin/OverviewTab";
 import LeadsTab from "@/components/admin/LeadsTab";
 import CostLedgerTab from "@/components/admin/CostLedgerTab";
 import InsightsTab from "@/components/admin/InsightsTab";
+import KnowledgeGapsTab from "@/components/admin/KnowledgeGapsTab";
 import KnowledgeBaseTab from "@/components/admin/KnowledgeBaseTab";
 import WidgetTab from "@/components/admin/WidgetTab";
 import ArchivesTab from "@/components/admin/ArchivesTab";
@@ -19,6 +20,7 @@ const TABS = [
   { id: "leads", label: "Leads", icon: Inbox },
   { id: "cost", label: "Cost Ledger", icon: Wallet },
   { id: "insights", label: "Insights", icon: BarChart3 },
+  { id: "gaps", label: "Knowledge Gaps", icon: TrendingDown },
   { id: "kb", label: "Knowledge Base", icon: FileStack },
   { id: "archives", label: "Archives", icon: Archive },
   { id: "widget", label: "Widget", icon: MessageSquareCode },
@@ -123,6 +125,7 @@ export default function Admin() {
     activeTab === "leads"    ? LeadsTab :
     activeTab === "cost"     ? CostLedgerTab :
     activeTab === "insights" ? InsightsTab :
+    activeTab === "gaps"     ? KnowledgeGapsTab :
     activeTab === "widget"   ? WidgetTab :
     activeTab === "archives" ? ArchivesTab :
     KnowledgeBaseTab;

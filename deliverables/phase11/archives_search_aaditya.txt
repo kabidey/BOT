@@ -1,0 +1,7 @@
+q="Aaditya" → 10/127 rows:
+  sid=197c9289-85f9-46 type=employee name=Aaditya Rajesh Jaiswal emp_id=SMWM-25031054
+  sid=test-ph10-emp-se type=employee name=Aaditya Rajesh Jaiswal emp_id=SMWM-25031054
+  sid=test-ph10-emp-pr type=employee name=Aaditya Rajesh Jaiswal emp_id=SMWM-25031054
+  sid=d8083a6f-2ee4-44 type=employee name=Aaditya Rajesh Jaiswal emp_id=SMWM-25031054
+  sid=cefed7a3-5f42-41 type=employee name=Aaditya Rajesh Jaiswal emp_id=SMWM-25031054
+q="63876" role=client → 5/20 rows

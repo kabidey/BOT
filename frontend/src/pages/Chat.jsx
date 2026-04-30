@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle, Square } from "lucide-react";
 
 import TextBlock from "@/components/blocks/TextBlock";
 import FormBlock from "@/components/blocks/FormBlock";
@@ -408,6 +408,22 @@ export default function Chat({ embedded = false }) {
     sendStreaming(text);
   };
 
+  const stopStreaming = () => {
+    if (!streaming) return;
+    if (abortRef.current) abortRef.current.abort();
+    // Append "(stopped)" marker to the still-streaming placeholder turn.
+    setMessages((prev) => prev.map((m) => {
+      if (!m.streaming) return m;
+      const blocks = (m.blocks || []).map((b) => {
+        if (b.type !== "text") return b;
+        const existing = (b.text || "").trimEnd();
+        return { ...b, text: existing + (existing ? " " : "") + "(stopped)" };
+      });
+      if (blocks.length === 0) blocks.push({ type: "text", text: "(stopped)" });
+      return { ...m, streaming: false, blocks };
+    }));
+  };
+
   const onKey = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -512,7 +528,38 @@ export default function Chat({ embedded = false }) {
       case "reporting_chain_card":
         return <ReportingChainCardBlock key={key} block={block} />;
       case "escalation_card":
-        return <EscalationBlock key={key} block={block} msgIdx={msgIdx} onRequestCallback={requestCallback} />;
+        {
+          // Grab the user question that triggered this escalation (preceding user turn)
+          // + last 2 assistant/user turns as context.
+          let userQuestion = "";
+          let contextSnippet = "";
+          for (let i = msgIdx - 1; i >= 0; i--) {
+            if (messages[i]?.role === "user") {
+              userQuestion = messages[i]?.content || "";
+              break;
+            }
+          }
+          const ctxWindow = messages.slice(Math.max(0, msgIdx - 3), msgIdx + 1);
+          contextSnippet = ctxWindow
+            .map((m) => {
+              if (m.role === "user") return `User: ${m.content || ""}`;
+              const txt = (m.blocks || []).filter((b) => b.type === "text").map((b) => b.text || "").join(" ");
+              return `Advisor: ${txt}`;
+            })
+            .join("\n")
+            .slice(0, 1200);
+          return (
+            <EscalationBlock
+              key={key}
+              block={block}
+              msgIdx={msgIdx}
+              onRequestCallback={requestCallback}
+              sessionId={sessionId}
+              userQuestion={userQuestion}
+              contextSnippet={contextSnippet}
+            />
+          );
+        }
       default:
         return null;
     }
@@ -735,13 +782,16 @@ export default function Chat({ embedded = false }) {
                   disabled={locked}
                 />
                 <button
-                  className="smifs-send"
-                  onClick={() => send()}
-                  disabled={!input.trim() || streaming || locked}
-                  data-testid="send-button"
-                  aria-label="Send message"
+                  className={`smifs-send ${streaming ? "smifs-send--stop" : ""}`}
+                  onClick={() => (streaming ? stopStreaming() : send())}
+                  disabled={streaming ? false : (!input.trim() || locked)}
+                  data-testid={streaming ? "stop-button" : "send-button"}
+                  aria-label={streaming ? "Stop generating" : "Send message"}
+                  title={streaming ? "Stop generating" : "Send"}
                 >
-                  <Send size={16} strokeWidth={2.25} />
+                  {streaming
+                    ? <Square size={14} strokeWidth={2.5} />
+                    : <Send size={16} strokeWidth={2.25} />}
                 </button>
               </div>
             </div>

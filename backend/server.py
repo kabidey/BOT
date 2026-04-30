@@ -23,6 +23,7 @@ import mocks
 import widget_config
 import identity as id_mod
 import hardening
+import handoff as handoff_mod
 from agents import orchestrator, router as router_agent
 from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db, ROUTER_CHAIN, CHAT_CHAIN, reset_cache as reset_llm_cache
 from admin import build_admin_router
@@ -106,6 +107,28 @@ class LeadSubmitRequest(BaseModel):
 class LeadSubmitResponse(BaseModel):
     lead_id: str
     message: str
+
+
+class HandoffRequest(BaseModel):
+    session_id: str = Field(..., min_length=1)
+    handoff_type: str = Field(..., pattern="^(whatsapp|email)$")
+    channel_target: str = Field(..., pattern="^(rm|hrbp|advisor)$")
+    user_question: str = Field("", max_length=2000)
+    context_snippet: Optional[str] = Field(None, max_length=4000)
+
+
+class HandoffResponse(BaseModel):
+    handoff_id: str
+    lead_id: str
+    target_display_name: Optional[str] = None
+    target_kind: Optional[str] = None
+    target_has_contact: bool
+    target_contact_masked: Optional[str] = None
+    handoff_type: str
+    deep_link: Optional[str] = None
+    fallback_link: Optional[str] = None
+    should_callback_form: bool
+    message_preview: str
 
 
 # ---------------- Auth ----------------
@@ -331,6 +354,23 @@ async def submit_lead(req: LeadSubmitRequest, request: Request):
         lead_id=lead_id,
         message="Thank you. A Mackertich ONE senior advisor will reach out within one business day.",
     )
+
+
+# --- Phase 11: one-tap WhatsApp / Email handoff ---
+@api_router.post("/handoff", response_model=HandoffResponse)
+async def create_handoff(req: HandoffRequest):
+    try:
+        out = await handoff_mod.create_handoff(
+            db,
+            session_id=req.session_id,
+            handoff_type=req.handoff_type,
+            channel_target=req.channel_target,
+            user_question=req.user_question,
+            context_snippet=req.context_snippet,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return HandoffResponse(**out)
 
 
 # --- Backward-compat /api/chat (Phase 0/1 shape) ---
@@ -605,6 +645,12 @@ async def startup_event():
             asyncio.create_task(knowledge_sync.startup_sync_if_empty(db))
         except Exception:
             logger.exception("SMIFS KB auto-sync scheduling failed (non-fatal).")
+        # Phase 11 — recurring delta-sync scheduler
+        try:
+            import knowledge_sync
+            asyncio.create_task(knowledge_sync.delta_sync_loop(db))
+        except Exception:
+            logger.exception("SMIFS KB delta-sync scheduler failed to start (non-fatal).")
     except Exception:
         logger.exception("Startup initialization failed.")
 

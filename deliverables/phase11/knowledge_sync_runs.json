@@ -1,0 +1,70 @@
+{
+  "count_total": 10,
+  "recent_scheduler_runs": [
+    {
+      "started_at": "2026-04-30T20:49:17.753847+00:00",
+      "finished_at": "2026-04-30T20:49:18.882520+00:00",
+      "mode": "delta",
+      "dry_run": false,
+      "trigger": "scheduler",
+      "fetched": 1801,
+      "upserted": 0,
+      "skipped": 1801,
+      "removed": 0,
+      "errors": [],
+      "duration_ms": 1145
+    },
+    {
+      "started_at": "2026-04-30T20:48:46.640082+00:00",
+      "finished_at": "2026-04-30T20:48:47.734012+00:00",
+      "mode": "delta",
+      "dry_run": false,
+      "trigger": "scheduler",
+      "fetched": 1801,
+      "upserted": 0,
+      "skipped": 1801,
+      "removed": 0,
+      "errors": [],
+      "duration_ms": 1110
+    },
+    {
+      "started_at": "2026-04-30T20:48:15.385589+00:00",
+      "finished_at": "2026-04-30T20:48:16.621237+00:00",
+      "mode": "delta",
+      "dry_run": false,
+      "trigger": "scheduler",
+      "fetched": 1801,
+      "upserted": 0,
+      "skipped": 1801,
+      "removed": 0,
+      "errors": [],
+      "duration_ms": 1252
+    },
+    {
+      "started_at": "2026-04-30T20:46:39.979551+00:00",
+      "finished_at": "2026-04-30T20:46:42.367134+00:00",
+      "mode": "delta",
+      "dry_run": false,
+      "trigger": "scheduler",
+      "fetched": 1801,
+      "upserted": 0,
+      "skipped": 1801,
+      "removed": 0,
+      "errors": [],
+      "duration_ms": 2404
+    },
+    {
+      "started_at": "2026-04-30T20:46:08.775552+00:00",
+      "finished_at": "2026-04-30T20:46:09.961719+00:00",
+      "mode": "delta",
+      "dry_run": false,
+      "trigger": "scheduler",
+      "fetched": 1801,
+      "upserted": 0,
+      "skipped": 1801,
+      "removed": 0,
+      "errors": [],
+      "duration_ms": 1202
+    }
+  ]
+}

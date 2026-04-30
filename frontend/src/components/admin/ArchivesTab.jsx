@@ -3,20 +3,31 @@ import { Database, Loader2, ShieldCheck, AlertCircle, FileText, ChevronRight, Re
 
 export default function ArchivesTab({ api }) {
   const [archives, setArchives] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState("all");
+  const [q, setQ] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
   const [ingestResult, setIngestResult] = useState(null);
   const [error, setError] = useState("");
 
-  const fetchArchives = async () => {
+  const fetchArchives = async (resetOffset = false) => {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.get("/admin/archives", { params: { role: roleFilter } });
+      const params = { role: roleFilter, limit: 50, offset: resetOffset ? 0 : offset };
+      if (q.trim()) params.q = q.trim();
+      if (dateFrom) params.date_from = new Date(dateFrom).toISOString();
+      if (dateTo) params.date_to = new Date(dateTo).toISOString();
+      const { data } = await api.get("/admin/archives", { params });
       setArchives(data.archives || []);
+      setTotal(data.total || 0);
+      if (resetOffset) setOffset(0);
     } catch (e) {
       setError(e?.response?.data?.detail || e.message);
     } finally {
@@ -24,7 +35,9 @@ export default function ArchivesTab({ api }) {
     }
   };
 
-  useEffect(() => { fetchArchives(); /* eslint-disable-next-line */ }, [roleFilter]);
+  useEffect(() => { fetchArchives(true); /* eslint-disable-next-line */ }, [roleFilter]);
+  // Re-fetch when offset changes
+  useEffect(() => { if (offset !== 0) fetchArchives(false); /* eslint-disable-next-line */ }, [offset]);
 
   const openDetail = async (id) => {
     setSelected(id);
@@ -53,12 +66,17 @@ export default function ArchivesTab({ api }) {
     try {
       const { data } = await api.post("/admin/archives/ingest_to_rag", { dry_run: dry, role: roleFilter });
       setIngestResult(data);
-      if (!dry) await fetchArchives();
+      if (!dry) await fetchArchives(true);
     } catch (e) {
       setError(e?.response?.data?.detail || e.message);
     } finally {
       setBusy(false);
     }
+  };
+
+  const onSearchSubmit = (e) => {
+    e?.preventDefault?.();
+    fetchArchives(true);
   };
 
   return (
@@ -73,6 +91,33 @@ export default function ArchivesTab({ api }) {
           </p>
         </div>
         <div className="smifs-admin-toolbar">
+          <form onSubmit={onSearchSubmit} className="smifs-admin-search-form" role="search">
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search by name, UCC, employee ID, email, intent…"
+              className="smifs-admin-input"
+              data-testid="archives-search-input"
+            />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="smifs-admin-input smifs-admin-input--date"
+              data-testid="archives-date-from"
+              title="From date"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="smifs-admin-input smifs-admin-input--date"
+              data-testid="archives-date-to"
+              title="To date"
+            />
+            <button type="submit" className="smifs-admin-btn-secondary" data-testid="archives-search-submit">Search</button>
+          </form>
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -82,8 +127,9 @@ export default function ArchivesTab({ api }) {
             <option value="all">All roles</option>
             <option value="employee">Employees</option>
             <option value="client">Clients</option>
+            <option value="visitor">Visitors</option>
           </select>
-          <button className="smifs-admin-btn-secondary" onClick={fetchArchives} disabled={loading} data-testid="archives-refresh">
+          <button className="smifs-admin-btn-secondary" onClick={() => fetchArchives(true)} disabled={loading} data-testid="archives-refresh">
             <RefreshCw size={13} strokeWidth={2.25} /> Refresh
           </button>
           <button className="smifs-admin-btn-secondary" onClick={() => runIngest(true)} disabled={busy} data-testid="archives-dry-run">
@@ -104,6 +150,9 @@ export default function ArchivesTab({ api }) {
 
       <div className="smifs-admin-split">
         <div className="smifs-admin-list" data-testid="archives-list">
+          <div className="smifs-admin-list-caption" data-testid="archives-count-caption">
+            Showing {archives.length} of {total}{q.trim() ? ` · matching "${q.trim()}"` : ""}
+          </div>
           {loading ? (
             <div className="smifs-admin-loading"><Loader2 size={14} className="spin" /> Loading archives…</div>
           ) : archives.length === 0 ? (

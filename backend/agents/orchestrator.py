@@ -522,6 +522,13 @@ async def run_turn(db, session_id: Optional[str], message: str,
             "citations": out.get("citations", []),
             "intent": intent,
             "model": out.get("model"),
+            # Phase 11 — mark fallback replies so the Knowledge Gaps tab
+            # can aggregate "what couldn't we answer" across all roles.
+            "wm_fallback": any(
+                (b.get("type") == "escalation_card" and (b.get("data") or {}).get("reason") in ("rm_required", "advisor_required"))
+                or (b.get("type") == "form" and (b.get("data") or {}).get("endpoint") == "/api/leads/callback")
+                for b in (out.get("blocks") or [])
+            ),
         },
     ])
 

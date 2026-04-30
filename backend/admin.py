@@ -45,6 +45,11 @@ class KBSyncPayload(BaseModel):
     dry_run: bool = False
 
 
+class GapResolvePayload(BaseModel):
+    question_normalized: str = Field(..., min_length=1, max_length=400)
+    resolved: bool = True
+
+
 def build_admin_router(db) -> APIRouter:
     def _now() -> datetime:
         return datetime.now(timezone.utc)
@@ -344,9 +349,14 @@ def build_admin_router(db) -> APIRouter:
 
     # ---------- Phase 6 archives ----------
     @router.get("/archives")
-    async def list_archives(role: str = "all", limit: int = 50):
+    async def list_archives(role: str = "all", limit: int = 50, q: Optional[str] = None,
+                            date_from: Optional[str] = None, date_to: Optional[str] = None,
+                            offset: int = 0):
         import archives as _arc
-        return await _arc.list_archives(db, role=role, limit=limit)
+        return await _arc.list_archives(
+            db, role=role, limit=limit, q=q,
+            date_from=date_from, date_to=date_to, offset=offset,
+        )
 
     @router.get("/archives/{archive_id}")
     async def get_archive(archive_id: str):
@@ -375,7 +385,7 @@ def build_admin_router(db) -> APIRouter:
         import knowledge_sync as _ks
         if payload.mode not in ("full", "delta"):
             raise HTTPException(status_code=400, detail="mode must be 'full' or 'delta'")
-        return await _ks.sync(db, mode=payload.mode, dry_run=payload.dry_run)
+        return await _ks.run_sync(db, mode=payload.mode, dry_run=payload.dry_run, trigger="manual")
 
     @router.get("/knowledge/status")
     async def knowledge_status():
@@ -413,6 +423,37 @@ def build_admin_router(db) -> APIRouter:
                 "preview": (h["text"] or "")[:200],
             } for h in hits],
         }
+
+    # ---------- Phase 11 — Knowledge Gaps ----------
+    @router.get("/knowledge_gaps")
+    async def knowledge_gaps(range: str = "7d", role: str = "all", limit: int = 100):
+        import knowledge_gaps as _kg
+        if range not in ("24h", "7d", "30d"):
+            range = "7d"
+        if role not in ("all", "client", "employee", "visitor"):
+            role = "all"
+        limit = max(1, min(limit, 500))
+        return await _kg.compute_gaps(db, range_str=range, role=role, limit=limit)
+
+    @router.post("/knowledge_gaps/resolve")
+    async def knowledge_gaps_resolve(payload: GapResolvePayload, x_admin_token: str = Header(default="")):
+        import knowledge_gaps as _kg
+        import widget_config as _wc
+        try:
+            return await _kg.mark_resolved(
+                db, question_normalized=payload.question_normalized,
+                resolved=payload.resolved,
+                actor=_wc.admin_token_fingerprint(x_admin_token),
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # ---------- Phase 11 — Handoffs list (ops visibility) ----------
+    @router.get("/handoffs")
+    async def list_handoffs_admin(limit: int = 50):
+        import handoff as _h
+        rows = await _h.list_handoffs(db, limit=limit)
+        return {"handoffs": rows, "count": len(rows)}
 
     return router
 

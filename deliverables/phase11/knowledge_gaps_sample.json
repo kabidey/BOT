@@ -1,0 +1,336 @@
+{
+    "range": "7d",
+    "role": "all",
+    "totals": {
+        "hallucination_events": 46,
+        "wm_fallbacks": 4,
+        "unique_questions": 19,
+        "resolved_questions": 1
+    },
+    "top_questions": [
+        {
+            "question_normalized": "what is the minimum for mackertich one pms",
+            "sample_question": "What is the minimum for Mackertich ONE PMS?",
+            "count": 12,
+            "sources": {
+                "hallucination_events": 12,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client",
+                "visitor"
+            ],
+            "first_seen": "2026-04-30T10:29:02.802364+00:00",
+            "last_seen": "2026-04-30T15:45:36.801916+00:00",
+            "asset_class": "PMS",
+            "resolved": true
+        },
+        {
+            "question_normalized": "what is the historical nav of alchemy smart alpha",
+            "sample_question": "What is the historical NAV of Alchemy Smart Alpha?",
+            "count": 6,
+            "sources": {
+                "hallucination_events": 5,
+                "wm_fallbacks": 1
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T10:47:24.870872+00:00",
+            "last_seen": "2026-04-30T20:51:56.788881+00:00",
+            "asset_class": "Other",
+            "resolved": false
+        },
+        {
+            "question_normalized": "explain category ii aif structure",
+            "sample_question": "Explain Category II AIF structure.",
+            "count": 4,
+            "sources": {
+                "hallucination_events": 4,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T06:20:08.335482+00:00",
+            "last_seen": "2026-04-30T06:27:01.445900+00:00",
+            "asset_class": "AIF",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what is the lock in for mackertich one sapphire aif category iv",
+            "sample_question": "What is the lock-in for Mackertich ONE Sapphire AIF Category IV?",
+            "count": 3,
+            "sources": {
+                "hallucination_events": 3,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T10:41:13.930206+00:00",
+            "last_seen": "2026-04-30T15:45:51.053591+00:00",
+            "asset_class": "AIF",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what are the returns on category ii aifs",
+            "sample_question": "What are the returns on Category II AIFs?",
+            "count": 3,
+            "sources": {
+                "hallucination_events": 3,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T10:40:59.741959+00:00",
+            "last_seen": "2026-04-30T15:45:32.182579+00:00",
+            "asset_class": "Other",
+            "resolved": false
+        },
+        {
+            "question_normalized": "who is in the compliance department",
+            "sample_question": "Who is in the Compliance department?",
+            "count": 3,
+            "sources": {
+                "hallucination_events": 3,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "visitor"
+            ],
+            "first_seen": "2026-04-30T06:35:09.202992+00:00",
+            "last_seen": "2026-04-30T06:44:28.712782+00:00",
+            "asset_class": "Other",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what is an elss fund",
+            "sample_question": "What is an ELSS fund?",
+            "count": 3,
+            "sources": {
+                "hallucination_events": 3,
+                "wm_fallbacks": 0
+            },
+            "roles": [],
+            "first_seen": "2026-04-30T06:22:28.458223+00:00",
+            "last_seen": "2026-04-30T06:27:50.331662+00:00",
+            "asset_class": "MutualFund",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what is the minimum ticket size and lock in for mackertich one pms",
+            "sample_question": "What is the minimum ticket size and lock-in for Mackertich ONE PMS?",
+            "count": 2,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 1
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T20:53:16.603635+00:00",
+            "last_seen": "2026-04-30T20:53:16.604706+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what is the tax treatment for category ii aifs in india",
+            "sample_question": "What is the tax treatment for Category II AIFs in India?",
+            "count": 2,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 1
+            },
+            "roles": [
+                "visitor"
+            ],
+            "first_seen": "2026-04-30T20:39:32.452215+00:00",
+            "last_seen": "2026-04-30T20:39:32.454837+00:00",
+            "asset_class": "Tax",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what is the current market value of my portfolio",
+            "sample_question": "What is the current market value of my portfolio?",
+            "count": 2,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 1
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T20:39:29.498176+00:00",
+            "last_seen": "2026-04-30T20:39:29.502126+00:00",
+            "asset_class": "Other",
+            "resolved": false
+        },
+        {
+            "question_normalized": "how does an aif differ from a pms for an hni client",
+            "sample_question": "How does an AIF differ from a PMS for an HNI client?",
+            "count": 2,
+            "sources": {
+                "hallucination_events": 2,
+                "wm_fallbacks": 0
+            },
+            "roles": [],
+            "first_seen": "2026-04-30T06:21:42.508646+00:00",
+            "last_seen": "2026-04-30T06:27:18.867729+00:00",
+            "asset_class": "AIF",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what s the historical nav of alchemy smart alpha pms",
+            "sample_question": "What's the historical NAV of Alchemy Smart Alpha PMS?",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T10:59:54.718247+00:00",
+            "last_seen": "2026-04-30T10:59:54.718247+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what s the expense ratio on alchemy smart alpha pms",
+            "sample_question": "What's the expense ratio on Alchemy Smart Alpha PMS?",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T10:59:23.076037+00:00",
+            "last_seen": "2026-04-30T10:59:23.076037+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what s the minimum investment for mackertich one pms",
+            "sample_question": "What's the minimum investment for Mackertich ONE PMS?",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "visitor"
+            ],
+            "first_seen": "2026-04-30T10:58:30.957165+00:00",
+            "last_seen": "2026-04-30T10:58:30.957165+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        },
+        {
+            "question_normalized": "who is smifs",
+            "sample_question": "Who is SMIFS?",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "visitor"
+            ],
+            "first_seen": "2026-04-30T10:51:22.695524+00:00",
+            "last_seen": "2026-04-30T10:51:22.695524+00:00",
+            "asset_class": "Other",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what is the minimum investment for mackertich one pms",
+            "sample_question": "What is the minimum investment for Mackertich ONE PMS?",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "visitor"
+            ],
+            "first_seen": "2026-04-30T10:51:19.569411+00:00",
+            "last_seen": "2026-04-30T10:51:19.569411+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        },
+        {
+            "question_normalized": "what is the minimum ticket size for mackertich one pms",
+            "sample_question": "What is the minimum ticket size for Mackertich ONE PMS?",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T10:51:16.118763+00:00",
+            "last_seen": "2026-04-30T10:51:16.118763+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        },
+        {
+            "question_normalized": "tell me about mackertich one pms minimum ticket size",
+            "sample_question": "Tell me about Mackertich ONE PMS minimum ticket size",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "client"
+            ],
+            "first_seen": "2026-04-30T10:48:12.321348+00:00",
+            "last_seen": "2026-04-30T10:48:12.321348+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        },
+        {
+            "question_normalized": "does smifs offer a guaranteed 15% return on the platinum pms",
+            "sample_question": "Does SMIFS offer a guaranteed 15% return on the Platinum PMS?",
+            "count": 1,
+            "sources": {
+                "hallucination_events": 1,
+                "wm_fallbacks": 0
+            },
+            "roles": [
+                "visitor"
+            ],
+            "first_seen": "2026-04-30T06:51:17.800437+00:00",
+            "last_seen": "2026-04-30T06:51:17.800437+00:00",
+            "asset_class": "PMS",
+            "resolved": false
+        }
+    ],
+    "by_asset_class": [
+        {
+            "asset_class": "PMS",
+            "count": 21
+        },
+        {
+            "asset_class": "Other",
+            "count": 15
+        },
+        {
+            "asset_class": "AIF",
+            "count": 9
+        },
+        {
+            "asset_class": "MutualFund",
+            "count": 3
+        },
+        {
+            "asset_class": "Tax",
+            "count": 2
+        }
+    ],
+    "generated_at": "2026-04-30T20:56:20.298931+00:00"
+}

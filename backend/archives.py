@@ -85,15 +85,54 @@ async def _find_lead_id(db, session_id: str) -> Optional[str]:
     return (lead or {}).get("lead_id")
 
 
-async def list_archives(db, role: str = "all", limit: int = 50) -> Dict[str, Any]:
-    q: Dict[str, Any] = {}
+async def list_archives(db, role: str = "all", limit: int = 50,
+                        q: Optional[str] = None,
+                        date_from: Optional[str] = None,
+                        date_to: Optional[str] = None,
+                        offset: int = 0) -> Dict[str, Any]:
+    """Phase 11 — filterable + searchable archive list.
+
+    Search across identity_summary.name / first_name / ucc / employee_id /
+    intents_used + free-text email-hash lookup when `q` looks like an email.
+    """
+    import identity as _id
+    mongo_q: Dict[str, Any] = {}
     if role in ("employee", "client", "visitor"):
-        q["session_type"] = role
+        mongo_q["session_type"] = role
+    if date_from:
+        mongo_q.setdefault("archived_at", {})["$gte"] = date_from
+    if date_to:
+        mongo_q.setdefault("archived_at", {})["$lte"] = date_to
+    if q and q.strip():
+        qs = q.strip()
+        or_clauses: List[Dict[str, Any]] = [
+            {"identity_summary.name": {"$regex": re.escape(qs), "$options": "i"}},
+            {"identity_summary.first_name": {"$regex": re.escape(qs), "$options": "i"}},
+            {"identity_summary.ucc": qs},
+            {"identity_summary.employee_id": qs},
+            {"intents_used": {"$regex": re.escape(qs), "$options": "i"}},
+        ]
+        # If the query looks like an email, add a hash match on the session row.
+        if "@" in qs and "." in qs:
+            try:
+                eh = _id.email_hash(qs.lower())
+                or_clauses.append({"email_hash": eh})
+            except Exception:
+                pass
+        mongo_q["$or"] = or_clauses
+    total = await db.session_archives.count_documents(mongo_q)
     cursor = db.session_archives.find(
-        q, {"_id": 0, "messages": 0},  # exclude messages for the list view
-    ).sort("archived_at", -1).limit(min(limit, 200))
+        mongo_q, {"_id": 0, "messages": 0},  # exclude messages for the list view
+    ).sort("archived_at", -1).skip(max(0, offset)).limit(min(limit, 200))
     rows = await cursor.to_list(length=limit)
-    return {"archives": rows, "count": len(rows)}
+    return {
+        "archives": rows,
+        "count": len(rows),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "filters": {"role": role, "q": q, "date_from": date_from, "date_to": date_to},
+    }
 
 
 async def get_archive(db, archive_id: str) -> Optional[Dict[str, Any]]:
