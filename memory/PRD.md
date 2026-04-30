@@ -18,6 +18,17 @@ auth flow.
 - **Employee** — `@smifs.com` email + PAN verification; auto-consent to RAG ingestion
 - **Client** — UCC + PAN verification; explicit consent required for RAG ingestion
 
+## Implemented (Phase 9 — Apr 2026)
+- **SMIFS Knowledge API** (deck.pesmifs.com) as PRIMARY authoritative corpus. Full probe documented in `backend/SMIFS_KNOWLEDGE_CAPABILITIES.md`.
+- Ingestion: `backend/knowledge_sync.py` with SHA-1 content-hash idempotency, delta + full modes, startup auto-sync if index empty. 1801 chunks ingested across 4 subsources (vehicle/document/academy/bedrock).
+- Retrieval: `rag.search_weighted()` with source weights (smifs_knowledge 1.15 > seed 1.00 > upload 0.90 > archive 0.80). Product-topic queries hard-gated to {smifs_knowledge, seed} only.
+- Grounding guardrails (`backend/guardrails.py`): refuse+escalate on product queries without strong KB coverage; post-gen claim flagging against citations; `hallucination_events` collection surfaces low-confidence KPI.
+- Citation chips carry `source` + `is_official`; FE `TextBlock` renders a gold SMIFS Official badge when a chip is backed by SMIFS Knowledge.
+- Admin tab: SMIFS Knowledge API status panel with 5 counters (SMIFS official / seed / uploaded / archives / low-conf 7d), Reachable badge, Delta + Full sync buttons.
+- New admin endpoints: `POST /admin/knowledge/sync`, `GET /admin/knowledge/status`, `GET /admin/knowledge/hallucination_events`, `GET /admin/rag/debug`.
+- Coverage: 19/20 product questions answered with SMIFS Knowledge as the primary citation source; 5/5 invented-product questions refused cleanly (no fabrication).
+- Tests: 11 new cases in `test_phase9_knowledge.py`. Combined backend suite 63/63 green (Phase 6/7/8/8.1/9) when run per-file.
+
 ## Implemented (Phase 8.1 — Apr 2026)
 - Comprehensive employee Q&A: any question that maps to any of the ~72 OrgLens fields is answerable.
 - **USER_PROFILE injection** (`identity.employee_context_block`): full JSON dump of `identity.raw` (minus sensitive credentials) emitted into the chat LLM's system prompt each turn. Self-queries answered directly without any directory tool call.
