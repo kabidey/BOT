@@ -21,6 +21,33 @@ RAG_TOP_K = 8
 RAG_MIN_SCORE = 0.15
 RAG_HISTORY_TURNS = 10
 
+# Phase 10 — canonical WM-fallback trigger phrase (kept in sync with
+# identity.wealth_manager_fallback_text). Detected in generated replies to
+# synthesise an escalation_card block even if the keyword short-circuit
+# didn't fire (e.g. third-party fund names the product-topic list misses).
+_WM_FALLBACK_PHRASE = "don't have that information in your record"
+
+
+def _maybe_synthesize_wm_block(reply_text: str,
+                               session_type: Optional[str],
+                               auth_state: Optional[str],
+                               client_context: Optional[Dict[str, Any]],
+                               existing_blocks: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Safety net: if a verified client got the WM fallback phrase in the
+    reply but no escalation_card was produced upstream, synthesise it here.
+
+    Returns (fallback_blocks, intent_hint).
+    """
+    if session_type != "client" or auth_state != "verified":
+        return existing_blocks, None
+    if existing_blocks:  # already handled by the short-circuit
+        return existing_blocks, None
+    if not reply_text or _WM_FALLBACK_PHRASE not in reply_text.lower():
+        return existing_blocks, None
+    import fallback as _fb
+    fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
+    return (fb.get("extra_blocks") or []), fb.get("intent_hint", "ESCALATION")
+
 BASE_PROMPT = (
     "You are the Mackertich ONE Advisor — the wealth-engagement agent for Mackertich ONE, "
     "the wealth-management vertical of SMIFS Ltd. "
@@ -217,10 +244,20 @@ async def answer(message: str, history: List[Dict[str, Any]],
                 reply_text=reply_text, analysis=analysis,
                 claims=claims, action="unchecked_claim",
             )
-    return {
+    # Phase 10 safety net — synthesise escalation_card for verified-client
+    # WM-fallback replies the keyword short-circuit missed.
+    synth_blocks, synth_intent = _maybe_synthesize_wm_block(
+        reply_text, session_type, auth_state, client_context, existing_blocks=[],
+    )
+    out: Dict[str, Any] = {
         "reply_text": reply_text, "citations": citations,
         "grounded": grounded, "model": model_used,
     }
+    if synth_blocks:
+        out["fallback_blocks"] = synth_blocks
+        if synth_intent:
+            out["intent_hint"] = synth_intent
+    return out
 
 
 async def stream_answer(message: str, history: List[Dict[str, Any]],
@@ -298,7 +335,16 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
                 claims=claims, action="unchecked_claim",
             )
 
-    yield ("done", {
+    # Phase 10 safety net (streaming path).
+    synth_blocks, synth_intent = _maybe_synthesize_wm_block(
+        full_text, session_type, auth_state, client_context, existing_blocks=[],
+    )
+    done_payload: Dict[str, Any] = {
         "reply_text": full_text, "citations": citations,
         "grounded": grounded, "model": model_used,
-    })
+    }
+    if synth_blocks:
+        done_payload["fallback_blocks"] = synth_blocks
+        if synth_intent:
+            done_payload["intent_hint"] = synth_intent
+    yield ("done", done_payload)

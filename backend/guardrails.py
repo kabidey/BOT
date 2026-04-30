@@ -35,10 +35,25 @@ PRODUCT_KEYWORDS = [
     "hybrid fund", "compliance", "kyc", "fatca", "expense ratio",
 ]
 
+# Lightweight product-PROPERTY cues — trigger product-topic when the user asks
+# about fund/scheme characteristics even if brand keywords are absent (e.g.
+# third-party PMS / MF names like "Alchemy Smart Alpha", "ICICI Prudential ...").
+PRODUCT_PROPERTY_KEYWORDS = [
+    "nav", "returns", "return", "minimum", "min ticket", "ticket size",
+    "lock-in", "lock in", "lockin", "exit load", "entry load",
+    "tenure", "maturity", "yield", "coupon", "expense", "management fee",
+    "performance fee", "historical", "past performance", "track record",
+    "fund manager", "scheme", "portfolio", "holding", "allocation",
+]
+
 
 def is_product_topic(message: str) -> bool:
     m = (message or "").lower()
-    return any(k in m for k in PRODUCT_KEYWORDS)
+    if any(k in m for k in PRODUCT_KEYWORDS):
+        return True
+    # Property-cue heuristic: any fund/scheme property question counts as a
+    # product topic, so client/visitor queries correctly trigger WM-fallback.
+    return any(k in m for k in PRODUCT_PROPERTY_KEYWORDS)
 
 
 # ---- Confident-claim patterns ----

@@ -56,6 +56,16 @@ auth flow.
 - Frontend: client-side 110s warning banner, 120s composer lockout with Resume button, `ResumeOfferBlock` renders offered prior session(s)
 - Tests: `tests/test_phase7_lifecycle.py` (9 cases) + `tests/test_phase7_inheritance_regression.py` (2 cases) — 11/11 passing
 
+## Implemented (Phase 10 — Apr 2026)
+- **Role gateway**: fresh sessions land on `/` (and `/embed`) showing a 3-button gate — *I am a client* / *I am an Employee* / *I am new to the site* — no chat input until a role is picked. `POST /api/sessions/{sid}/select_role` seeds `session_type` + `auth_state` and the bot's first-turn prompt.
+- **Session reset on role-pick**: signing out, starting a new session, or being auto-expired returns to the gate. `/api/sessions/{sid}` returns 404 for unknown sids so the FE falls back to the gate cleanly.
+- **Knowledge gating (strict)**: `rag.search_weighted()` restricts non-verified-employee sessions to `seed` only — `smifs_knowledge` is NEVER retrievable for clients or visitors. Verified employees continue to see all 1801 `smifs_knowledge` chunks.
+- **CLIENT_PROFILE injection**: verified clients' full OrgLens client record (60 fields, inventory at `backend/CLIENT_FIELD_MAP.md`) is compacted and injected into the system prompt. The bot answers self-queries (risk profile, RM, segments, branch, account status, etc.) directly from the profile.
+- **Universal Wealth-Manager fallback** (`backend/fallback.py`): for verified clients, any question outside CLIENT_PROFILE (product specifics, NAVs, holdings, research recs) emits `intent=ESCALATION` + `escalation_card` with RM name/email/mobile + the canonical fallback text. For visitors, the same gap produces `intent=CALLBACK_REQUEST` + a `form` block targeting `/api/leads/callback`.
+- **Safety net for product-topic detection**: widened `guardrails.is_product_topic` with a property-cue heuristic (NAV, returns, minimum, lock-in, tenure, expense ratio, scheme, portfolio…) so third-party fund names that miss the brand keyword list still trigger the WM short-circuit. Post-generation, `rag_agent._maybe_synthesize_wm_block` re-checks the final reply and synthesises the `escalation_card` if the LLM produced the verbatim fallback phrase and no block was emitted upstream.
+- **Tests**: `tests/test_phase10_role_gateway.py` — 22 cases covering all 15 review requirements. **22 / 22 passing in 43.5 s** against live OrgLens + Hub AI + 1801-chunk KB.
+- **Deliverables**: `/app/deliverables/phase10/` — role-gate screenshots (root + embed), verified-client chat screenshot (escalation + client_card + masked PAN), full transcripts for all three roles, sample injected CLIENT_PROFILE, reproducible generator script, and a README.
+
 ## Implemented (Phase 6 — Apr 2026)
 - `identity.py` — OrgLens client, PAN regex/mask/HMAC-hash, role/email/UCC extractors
 - New auth state machine (`auth_agent.py`): anonymous → awaiting_role → awaiting_identifier → awaiting_pan → verified | locked
