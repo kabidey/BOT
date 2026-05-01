@@ -35,6 +35,16 @@ PRODUCT_KEYWORDS = [
     "hybrid fund", "compliance", "kyc", "fatca", "expense ratio",
 ]
 
+# Phase 11 bug-3 fix — brand-specific product terms. Non-employees asking about
+# ANY of these should always escalate to a Wealth Manager, even if the retriever
+# has seed chunks — SMIFS-specific details (NAVs, minima, lock-ins) must not be
+# served from generic seed text.
+BRAND_SPECIFIC_KEYWORDS = [
+    "mackertich", "smifs",
+    "sapphire",       # Mackertich ONE Sapphire AIF family
+    "alchemy",        # Alchemy Smart Alpha (3rd-party PMS we don't distribute generically)
+]
+
 # Lightweight product-PROPERTY cues — trigger product-topic when the user asks
 # about fund/scheme characteristics even if brand keywords are absent (e.g.
 # third-party PMS / MF names like "Alchemy Smart Alpha", "ICICI Prudential ...").
@@ -54,6 +64,36 @@ def is_product_topic(message: str) -> bool:
     # Property-cue heuristic: any fund/scheme property question counts as a
     # product topic, so client/visitor queries correctly trigger WM-fallback.
     return any(k in m for k in PRODUCT_PROPERTY_KEYWORDS)
+
+
+def is_brand_specific_product_topic(message: str) -> bool:
+    """True if the question mentions a SMIFS or SMIFS-partner product by name.
+
+    Non-employees asking these questions should always escalate — we never
+    surface SMIFS-brand specifics (minima, NAVs, lock-ins) from seed or KB
+    to a visitor or unverified client.
+    """
+    m = (message or "").lower()
+    return any(k in m for k in BRAND_SPECIFIC_KEYWORDS)
+
+
+def has_strong_grounding(retrieval_analysis: Dict[str, Any],
+                         hits: Optional[List[Dict[str, Any]]] = None,
+                         min_score: float = 0.45) -> bool:
+    """True if retrieval returned at least one citation at or above min_score.
+
+    We accept either a raw `hits` list (from rag.search_weighted) or the
+    pre-computed analysis dict (same shape as `analyse_retrieval`).
+    """
+    if hits:
+        for h in hits:
+            sc = h.get("score") or h.get("raw_score") or 0.0
+            if sc >= min_score:
+                return True
+        return False
+    if isinstance(retrieval_analysis, dict):
+        return (retrieval_analysis.get("top_score") or 0.0) >= min_score
+    return False
 
 
 # ---- Confident-claim patterns ----

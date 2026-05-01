@@ -40,16 +40,20 @@ def make_wealth_manager_fallback(
         )
         extra_blocks = [{
             "type": "form",
-            "data": {
+            "schema": {
+                "form_type": "callback",
+                "brand": "Mackertich ONE",
                 "title": "Request a callback",
+                "subtitle": "A senior Mackertich ONE advisor will call you at your preferred time.",
                 "fields": [
-                    {"name": "name", "label": "Your name", "type": "text", "required": True},
-                    {"name": "phone", "label": "Phone", "type": "tel", "required": True},
-                    {"name": "email", "label": "Email", "type": "email", "required": False},
-                    {"name": "interest", "label": "What are you interested in?", "type": "text"},
+                    {"name": "name", "label": "Your name", "type": "text", "required": True, "placeholder": "Your name"},
+                    {"name": "phone", "label": "Phone", "type": "tel", "required": True, "placeholder": "+91 98765 43210",
+                     "pattern": r"^[+0-9 \-]{10,18}$"},
+                    {"name": "email", "label": "Email", "type": "email", "required": False, "placeholder": "you@example.com"},
+                    {"name": "interest", "label": "What are you interested in?", "type": "text", "required": False},
                 ],
                 "submit_label": "Request callback",
-                "endpoint": "/api/leads/callback",
+                "context": {"source": "wm_fallback"},
             },
         }]
         return {"reply_text": text, "extra_blocks": extra_blocks, "intent_hint": "CALLBACK_REQUEST"}

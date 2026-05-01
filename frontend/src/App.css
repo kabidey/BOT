@@ -1019,6 +1019,18 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   box-shadow: 0 0 0 4px rgba(255,107,107,0.14);
   transform: none !important;
 }
+.smifs-stopped {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,107,107,0.85);
+  border: 1px solid rgba(255,107,107,0.35);
+  border-radius: 999px;
+  background: rgba(255,107,107,0.08);
+}
 
 /* Phase 11 — Knowledge Gaps tab */
 .smifs-kpi-row {

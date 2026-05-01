@@ -52,9 +52,15 @@ function MdParagraphs({ text }) {
 
 export default function TextBlock({ block, citations, onCitationClick, msgIdx, activeCitationKey }) {
   const grounded = block.grounded;
+  const stopped = !!block.stopped;
   return (
     <div className="smifs-msg-bubble" data-testid={`text-block-${msgIdx}`}>
       <MdParagraphs text={block.text} />
+      {stopped && (
+        <span className="smifs-stopped" data-testid={`text-stopped-${msgIdx}`}>
+          (stopped)
+        </span>
+      )}
       {citations && citations.length > 0 && (
         <div className="smifs-cites smifs-cites--inline" data-testid={`citations-${msgIdx}`}>
           {citations.map((c, ci) => {

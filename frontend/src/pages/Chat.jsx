@@ -411,16 +411,21 @@ export default function Chat({ embedded = false }) {
   const stopStreaming = () => {
     if (!streaming) return;
     if (abortRef.current) abortRef.current.abort();
-    // Append "(stopped)" marker to the still-streaming placeholder turn.
+    // Phase 11 bug-1 fix — commit a CLEAN, text-only block representing
+    // whatever streamed so far. We intentionally DROP any other block types
+    // (form / escalation_card / etc.) that may be partial or malformed.
     setMessages((prev) => prev.map((m) => {
       if (!m.streaming) return m;
-      const blocks = (m.blocks || []).map((b) => {
-        if (b.type !== "text") return b;
-        const existing = (b.text || "").trimEnd();
-        return { ...b, text: existing + (existing ? " " : "") + "(stopped)" };
-      });
-      if (blocks.length === 0) blocks.push({ type: "text", text: "(stopped)" });
-      return { ...m, streaming: false, blocks };
+      const partialText = (m.blocks || [])
+        .filter((b) => b && b.type === "text")
+        .map((b) => b.text || "")
+        .join("")
+        .trim();
+      return {
+        ...m,
+        streaming: false,
+        blocks: [{ type: "text", text: partialText, stopped: true }],
+      };
     }));
   };
 

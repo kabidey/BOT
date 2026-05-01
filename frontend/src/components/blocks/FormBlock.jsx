@@ -6,10 +6,14 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 export default function FormBlock({ block, sessionId, msgIdx }) {
-  const schema = block.schema;
+  const schema = block?.schema;
+  // Phase 11 bug-1 fix — defensive: if a malformed/partial form block
+  // slips through (e.g. during a stop-mid-stream), tolerate a missing
+  // schema instead of crashing the tree.
+  const fields = Array.isArray(schema?.fields) ? schema.fields : [];
   const [values, setValues] = useState(() => {
     const init = {};
-    for (const f of schema.fields) init[f.name] = "";
+    for (const f of fields) init[f.name] = "";
     return init;
   });
   const [errors, setErrors] = useState({});
@@ -23,7 +27,7 @@ export default function FormBlock({ block, sessionId, msgIdx }) {
 
   const validate = () => {
     const errs = {};
-    for (const f of schema.fields) {
+    for (const f of fields) {
       const v = (values[f.name] ?? "").trim();
       if (f.required && !v) {
         errs[f.name] = "Required";
@@ -48,9 +52,9 @@ export default function FormBlock({ block, sessionId, msgIdx }) {
     setSubmitting(true);
     try {
       const { data } = await axios.post(`${API}/leads`, {
-        form_type: schema.form_type,
+        form_type: schema?.form_type,
         fields: values,
-        context: schema.context || {},
+        context: schema?.context || {},
         session_id: sessionId,
       });
       setDone({ lead_id: data.lead_id, message: data.message });
@@ -61,6 +65,9 @@ export default function FormBlock({ block, sessionId, msgIdx }) {
       setSubmitting(false);
     }
   };
+
+  // Render nothing if we never received a valid schema.
+  if (!schema || fields.length === 0) return null;
 
   if (done) {
     return (
@@ -82,16 +89,16 @@ export default function FormBlock({ block, sessionId, msgIdx }) {
       className="smifs-form-card"
       onSubmit={submit}
       data-testid={`form-block-${msgIdx}`}
-      data-form-type={schema.form_type}
+      data-form-type={schema?.form_type}
     >
       <div className="smifs-form-head">
         <p className="smifs-form-eyebrow">Private inquiry</p>
-        <h3 className="smifs-form-title">{schema.title}</h3>
-        {schema.subtitle && <p className="smifs-form-subtitle">{schema.subtitle}</p>}
+        <h3 className="smifs-form-title">{schema?.title || "Request a callback"}</h3>
+        {schema?.subtitle && <p className="smifs-form-subtitle">{schema.subtitle}</p>}
       </div>
 
       <div className="smifs-form-fields">
-        {schema.fields.map((f) => (
+        {fields.map((f) => (
           <label key={f.name} className="smifs-form-field">
             <span className="smifs-form-label">
               {f.label}
@@ -102,10 +109,10 @@ export default function FormBlock({ block, sessionId, msgIdx }) {
                 className={`smifs-form-input ${errors[f.name] ? "smifs-form-input--err" : ""}`}
                 value={values[f.name] || ""}
                 onChange={(e) => setField(f.name, e.target.value)}
-                data-testid={`form-${schema.form_type}-${f.name}`}
+                data-testid={`form-${schema?.form_type}-${f.name}`}
               >
                 <option value="">Select…</option>
-                {f.options.map((o) => (
+                {(f.options || []).map((o) => (
                   <option key={o} value={o}>{o}</option>
                 ))}
               </select>
@@ -116,12 +123,12 @@ export default function FormBlock({ block, sessionId, msgIdx }) {
                 value={values[f.name] || ""}
                 onChange={(e) => setField(f.name, e.target.value)}
                 placeholder={f.placeholder || ""}
-                data-testid={`form-${schema.form_type}-${f.name}`}
+                data-testid={`form-${schema?.form_type}-${f.name}`}
                 autoComplete="off"
               />
             )}
             {errors[f.name] && (
-              <span className="smifs-form-err" data-testid={`form-${schema.form_type}-${f.name}-err`}>
+              <span className="smifs-form-err" data-testid={`form-${schema?.form_type}-${f.name}-err`}>
                 {errors[f.name]}
               </span>
             )}
@@ -138,12 +145,12 @@ export default function FormBlock({ block, sessionId, msgIdx }) {
           type="submit"
           className="smifs-form-submit"
           disabled={submitting}
-          data-testid={`form-${schema.form_type}-submit`}
+          data-testid={`form-${schema?.form_type}-submit`}
         >
-          {submitting ? "Submitting…" : (schema.submit_label || "Submit")}
+          {submitting ? "Submitting…" : (schema?.submit_label || "Submit")}
           <Send size={14} strokeWidth={2.25} />
         </button>
-        {schema.context?.asset_class && (
+        {schema?.context?.asset_class && (
           <span className="smifs-form-tag">Re: {schema.context.asset_class}</span>
         )}
       </div>

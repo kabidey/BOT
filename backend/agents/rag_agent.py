@@ -48,6 +48,34 @@ def _maybe_synthesize_wm_block(reply_text: str,
     fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
     return (fb.get("extra_blocks") or []), fb.get("intent_hint", "ESCALATION")
 
+
+def _should_short_circuit_to_wm(message: str,
+                                session_type: Optional[str],
+                                auth_state: Optional[str],
+                                hits: List[Dict[str, Any]],
+                                analysis: Dict[str, Any]) -> bool:
+    """Phase 11 bug-3 fix — smarter short-circuit to WM fallback.
+
+    Rules:
+      • Verified employee → never short-circuit here (let them use KB).
+      • Verified client → always escalate any product-topic question
+        (Phase 10 behaviour preserved).
+      • Visitor / unverified → escalate if brand-specific (Mackertich,
+        SMIFS, Sapphire, Alchemy …) OR product-topic WITHOUT strong seed
+        grounding (top score < 0.45). Otherwise let generic educational
+        questions like "What is an AIF?" answer from seed.
+    """
+    if session_type == "employee" and auth_state == "verified":
+        return False
+    if session_type == "client" and auth_state == "verified":
+        return guardrails.is_product_topic(message)
+    if guardrails.is_brand_specific_product_topic(message):
+        return True
+    if guardrails.is_product_topic(message):
+        return not guardrails.has_strong_grounding(analysis, hits=hits, min_score=0.45)
+    return False
+
+
 BASE_PROMPT = (
     "You are the Mackertich ONE Advisor — the wealth-engagement agent for Mackertich ONE, "
     "the wealth-management vertical of SMIFS Ltd. "
@@ -198,11 +226,10 @@ async def answer(message: str, history: List[Dict[str, Any]],
     hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state)
     citations = _build_citations(hits) if grounded else []
 
-    # Phase 10 — refusal for product topics when caller is NOT a verified employee.
-    # The KB isn't available; redirect to RM (clients) or callback (visitors).
-    if db is not None and guardrails.is_product_topic(message) and not (
-        session_type == "employee" and auth_state == "verified"
-    ):
+    # Phase 11 — smarter short-circuit: always escalate brand-specific /
+    # verified-client product questions; let generic visitor questions answer
+    # from seed when grounding is strong.
+    if db is not None and _should_short_circuit_to_wm(message, session_type, auth_state, hits, analysis):
         import fallback as _fb
         fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
         await guardrails.log_event(
@@ -270,10 +297,8 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
     citations = _build_citations(hits) if grounded else []
     yield ("citations", citations)
 
-    # Phase 10 — non-employee product-topic short-circuit.
-    if db is not None and guardrails.is_product_topic(message) and not (
-        session_type == "employee" and auth_state == "verified"
-    ):
+    # Phase 11 — smarter short-circuit (streaming path).
+    if db is not None and _should_short_circuit_to_wm(message, session_type, auth_state, hits, analysis):
         import fallback as _fb
         fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
         await guardrails.log_event(
