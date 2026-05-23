@@ -24,6 +24,7 @@ from .llm import (
     extract_reply,
 )
 from .directory_agent import DIRECTORY_TOOLS, DIRECTORY_TOOL_NAMES
+from .client_agent import CLIENT_TOOLS, CLIENT_TOOL_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -179,8 +180,12 @@ TOOL_TO_INTENT: Dict[str, str] = {
 # Phase 8 — all directory_* tools map to a single intent carrying tool_name + args.
 for _t in DIRECTORY_TOOLS:
     TOOL_TO_INTENT[_t["function"]["name"]] = "DIRECTORY_QUERY"
+# Phase 12 — all client_* tools map to CLIENT_QUERY (back-office + MF stacks).
+for _t in CLIENT_TOOLS:
+    TOOL_TO_INTENT[_t["function"]["name"]] = "CLIENT_QUERY"
 
 INTENTS.add("DIRECTORY_QUERY")
+INTENTS.add("CLIENT_QUERY")
 
 ROUTER_SYSTEM_TOOLS = (
     "You are the intent router for the Mackertich ONE Advisor (Mackertich ONE is the wealth-management vertical of SMIFS Ltd). "
@@ -203,10 +208,18 @@ ROUTER_SYSTEM_TOOLS_CLIENT = ROUTER_SYSTEM_TOOLS + (
     "specialist will answer directly from CLIENT_PROFILE.\n"
     "2. lookup_client is ONLY for the FIRST turn after verification (to render the account "
     "summary card) or when the user EXPLICITLY asks 'show my account summary' / 'show my card'.\n"
-    "3. For any product / market / research question ('what's the minimum for X', 'NAV of Y', "
+    "3. For LIVE BACK-OFFICE / MF DATA questions, call the matching client_* tool — do NOT "
+    "answer from CLIENT_PROFILE (which has identity fields only, no portfolio):\n"
+    "   • 'my holdings' / 'portfolio' / 'shares I own' → client_portfolio\n"
+    "   • 'account balance' / 'cash balance' / 'ledger' → client_ledger_balance\n"
+    "   • 'recent trades' / 'last trade' / 'trade book' → client_recent_trades\n"
+    "   • 'deposits' / 'withdrawals' / 'fund movement' → client_deposits_withdrawals\n"
+    "   • 'mutual fund holdings' / 'MF folios' → client_mf_holdings\n"
+    "   • 'my SIPs' → client_mf_sips\n"
+    "4. For any PRODUCT / MARKET / RESEARCH question ('what's the minimum for X', 'NAV of Y', "
     "'returns on Z'), route to answer_from_knowledge_base — the chat specialist will emit "
     "the Wealth Manager fallback with the client's RM contact.\n"
-    "4. capture_lead / request_callback are still valid if the client explicitly asks to "
+    "5. capture_lead / request_callback are still valid if the client explicitly asks to "
     "be contacted about a NEW product.\n"
 )
 
@@ -309,6 +322,7 @@ async def _classify_via_tools(message: str, history: List[Dict[str, Any]],
         tools = INTENT_TOOLS + DIRECTORY_TOOLS
         system_prompt = ROUTER_SYSTEM_TOOLS_EMPLOYEE
     elif is_verified_client:
+        tools = INTENT_TOOLS + CLIENT_TOOLS
         system_prompt = ROUTER_SYSTEM_TOOLS_CLIENT
 
     trimmed = history[-8:]

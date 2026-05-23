@@ -1,0 +1,196 @@
+==== client_portfolio ====
+{
+    "session_id": "p12-samples-1779543049",
+    "trace": [
+        {
+            "step": "router",
+            "intent": "CLIENT_QUERY",
+            "confidence": 0.95,
+            "rationale": "Hub native tool_call \u2192 client_portfolio",
+            "subject": null,
+            "tool_name": "client_portfolio"
+        },
+        {
+            "step": "specialist",
+            "intent": "CLIENT_QUERY",
+            "status": "ok"
+        }
+    ],
+    "blocks": [
+        {
+            "type": "text",
+            "text": "I checked your back-office holdings and currently see no open equity positions in your demat with us. If you've recently traded, settled positions may take a day to appear \u2014 happy to refresh again later."
+        }
+    ],
+    "citations": [],
+    "model": null,
+    "intent": "CLIENT_QUERY",
+    "prior_session_id": null,
+    "resume_offer": null
+}
+
+==== client_ledger_balance ====
+{
+    "session_id": "p12-samples-1779543049",
+    "trace": [
+        {
+            "step": "router",
+            "intent": "CLIENT_QUERY",
+            "confidence": 0.95,
+            "rationale": "Hub native tool_call \u2192 client_ledger_balance",
+            "subject": null,
+            "tool_name": "client_ledger_balance"
+        },
+        {
+            "step": "specialist",
+            "intent": "CLIENT_QUERY",
+            "status": "ok"
+        }
+    ],
+    "blocks": [
+        {
+            "type": "text",
+            "text": "Your trading-account ledger balance is **\u20b90.00**."
+        },
+        {
+            "type": "ledger_balance_card",
+            "data": {
+                "ucc": "63876",
+                "balance": 0.0,
+                "total_credits": 0.0,
+                "total_debits": 0.0,
+                "entries": 0,
+                "as_of": null
+            }
+        }
+    ],
+    "citations": [],
+    "model": null,
+    "intent": "CLIENT_QUERY",
+    "prior_session_id": null,
+    "resume_offer": null
+}
+
+==== client_recent_trades ====
+{
+    "session_id": "p12-samples-1779543049",
+    "trace": [
+        {
+            "step": "router",
+            "intent": "CLIENT_QUERY",
+            "confidence": 0.95,
+            "rationale": "Hub native tool_call \u2192 client_recent_trades",
+            "subject": null,
+            "tool_name": "client_recent_trades"
+        },
+        {
+            "step": "specialist",
+            "intent": "CLIENT_QUERY",
+            "status": "ok"
+        }
+    ],
+    "blocks": [
+        {
+            "type": "text",
+            "text": "No trades on file for UCC 63876 in the back-office trade-book. If you trade through another channel, it may not be reflected here."
+        }
+    ],
+    "citations": [],
+    "model": null,
+    "intent": "CLIENT_QUERY",
+    "prior_session_id": null,
+    "resume_offer": null
+}
+
+==== client_deposits_withdrawals ====
+{
+    "session_id": "p12-samples-1779543049",
+    "trace": [
+        {
+            "step": "router",
+            "intent": "CLIENT_QUERY",
+            "confidence": 0.95,
+            "rationale": "Hub native tool_call \u2192 client_deposits_withdrawals",
+            "subject": null,
+            "tool_name": "client_deposits_withdrawals"
+        },
+        {
+            "step": "specialist",
+            "intent": "CLIENT_QUERY",
+            "status": "ok"
+        }
+    ],
+    "blocks": [
+        {
+            "type": "text",
+            "text": "I don't see any deposits or withdrawals on file in the back-office for this account."
+        }
+    ],
+    "citations": [],
+    "model": null,
+    "intent": "CLIENT_QUERY",
+    "prior_session_id": null,
+    "resume_offer": null
+}
+
+==== client_mf_holdings ====
+{
+    "session_id": "p12-samples-1779543049",
+    "trace": [
+        {
+            "step": "router",
+            "intent": "CLIENT_QUERY",
+            "confidence": 0.95,
+            "rationale": "Hub native tool_call \u2192 client_mf_holdings",
+            "subject": null,
+            "tool_name": "client_mf_holdings"
+        },
+        {
+            "step": "specialist",
+            "intent": "CLIENT_QUERY",
+            "status": "ok"
+        }
+    ],
+    "blocks": [
+        {
+            "type": "text",
+            "text": "no MF account found on file"
+        }
+    ],
+    "citations": [],
+    "model": null,
+    "intent": "CLIENT_QUERY",
+    "prior_session_id": null,
+    "resume_offer": null
+}
+
+==== client_mf_sips ====
+{
+    "session_id": "p12-samples-1779543049",
+    "trace": [
+        {
+            "step": "router",
+            "intent": "CLIENT_QUERY",
+            "confidence": 0.95,
+            "rationale": "Hub native tool_call \u2192 client_mf_sips",
+            "subject": null,
+            "tool_name": "client_mf_sips"
+        },
+        {
+            "step": "specialist",
+            "intent": "CLIENT_QUERY",
+            "status": "ok"
+        }
+    ],
+    "blocks": [
+        {
+            "type": "text",
+            "text": "no MF account found on file"
+        }
+    ],
+    "citations": [],
+    "model": null,
+    "intent": "CLIENT_QUERY",
+    "prior_session_id": null,
+    "resume_offer": null
+}

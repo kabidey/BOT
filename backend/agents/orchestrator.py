@@ -341,6 +341,35 @@ async def _branch_directory(session_id: str, tool_name: Optional[str],
     return await _da.execute(tool_name, tool_args, session_id, identity_obj)
 
 
+async def _branch_client_query(session_id: str, tool_name: Optional[str],
+                               tool_args: Dict[str, Any],
+                               identity_obj: Optional[Dict[str, Any]],
+                               session_context: Dict[str, Any]) -> Dict[str, Any]:
+    """Phase 12 — dispatch a client_* tool. Strictly gated to verified clients."""
+    if (session_context.get("session_type") != "client"
+            or session_context.get("auth_state") != "verified"
+            or not identity_obj or identity_obj.get("type") != "client"):
+        return {
+            "blocks": [{"type": "text", "text": (
+                "Live account data is available once you're verified as a Mackertich ONE client. "
+                "Share your UCC and PAN to unlock it."
+            )}],
+            "citations": [], "model": None,
+        }
+    if not tool_name:
+        return {
+            "blocks": [{"type": "text", "text": "Could you rephrase that? I wasn't sure which account view you needed."}],
+            "citations": [], "model": None,
+        }
+    from . import client_agent as _ca
+    if tool_name not in _ca.CLIENT_TOOL_NAMES:
+        return {
+            "blocks": [{"type": "text", "text": f"Unsupported client tool: {tool_name}."}],
+            "citations": [], "model": None,
+        }
+    return await _ca.execute(tool_name, tool_args, session_id, identity_obj)
+
+
 # ---------- main orchestrator ----------
 async def run_turn(db, session_id: Optional[str], message: str,
                    emit_status: StatusEmitter = None,
@@ -453,6 +482,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 "ESCALATION": "Connecting a human advisor",
                 "SMALL_TALK": "Drafting a reply",
                 "DIRECTORY_QUERY": "Querying the SMIFS directory",
+                "CLIENT_QUERY": "Reading your account from the back-office",
             }
             await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
             identity_obj = await auth_agent.get_verified_identity(db, sid)
@@ -480,6 +510,11 @@ async def run_turn(db, session_id: Optional[str], message: str,
                     intent = hint
             elif intent == "DIRECTORY_QUERY":
                 out = await _branch_directory(
+                    sid, routing.get("tool_name"), routing.get("tool_args") or {},
+                    identity_obj, session_context,
+                )
+            elif intent == "CLIENT_QUERY":
+                out = await _branch_client_query(
                     sid, routing.get("tool_name"), routing.get("tool_args") or {},
                     identity_obj, session_context,
                 )

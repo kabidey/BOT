@@ -1,0 +1,270 @@
+[
+  {
+    "role": "employee",
+    "q": "What is my designation?",
+    "expect_intent": "KNOWLEDGE",
+    "expect_tool": null,
+    "got_intent": "KNOWLEDGE",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text"
+    ],
+    "len": 205,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "Who do I report to and who do they report to?",
+    "expect_intent": "DIRECTORY_QUERY",
+    "expect_tool": "directory_my_reporting_chain",
+    "got_intent": "DIRECTORY_QUERY",
+    "got_tool": "directory_my_reporting_chain",
+    "blocks": [
+      "text",
+      "reporting_chain_card"
+    ],
+    "len": 32,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "Show me my direct reports.",
+    "expect_intent": "DIRECTORY_QUERY",
+    "expect_tool": "directory_my_team",
+    "got_intent": "DIRECTORY_QUERY",
+    "got_tool": "directory_my_team",
+    "blocks": [
+      "text"
+    ],
+    "len": 82,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "List all compliance department members.",
+    "expect_intent": "DIRECTORY_QUERY",
+    "expect_tool": "directory_search_employees",
+    "got_intent": "DIRECTORY_QUERY",
+    "got_tool": "directory_search_employees",
+    "blocks": [
+      "text"
+    ],
+    "len": 55,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "Tell me about Awanish Chandra.",
+    "expect_intent": "DIRECTORY_QUERY",
+    "expect_tool": "directory_lookup_employee",
+    "got_intent": "DIRECTORY_QUERY",
+    "got_tool": "directory_lookup_employee",
+    "blocks": [
+      "text",
+      "directory_card"
+    ],
+    "len": 60,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "How many departments do we have?",
+    "expect_intent": "DIRECTORY_QUERY",
+    "expect_tool": "directory_departments",
+    "got_intent": "DIRECTORY_QUERY",
+    "got_tool": "directory_departments",
+    "blocks": [
+      "text",
+      "directory_list"
+    ],
+    "len": 69,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "List all SMIFS office locations.",
+    "expect_intent": "DIRECTORY_QUERY",
+    "expect_tool": "directory_locations",
+    "got_intent": "DIRECTORY_QUERY",
+    "got_tool": "directory_locations",
+    "blocks": [
+      "text",
+      "directory_list"
+    ],
+    "len": 65,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "Who joined SMIFS in the last 30 days?",
+    "expect_intent": "DIRECTORY_QUERY",
+    "expect_tool": "directory_recent_joins",
+    "got_intent": "DIRECTORY_QUERY",
+    "got_tool": "directory_recent_joins",
+    "blocks": [
+      "text",
+      "directory_list"
+    ],
+    "len": 44,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "What's my HRBP's name?",
+    "expect_intent": "KNOWLEDGE",
+    "expect_tool": null,
+    "got_intent": "KNOWLEDGE",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text"
+    ],
+    "len": 48,
+    "ok": true
+  },
+  {
+    "role": "employee",
+    "q": "What's the minimum ticket for Mackertich ONE PMS?",
+    "expect_intent": "KNOWLEDGE",
+    "expect_tool": null,
+    "got_intent": "KNOWLEDGE",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text"
+    ],
+    "len": 147,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "What's my risk profile?",
+    "expect_intent": "KNOWLEDGE",
+    "expect_tool": null,
+    "got_intent": "KNOWLEDGE",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text"
+    ],
+    "len": 85,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "Who is my relationship manager?",
+    "expect_intent": "KNOWLEDGE",
+    "expect_tool": null,
+    "got_intent": "KNOWLEDGE",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text"
+    ],
+    "len": 117,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "Show my equity portfolio holdings.",
+    "expect_intent": "CLIENT_QUERY",
+    "expect_tool": "client_portfolio",
+    "got_intent": "CLIENT_QUERY",
+    "got_tool": "client_portfolio",
+    "blocks": [
+      "text"
+    ],
+    "len": 203,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "What's my account ledger balance?",
+    "expect_intent": "CLIENT_QUERY",
+    "expect_tool": "client_ledger_balance",
+    "got_intent": "CLIENT_QUERY",
+    "got_tool": "client_ledger_balance",
+    "blocks": [
+      "text",
+      "ledger_balance_card"
+    ],
+    "len": 49,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "Show me my recent trades.",
+    "expect_intent": "CLIENT_QUERY",
+    "expect_tool": "client_recent_trades",
+    "got_intent": "CLIENT_QUERY",
+    "got_tool": "client_recent_trades",
+    "blocks": [
+      "text"
+    ],
+    "len": 130,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "When did I deposit money into my account?",
+    "expect_intent": "CLIENT_QUERY",
+    "expect_tool": "client_deposits_withdrawals",
+    "got_intent": "CLIENT_QUERY",
+    "got_tool": "client_deposits_withdrawals",
+    "blocks": [
+      "text"
+    ],
+    "len": 84,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "Show me my mutual fund holdings.",
+    "expect_intent": "CLIENT_QUERY",
+    "expect_tool": "client_mf_holdings",
+    "got_intent": "CLIENT_QUERY",
+    "got_tool": "client_mf_holdings",
+    "blocks": [
+      "text"
+    ],
+    "len": 27,
+    "ok": true
+  },
+  {
+    "role": "client",
+    "q": "What's the minimum ticket for Mackertich ONE PMS?",
+    "expect_intent": "ESCALATION",
+    "expect_tool": null,
+    "got_intent": "ESCALATION",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text",
+      "escalation_card"
+    ],
+    "len": 136,
+    "ok": true
+  },
+  {
+    "role": "visitor",
+    "q": "What is an AIF?",
+    "expect_intent": "KNOWLEDGE",
+    "expect_tool": null,
+    "got_intent": "KNOWLEDGE",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text"
+    ],
+    "len": 578,
+    "ok": true
+  },
+  {
+    "role": "visitor",
+    "q": "What is the minimum ticket for Mackertich ONE PMS?",
+    "expect_intent": "CALLBACK_REQUEST",
+    "expect_tool": null,
+    "got_intent": "CALLBACK_REQUEST",
+    "got_tool": "answer_from_knowledge_base",
+    "blocks": [
+      "text",
+      "form"
+    ],
+    "len": 145,
+    "ok": true
+  }
+]
