@@ -1,0 +1,42 @@
+
+========================================================================
+UCC: D900300  (expected PAN suffix match: AIJPD2750P)
+========================================================================
+  OrgLens.client_name     = 'SOMNATH DEY'
+  OrgLens.pan             = 'AIJPD2750P'  (expected ~ AIJPD2750P)
+  PAN matches expected?   = True
+  Name starts with 'SOMNATH'? = True
+  curated.name            = 'SOMNATH DEY'
+  curated.first_name      = 'Somnath'
+  curated.email_display   = 'de***@gmail.com'
+  curated.telephone_display = '***3000'
+  curated.rm_name         = None
+  curated.branch_name     = 'FUTURE'
+  curated.dp_name         = 'SMIFS LIMITED'
+
+  identity.raw key count  = 38
+  [OK] identity.raw is clean — no forbidden fields present
+  [OK] no _x000D_ artefacts in raw
+  fields stripped from raw: ['account', 'address1', 'address2', 'address3', 'bank', 'bank_actype', 'bank_branch', 'bank_city', 'bank_micr', 'bank_rtgs', 'birth_date', 'email', 'father_name', 'mobile', 'mobile1', 'pan', 'telephone']
+  identity.raw retained keys (first 25): ['active_date', 'bfo', 'bmfs', 'branch_code', 'branch_name', 'bse', 'cbfo', 'city', 'client_category', 'client_id', 'client_name', 'cnfo', 'cse', 'dp_id', 'dp_name', 'gender', 'icfo', 'income_range', 'mcfo', 'mxeq', 'mxfo', 'nbfc', 'ncfo', 'nfo', 'nmfs']
+
+========================================================================
+UCC: 63876  (expected PAN suffix match: ARIPP3602Q)
+========================================================================
+  OrgLens.client_name     = 'A BALARAM PATRO'
+  OrgLens.pan             = 'ARIPP3602Q'  (expected ~ ARIPP3602Q)
+  PAN matches expected?   = True
+  Name starts with 'A BALARAM'? = True
+  curated.name            = 'A BALARAM PATRO'
+  curated.first_name      = 'Balaram'
+  curated.email_display   = 'ba***@gmail.com'
+  curated.telephone_display = '***0800'
+  curated.rm_name         = 'JITEN SAHOO'
+  curated.branch_name     = 'BHUBANESWAR'
+  curated.dp_name         = 'SMIFS LIMITED'
+
+  identity.raw key count  = 44
+  [OK] identity.raw is clean — no forbidden fields present
+  [OK] no _x000D_ artefacts in raw
+  fields stripped from raw: ['aadhar_no', 'account', 'address1', 'address2', 'address3', 'bank', 'bank_actype', 'bank_city', 'bank_micr', 'bank_rtgs', 'birth_date', 'email', 'father_name', 'mobile', 'mobile1', 'pan', 'telephone']
+  identity.raw retained keys (first 25): ['active_date', 'bfo', 'bmfs', 'branch_code', 'branch_name', 'bse', 'cbfo', 'city', 'client_category', 'client_id', 'client_name', 'cnfo', 'crm_name', 'cse', 'dp_id', 'dp_name', 'gender', 'icfo', 'income_range', 'mcfo', 'mxeq', 'mxfo', 'nbfc', 'ncfo', 'nfo']

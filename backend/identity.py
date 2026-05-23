@@ -28,8 +28,11 @@ _PAN_SCRUB_RE = re.compile(r"\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b")  # case-insensi
 _EMAIL_RE = re.compile(r"\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b")
 _SMIFS_DOMAIN_RE = re.compile(r"@(?:[a-z0-9-]+\.)*(?:smifs|pesmifs)\.com$", re.I)
 
-# UCCs in the OrgLens dataset are pure digit runs. Range observed: 4–8 digits.
-_UCC_TOKEN_RE = re.compile(r"\b(\d{4,8})\b")
+# UCCs in the OrgLens dataset are either pure digit runs (4-8 digits) OR
+# alphanumeric with a 1-2 letter prefix (e.g. "D900300", "DM12345"). The
+# alphabetic prefix is CASE-INSENSITIVE on OrgLens but we canonicalise to
+# uppercase to keep one shape in our session state.
+_UCC_TOKEN_RE = re.compile(r"\b([A-Za-z]{0,2}\d{4,8})\b")
 
 _EMPLOYEE_HINT_RE = re.compile(
     r"\b(employee|staff|colleague|i\s*work\s*at\s*smifs|i\'?m\s*(?:an?\s*)?smifs)\b",
@@ -232,12 +235,14 @@ def extract_ucc(message: str, require_client_context: bool = False) -> Optional[
     if long_runs and not _CLIENT_HINT_RE.search(message):
         return None
     for d in _UCC_TOKEN_RE.findall(message):
-        # skip leading-zero runs (likely zip/year-padding) and obvious 4-digit years
-        if d.startswith("0"):
-            continue
-        if len(d) == 4 and d.startswith(("19", "20")):
-            continue
-        return d
+        # If it's pure digits, run the year / leading-zero filters; alpha-prefixed
+        # tokens (e.g. "D900300") are NEVER years/zips so we keep them as-is.
+        if d.isdigit():
+            if d.startswith("0"):
+                continue
+            if len(d) == 4 and d.startswith(("19", "20")):
+                continue
+        return d.upper()
     return None
 
 
@@ -251,6 +256,31 @@ def derive_first_name_from_email(email: Optional[str]) -> Optional[str]:
         if len(tok) >= 2 and tok.isalpha():
             return tok.capitalize()
     return None
+
+
+# A small set of name-prefix tokens we always skip when deriving first_name
+# from an official name. Keep narrow — only honorifics and very-common
+# initial-only stand-ins that show up in OrgLens records.
+_NAME_SKIP_TOKENS = {"dr", "mr", "mrs", "ms", "shri", "smt", "kum", "miss", "sri"}
+
+
+def _derive_first_name(client_name: Optional[str], email: Optional[str]) -> Optional[str]:
+    """Prefer the first MULTI-character token of the official name.
+
+    Skips single-letter initials ("A BALARAM PATRO" → "Balaram") and common
+    honorifics ("DR. R K MEHTA" → "Mehta", since "Dr", "R", "K" are skipped).
+    Falls back to the email-handle derivation only when no usable name token
+    can be found.
+    """
+    if client_name:
+        for token in client_name.split():
+            cleaned = token.strip(".,").title()
+            if len(cleaned) < 2:
+                continue
+            if cleaned.lower() in _NAME_SKIP_TOKENS:
+                continue
+            return cleaned
+    return derive_first_name_from_email(email)
 
 
 def detect_role_intent(message: str) -> Optional[str]:
@@ -332,21 +362,48 @@ async def probe_permissions() -> Dict[str, Any]:
 # =========================
 # Storage sanitizers
 # =========================
-# Phase 8.1 — Fields we STRIP from `identity.raw` (never persisted).
-# Narrowed to truly sensitive credentials — email/phone/DOB/hrbp_email/etc
-# stay in raw so the chat LLM's USER_PROFILE can answer self-queries.
-# The persistence-time PII scrubber (redact_pii_in_text) still masks these
-# values anywhere they appear in user-typed message text.
+# Phase 12 bug-fix — fields we STRIP from `identity.raw` (never persisted,
+# never sent to the LLM). Widened from the Phase 8.1 set to cover every
+# direct-PII field: phone, email, family, bank routing, full address, DOB.
+# Curated identity still exposes masked `*_display` variants so the bot can
+# answer self-queries like "what's my email on record?" → "de***@gmail.com".
 _RAW_STRIP_FIELDS = {
-    "pan", "pan_number",                       # PAN — HMAC fingerprint only
-    "aadhar_no", "aadhar", "aadhaar",          # government ID
-    "bank", "bank_details", "bank_account",    # raw bank account info
-    "account",                                 # demat / bank account number
+    # Government / financial credentials
+    "pan", "pan_number",
+    "aadhar_no", "aadhar", "aadhaar",
+    "bank", "bank_details", "bank_account",
+    "account", "account_number",
+    # Direct PII — phone / email
+    "email", "mobile", "mobile1", "mobile2", "telephone",
+    # Family identifiers
+    "father_name", "mother_name", "spouse_name", "guardian_name",
+    # Bank routing details
+    "bank_micr", "bank_rtgs", "bank_ifsc", "bank_branch",
+    "bank_actype", "bank_city",
+    # Full address lines
+    "address1", "address2", "address3", "address4",
+    # Date of birth
+    "birth_date", "dob",
 }
 
 
+def _scrub_excel_artefacts(v: Any) -> Any:
+    """Strip Windows CRLF leftovers (`_x000D_`, `_x000d_`) from string values.
+
+    OrgLens exports come from Excel which sprinkles these into multi-line
+    cells like `notes_remarks`. We never want them surfaced in chat replies.
+    """
+    if isinstance(v, str) and ("_x000D_" in v or "_x000d_" in v):
+        return v.replace("_x000D_", " ").replace("_x000d_", " ").strip()
+    return v
+
+
 def _strip_sensitive_for_raw(rec: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: v for k, v in (rec or {}).items() if k not in _RAW_STRIP_FIELDS}
+    return {
+        k: _scrub_excel_artefacts(v)
+        for k, v in (rec or {}).items()
+        if k not in _RAW_STRIP_FIELDS
+    }
 
 
 def sanitize_employee_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
@@ -417,7 +474,7 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
     rec = _normalize_client_keys(rec)
     raw = _strip_sensitive_for_raw(rec)
     email = (rec.get("email") or "").strip() or None
-    first = derive_first_name_from_email(email)
+    first = _derive_first_name(rec.get("client_name"), email)
 
     # Trading segments: keep all "Yes" markers so the FE can pill them.
     SEG_KEYS = ("nse", "bse", "pms", "nfo", "bfo", "mcfo", "ncfo", "cnfo",
@@ -428,7 +485,7 @@ def sanitize_client_for_storage(rec: Dict[str, Any]) -> Dict[str, Any]:
         "type": "client",
         "ucc": rec.get("ucc"),
         "name": rec.get("client_name"),
-        "first_name": first or (rec.get("client_name") or "").split()[0].title() if (rec.get("client_name") or "").strip() else first,
+        "first_name": first,
         "email_display": mask_email_display(email),
         "telephone_display": mask_phone_display(rec.get("telephone") or rec.get("mobile")),
         "gender": rec.get("gender"),

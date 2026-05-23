@@ -258,10 +258,8 @@ async def handle_identifier_response(db, session_id: str, message: str) -> Dict[
         return await _do_employee_lookup(db, session_id, email)
     if pending_type == "client":
         ucc = identity.extract_ucc(message)
-        if not ucc:
-            digits = "".join(c for c in (message or "") if c.isdigit())
-            if 4 <= len(digits) <= 8:
-                ucc = digits
+        # NO digit-stripping fallback — alphanumeric UCCs (e.g. "D900300") must
+        # not be silently rewritten to a different account. Better to ask again.
         if not ucc:
             return {
                 "blocks": [{"type": "text", "text": (

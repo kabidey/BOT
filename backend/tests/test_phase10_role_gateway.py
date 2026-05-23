@@ -407,7 +407,6 @@ class TestPrivacyRegression:
         identity_obj = sess.get("identity") or {}
         raw = identity_obj.get("raw") or {}
         # Required non-sensitive fields
-        # raw may use any of these spellings — accept either flavour
         rm_name_present = (
             "rm_name" in raw
             or any(("rm_name" in k or k == "rmName") for k in raw)
@@ -415,12 +414,24 @@ class TestPrivacyRegression:
         assert rm_name_present, f"raw missing rm_name: keys={list(raw.keys())[:30]}"
         ucc_present = ("ucc" in raw) or ("UCC" in raw)
         assert ucc_present, f"raw missing ucc: keys={list(raw.keys())[:30]}"
-        # email/status/risk_profile should be present (any of these spellings)
-        has_email = any("email" in str(k).lower() for k in raw.keys())
-        assert has_email, f"raw missing email field: keys={list(raw.keys())[:30]}"
-        # Sensitive fields MUST be stripped
-        forbidden = ["pan", "pan_number", "aadhar_no", "aadhaar", "aadhar",
-                     "bank", "bank_details", "bank_account", "account"]
+        # Phase 12 privacy widening — direct PII MUST NOT be in raw. The
+        # curated identity exposes masked `*_display` variants instead.
+        curated = {k: v for k, v in identity_obj.items() if k != "raw"}
+        assert curated.get("email_display"), "curated identity should expose email_display"
+        assert curated.get("telephone_display"), "curated identity should expose telephone_display"
+        # Sensitive fields MUST be stripped from raw (Phase 12 widened set)
+        forbidden = [
+            # Phase 10 set
+            "pan", "pan_number", "aadhar_no", "aadhaar", "aadhar",
+            "bank", "bank_details", "bank_account", "account",
+            # Phase 12 widened
+            "email", "mobile", "mobile1", "mobile2", "telephone",
+            "father_name", "mother_name", "spouse_name",
+            "bank_micr", "bank_rtgs", "bank_ifsc", "bank_branch",
+            "bank_actype", "bank_city",
+            "address1", "address2", "address3", "address4",
+            "birth_date", "dob",
+        ]
         for f in forbidden:
             assert f not in raw, f"forbidden field '{f}' present in raw: {list(raw.keys())}"
 
