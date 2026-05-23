@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import identity as id_mod
+import resilience
 from .llm import call_with_fallback, extract_reply, stream_chat_with_fallback
 from . import api_agent, auth_agent, form_agent, rag_agent
 from .router import classify
@@ -88,6 +89,55 @@ async def _emit(emit: StatusEmitter, event: Dict[str, Any]) -> None:
             await emit(event)
         except Exception:
             logger.exception("status emit failed")
+
+
+# ---------- Phase 13 short-circuit persistence helpers ----------
+def _append_too_long_notice(out: Dict[str, Any]) -> None:
+    """Append the 'we trimmed your message' notice to the first text block."""
+    blocks = out.get("blocks") or []
+    for b in blocks:
+        if b.get("type") == "text":
+            b["text"] = (b.get("text") or "") + resilience.too_long_notice()
+            return
+    blocks.insert(0, {"type": "text", "text": resilience.too_long_notice().lstrip()})
+    out["blocks"] = blocks
+
+
+async def _persist_turn(db, sid: str, user_message: str,
+                        out: Dict[str, Any], intent: Optional[str]) -> None:
+    """Append a (user, assistant) pair to conversations. Used by the resilience
+    short-circuits so their replies show up in /api/sessions history."""
+    await _append_messages(db, sid, [
+        {"role": "user", "content": user_message or ""},
+        {
+            "role": "assistant",
+            "content": _flatten_text(out.get("blocks") or []),
+            "blocks": out.get("blocks") or [],
+            "citations": out.get("citations") or [],
+            "intent": intent,
+            "model": out.get("model"),
+        },
+    ])
+
+
+def _final_payload(sid: str, out: Dict[str, Any], trace: List[Dict[str, Any]],
+                   intent: Optional[str],
+                   prior_session_id: Optional[str],
+                   expiry_resume_offer: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
+    """Wrap an out dict in the standard TurnResponse shape."""
+    payload: Dict[str, Any] = {
+        "session_id": sid,
+        "trace": trace,
+        "blocks": out.get("blocks") or [],
+        "citations": out.get("citations") or [],
+        "model": out.get("model"),
+        "intent": intent,
+    }
+    if prior_session_id:
+        payload["prior_session_id"] = prior_session_id
+    if expiry_resume_offer:
+        payload["resume_offer"] = expiry_resume_offer
+    return payload
 
 
 # ---------- specialist branches ----------
@@ -375,6 +425,16 @@ async def run_turn(db, session_id: Optional[str], message: str,
                    emit_status: StatusEmitter = None,
                    emit_token: TokenEmitter = None,
                    emit_citations: CitationsEmitter = None) -> Dict[str, Any]:
+    # Phase 13 — input normalisation (truncate / detect edge inputs).
+    raw_message = message
+    cleaned, edge_kind = resilience.normalise_input(message)
+    message = cleaned or ""
+    too_long_notice_appended = False
+    if edge_kind == "too_long":
+        # Continue with the truncated message but tag the reply with a notice.
+        too_long_notice_appended = True
+        edge_kind = None
+
     # Phase 7 — idle expiry & rehydration offer
     import lifecycle as _lc
     expiry = await _lc.maybe_expire_and_mint(db, session_id)
@@ -389,6 +449,83 @@ async def run_turn(db, session_id: Optional[str], message: str,
     state = auth_row.get("auth_state", auth_agent.ANON)
     trace: List[Dict[str, Any]] = []
     intent: Optional[str] = None
+
+    # ---- Phase 13: edge-input early reply (empty / single-char / emoji-only) ----
+    if edge_kind in ("empty", "whitespace"):
+        out = resilience.empty_input_reply()
+        intent = out.get("intent_hint") or "SMALL_TALK"
+        trace.append({"step": "resilience", "kind": "empty_input"})
+        await _persist_turn(db, sid, raw_message, out, intent)
+        return _final_payload(sid, out, trace, intent,
+                              prior_session_id, expiry_resume_offer)
+    if edge_kind == "single_char":
+        out = resilience.single_char_reply()
+        intent = out.get("intent_hint") or "SMALL_TALK"
+        trace.append({"step": "resilience", "kind": "single_char"})
+        await _persist_turn(db, sid, raw_message, out, intent)
+        return _final_payload(sid, out, trace, intent,
+                              prior_session_id, expiry_resume_offer)
+    if edge_kind == "emoji_only":
+        out = resilience.emoji_only_reply()
+        intent = out.get("intent_hint") or "SMALL_TALK"
+        trace.append({"step": "resilience", "kind": "emoji_only"})
+        await _persist_turn(db, sid, raw_message, out, intent)
+        return _final_payload(sid, out, trace, intent,
+                              prior_session_id, expiry_resume_offer)
+
+    # ---- Phase 13: adversarial-input short-circuit ----
+    # Active on every state except LOCKED. Even mid-auth-challenge, an
+    # injection / profanity / off-topic curveball deserves a graceful steer
+    # back to wealth-management — it does NOT consume any auth slot.
+    if state != auth_agent.LOCKED:
+        identity_obj_for_sc = auth_row.get("identity") if state == auth_agent.VERIFIED else None
+        sc = resilience.short_circuit(
+            message, history,
+            identity_obj=identity_obj_for_sc,
+            session_type=auth_row.get("session_type", "visitor"),
+            auth_state=auth_row.get("auth_state"),
+        )
+        if sc is not None:
+            out, ctx = sc
+            if ctx.get("security_event"):
+                await resilience.log_security_event(
+                    db, kind=ctx["kind"], session_id=sid,
+                    role_state_value=resilience.role_state(
+                        auth_row.get("session_type"), auth_row.get("auth_state"),
+                        identity_obj_for_sc),
+                    user_message=raw_message, action=ctx.get("action", "deflected"),
+                )
+            intent = out.get("intent_hint") or "OUT_OF_SCOPE"
+            trace.append({"step": "resilience", "kind": ctx.get("kind"),
+                          "action": ctx.get("action")})
+            if too_long_notice_appended:
+                _append_too_long_notice(out)
+            await _persist_turn(db, sid, raw_message, out, intent)
+            return _final_payload(sid, out, trace, intent,
+                                  prior_session_id, expiry_resume_offer)
+
+    # ---- Phase 13: repeated-turn loop guard (only for ANON visitors, not in
+    # auth challenges where the user might genuinely re-send the same PAN).
+    if state == auth_agent.ANON and history:
+        last_user = next((m.get("content") for m in reversed(history)
+                          if m.get("role") == "user"), None)
+        if resilience.is_repeated(message, last_user):
+            out = resilience.repeated_reply()
+            intent = out.get("intent_hint") or "ESCALATION"
+            trace.append({"step": "resilience", "kind": "repeated"})
+            await _persist_turn(db, sid, raw_message, out, intent)
+            return _final_payload(sid, out, trace, intent,
+                                  prior_session_id, expiry_resume_offer)
+
+    # ---- Phase 13: self-healing for identifier inputs ----
+    # During auth challenges we apply UCC/PAN/email healing so users with a
+    # typo (O→0, PAN spacing, gnail.com) aren't stuck in retry hell.
+    if state in (auth_agent.AWAIT_IDENT, auth_agent.AWAIT_PAN, auth_agent.ANON):
+        healed_message, applied = resilience.self_heal_message(message)
+        if applied:
+            trace.append({"step": "resilience", "kind": "self_heal",
+                          "applied": applied})
+            message = healed_message
 
     # ---- 1) Auth pre-check ----
     if state == auth_agent.LOCKED:
@@ -527,6 +664,10 @@ async def run_turn(db, session_id: Optional[str], message: str,
     # Promote intent_hint into the final intent if the auth agent emitted one.
     if isinstance(out, dict) and out.get("intent_hint"):
         intent = out["intent_hint"]
+
+    # Phase 13 — append the too-long notice if we trimmed the input.
+    if too_long_notice_appended:
+        _append_too_long_notice(out)
 
     payload = {
         "session_id": sid,

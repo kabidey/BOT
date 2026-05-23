@@ -79,9 +79,13 @@ auth flow.
 ## Implemented earlier
 - Phase 0–4: chat, RAG, multi-agent, admin (cost ledger, leads, KB, insights)
 - Phase 5: embeddable widget, theming UI, concurrency hardening
+- Phase 6–10: real OrgLens identity (employee/client/visitor), PAN HMAC, role gateway
+- Phase 11: WhatsApp/Email handoff CTAs, Knowledge Gaps tab, 15-min KB delta-sync, Stop-generating button
+- Phase 12: OrgLens OpenAPI re-probe + 6 client tools (portfolio/ledger/trades/deposits/MF folios/SIPs); alphanumeric UCC fix; PII strip in `identity.raw`
+- **Phase 13 (Feb 2026)**: Resilient bot — always-reply envelope on every endpoint, SSE heartbeat→10s + hard 60s cap, adversarial-input short-circuit (24 injection patterns + recommendation/off-topic/profanity), self-healing UCC/PAN/email/phone parsing, role-aware graceful messages, new `errors` + `security_events` collections, 30-row acceptance matrix 30/30.
 
 ## Backlog
 - P1: Persistent device tokens for re-auth (skip PAN on same device)
-- P1: Per-page widget suggestion presets + WhatsApp handoff CTA
+- P2: Admin Insights widget for `security_events` (injection attempts over time)
 - P2: Surface low-confidence router intents in admin Insights tab
 - P2: Per-employee compensation / HR queries (would need careful scope review)

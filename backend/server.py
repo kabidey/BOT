@@ -24,6 +24,7 @@ import widget_config
 import identity as id_mod
 import hardening
 import handoff as handoff_mod
+import resilience
 from agents import orchestrator, router as router_agent
 from agents.llm import call_with_fallback, extract_reply, last_ok, bind_db as bind_llm_db, ROUTER_CHAIN, CHAT_CHAIN, reset_cache as reset_llm_cache
 from admin import build_admin_router
@@ -245,13 +246,56 @@ async def agent_turn(req: TurnRequest, request: Request):
     _enforce_chat_rate_limit(request, req.session_id)
     try:
         return await orchestrator.run_turn(db, req.session_id, req.message)
-    except httpx.HTTPStatusError as e:
-        body = e.response.text if e.response is not None else ""
-        logger.error("agent_turn upstream %s: %s", e.response.status_code, body)
-        raise HTTPException(status_code=502, detail=f"Hub AI error ({e.response.status_code}): {body[:300]}")
     except Exception as e:
-        logger.exception("agent_turn failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Phase 13 — always-reply guarantee. Build a role-aware envelope so the
+        # FE never sees a raw 5xx / empty body. PERSIST the envelope into
+        # conversations so /api/sessions shows the fallback in history.
+        error_id = resilience.new_error_id()
+        session_ctx = await _session_role_ctx(req.session_id)
+        env = resilience.graceful_envelope(
+            session_id=session_ctx.get("session_id"),
+            error_id=error_id,
+            session_type=session_ctx.get("session_type"),
+            auth_state=session_ctx.get("auth_state"),
+            identity_obj=session_ctx.get("identity"),
+            reason="internal_error",
+        )
+        logger.exception("agent_turn failed (error_id=%s)", error_id)
+        await resilience.log_error(
+            db, error_id=error_id, exc=e,
+            session_id=session_ctx.get("session_id"),
+            endpoint="/api/agent/turn",
+            role_state_value=resilience.role_state(
+                session_ctx.get("session_type"), session_ctx.get("auth_state"),
+                session_ctx.get("identity")),
+            user_message=req.message,
+        )
+        # Best-effort persistence — never let the fallback path itself raise.
+        try:
+            await orchestrator._persist_turn(
+                db, env["session_id"] or (req.session_id or ""),
+                req.message, env, env.get("intent"),
+            )
+        except Exception:
+            logger.exception("persisting fallback envelope failed (non-fatal)")
+        return env
+
+
+async def _session_role_ctx(session_id: Optional[str]) -> Dict[str, Any]:
+    """Best-effort lookup of (session_id, session_type, auth_state, identity)
+    for the envelope builder. Tolerates a dead Mongo by returning {}."""
+    if not session_id:
+        return {"session_id": None}
+    try:
+        row = await db.sessions.find_one({"_id": session_id}, {"_id": 0}) or {}
+        return {
+            "session_id": session_id,
+            "session_type": row.get("session_type"),
+            "auth_state": row.get("auth_state"),
+            "identity": row.get("identity"),
+        }
+    except Exception:
+        return {"session_id": session_id}
 
 
 @api_router.post("/agent/turn/stream")
@@ -275,25 +319,78 @@ async def agent_turn_stream(req: TurnRequest, request: Request):
                 emit_status=emit_status, emit_token=emit_token, emit_citations=emit_citations,
             )
             await queue.put(("result", payload))
-        except httpx.HTTPStatusError as e:
-            body = e.response.text if e.response is not None else ""
-            await queue.put(("error", {"detail": f"Hub AI error ({e.response.status_code}): {body[:300]}"}))
         except Exception as e:
-            logger.exception("stream runner failed")
-            await queue.put(("error", {"detail": str(e)}))
+            # Phase 13 — never propagate raw 5xx. Emit a `warning` event so the
+            # FE can show "I hit a hiccup", followed by a graceful `result`
+            # envelope. Persist to errors/conversations so admin can audit.
+            error_id = resilience.new_error_id()
+            logger.exception("stream runner failed (error_id=%s)", error_id)
+            session_ctx = await _session_role_ctx(req.session_id)
+            env = resilience.graceful_envelope(
+                session_id=session_ctx.get("session_id"),
+                error_id=error_id,
+                session_type=session_ctx.get("session_type"),
+                auth_state=session_ctx.get("auth_state"),
+                identity_obj=session_ctx.get("identity"),
+                reason="internal_error",
+            )
+            await resilience.log_error(
+                db, error_id=error_id, exc=e,
+                session_id=session_ctx.get("session_id"),
+                endpoint="/api/agent/turn/stream",
+                role_state_value=resilience.role_state(
+                    session_ctx.get("session_type"), session_ctx.get("auth_state"),
+                    session_ctx.get("identity")),
+                user_message=req.message,
+            )
+            try:
+                await orchestrator._persist_turn(
+                    db, env["session_id"] or (req.session_id or ""),
+                    req.message, env, env.get("intent"),
+                )
+            except Exception:
+                logger.exception("persist fallback envelope failed (non-fatal)")
+            await queue.put(("warning", {"error_id": error_id,
+                                          "message": "I hit a hiccup — sending you a graceful reply."}))
+            await queue.put(("result", env))
         finally:
             await queue.put(("__done__", None))
 
+    # Phase 13 — heartbeat every 10s; hard cap stream lifetime at 60s.
+    HEARTBEAT_S = 10.0
+    HARD_CAP_S = 60.0
+
     async def event_source():
         task = asyncio.create_task(runner())
+        loop = asyncio.get_event_loop()
+        deadline = loop.time() + HARD_CAP_S
         try:
             while True:
                 if await request.is_disconnected():
                     task.cancel()
                     break
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    # Stream timed out — emit graceful timeout & end.
+                    error_id = resilience.new_error_id()
+                    session_ctx = await _session_role_ctx(req.session_id)
+                    env = resilience.graceful_envelope(
+                        session_id=session_ctx.get("session_id"),
+                        error_id=error_id,
+                        session_type=session_ctx.get("session_type"),
+                        auth_state=session_ctx.get("auth_state"),
+                        identity_obj=session_ctx.get("identity"),
+                        reason="timeout",
+                    )
+                    yield f"event: warning\ndata: {json.dumps({'error_id': error_id, 'message': 'Took too long, sending a graceful reply.'})}\n\n"
+                    yield f"event: result\ndata: {json.dumps(env, ensure_ascii=False)}\n\n"
+                    task.cancel()
+                    break
                 try:
-                    event_type, data = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    timeout = min(HEARTBEAT_S, remaining)
+                    event_type, data = await asyncio.wait_for(queue.get(), timeout=timeout)
                 except asyncio.TimeoutError:
+                    # SSE comment-line heartbeat keeps the connection alive.
                     yield ": ping\n\n"
                     continue
                 if event_type == "__done__":
@@ -384,7 +481,29 @@ class LegacyChatResponse(BaseModel):
 
 @api_router.post("/chat", response_model=LegacyChatResponse)
 async def chat(req: ChatRequest):
-    payload = await orchestrator.run_turn(db, req.session_id, req.message)
+    try:
+        payload = await orchestrator.run_turn(db, req.session_id, req.message)
+    except Exception as e:
+        error_id = resilience.new_error_id()
+        session_ctx = await _session_role_ctx(req.session_id)
+        payload = resilience.graceful_envelope(
+            session_id=session_ctx.get("session_id"),
+            error_id=error_id,
+            session_type=session_ctx.get("session_type"),
+            auth_state=session_ctx.get("auth_state"),
+            identity_obj=session_ctx.get("identity"),
+            reason="internal_error",
+        )
+        logger.exception("legacy chat failed (error_id=%s)", error_id)
+        await resilience.log_error(
+            db, error_id=error_id, exc=e,
+            session_id=session_ctx.get("session_id"),
+            endpoint="/api/chat",
+            role_state_value=resilience.role_state(
+                session_ctx.get("session_type"), session_ctx.get("auth_state"),
+                session_ctx.get("identity")),
+            user_message=req.message,
+        )
     text_parts: List[str] = []
     for b in payload["blocks"]:
         if b.get("type") == "text":
@@ -612,6 +731,11 @@ async def startup_event():
             await db.leads.create_index([("created_at", -1)], name="leads_created_at_desc")
             await db.session_archives.create_index([("archived_at", -1)], name="archives_archived_at_desc")
             await db.session_archives.create_index("session_type", name="archives_session_type")
+            # Phase 13 — errors + security_events collections (90-day TTL).
+            await db.errors.create_index([("created_at", -1)], name="errors_created_at_desc")
+            await db.errors.create_index("error_id", name="errors_error_id_idx", sparse=True)
+            await db.security_events.create_index([("created_at", -1)], name="security_events_created_at_desc")
+            await db.security_events.create_index("kind", name="security_events_kind_idx", sparse=True)
         except Exception:
             logger.exception("TTL index creation failed (non-fatal)")
         reset_llm_cache()
