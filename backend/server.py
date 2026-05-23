@@ -74,12 +74,12 @@ class HealthResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     session_id: Optional[str] = None
-    message: str = Field(..., min_length=1)
+    message: str = Field(default="")
 
 
 class TurnRequest(BaseModel):
     session_id: Optional[str] = None
-    message: str = Field(..., min_length=1)
+    message: str = Field(default="")
 
 
 class TurnResponse(BaseModel):
@@ -244,6 +244,12 @@ async def rag_search(req: RagSearchRequest):
 @api_router.post("/agent/turn", response_model=TurnResponse)
 async def agent_turn(req: TurnRequest, request: Request):
     _enforce_chat_rate_limit(request, req.session_id)
+    # Phase 13 fix-1 — empty / whitespace message must yield a graceful 200,
+    # NOT a Pydantic 422. We handle it here BEFORE invoking the orchestrator
+    # (it would normalise + reply anyway, but we want a guaranteed 200 path
+    # with intent="EMPTY_INPUT" even if the orchestrator itself blew up).
+    if not (req.message or "").strip():
+        return await _empty_input_response(req.session_id)
     try:
         return await orchestrator.run_turn(db, req.session_id, req.message)
     except Exception as e:
@@ -298,9 +304,55 @@ async def _session_role_ctx(session_id: Optional[str]) -> Dict[str, Any]:
         return {"session_id": session_id}
 
 
+async def _empty_input_response(session_id: Optional[str]) -> Dict[str, Any]:
+    """Build a TurnResponse-shaped graceful reply for empty / whitespace input.
+
+    Persists the (user='', assistant=<nudge>) pair to conversations so the FE
+    session history stays consistent with all other turns.
+    """
+    sid = session_id or str(uuid.uuid4())
+    # Ensure the session exists so /api/sessions/{sid} works on the next fetch.
+    try:
+        await orchestrator._get_or_create_session(db, sid)
+        from agents import auth_agent
+        await auth_agent.get_or_create_session_row(db, sid)
+    except Exception:
+        logger.exception("empty-input session init failed (non-fatal)")
+    out = resilience.empty_input_reply()
+    intent = out.get("intent_hint") or "EMPTY_INPUT"
+    try:
+        await orchestrator._persist_turn(db, sid, "", out, intent)
+    except Exception:
+        logger.exception("empty-input persist failed (non-fatal)")
+    return {
+        "session_id": sid,
+        "trace": [{"step": "resilience", "kind": "empty_input"}],
+        "blocks": out["blocks"],
+        "citations": [],
+        "model": None,
+        "intent": intent,
+    }
+
+
 @api_router.post("/agent/turn/stream")
 async def agent_turn_stream(req: TurnRequest, request: Request):
     _enforce_chat_rate_limit(request, req.session_id)
+
+    # Phase 13 fix-1 — empty / whitespace must also be graceful in the stream
+    # variant. We emit a single `result` SSE event with the same envelope
+    # `/api/agent/turn` returns and close cleanly.
+    if not (req.message or "").strip():
+        empty_payload = await _empty_input_response(req.session_id)
+        async def _empty_source():
+            yield f"event: result\ndata: {json.dumps(empty_payload, ensure_ascii=False)}\n\n"
+        headers = {
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream",
+        }
+        return StreamingResponse(_empty_source(), headers=headers, media_type="text/event-stream")
+
     queue: asyncio.Queue = asyncio.Queue()
 
     async def emit_status(event: Dict[str, Any]) -> None:
@@ -481,6 +533,14 @@ class LegacyChatResponse(BaseModel):
 
 @api_router.post("/chat", response_model=LegacyChatResponse)
 async def chat(req: ChatRequest):
+    # Phase 13 fix-1 — same empty-input nudge for the legacy endpoint.
+    if not (req.message or "").strip():
+        payload = await _empty_input_response(req.session_id)
+        text = next((b.get("text", "") for b in payload["blocks"] if b.get("type") == "text"), "")
+        return LegacyChatResponse(
+            session_id=payload["session_id"], reply=text, model=None,
+            grounded=False, citations=[],
+        )
     try:
         payload = await orchestrator.run_turn(db, req.session_id, req.message)
     except Exception as e:

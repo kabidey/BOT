@@ -482,9 +482,11 @@ def profanity_reply() -> Dict[str, Any]:
 def empty_input_reply() -> Dict[str, Any]:
     return {
         "blocks": [{"type": "text", "text": (
-            "I didn't catch that — could you share what you'd like help with?"
+            "Could you share your question or what you'd like help with? "
+            "I can answer about Mackertich ONE products, your account, market "
+            "data, or arrange a callback."
         )}],
-        "citations": [], "model": None, "intent_hint": "SMALL_TALK",
+        "citations": [], "model": None, "intent_hint": "EMPTY_INPUT",
     }
 
 

@@ -1,6 +1,6 @@
 # Phase 13 — Resilient Bot · 30-row Acceptance Matrix
 
-_Generated at 2026-05-23 19:15:30 UTC against `http://localhost:8001`._
+_Generated at 2026-05-23 19:25:55 UTC against `http://localhost:8001`._
 
 
 ## Batch 1 — Adversarial Inputs (10)
@@ -22,8 +22,8 @@ _Generated at 2026-05-23 19:15:30 UTC against `http://localhost:8001`._
 
 | # | Label | Input (≤80 chars) | HTTP | Intent | Reply (≤240 chars) | Graceful | Privacy-safe |
 |---|-------|--------------------|------|--------|---------------------|----------|---------------|
-| 1 | EDGE1: empty body | `` | 200 | `SMALL_TALK` | I didn't catch that — could you share what you'd like help with? | Y | Y |
-| 2 | EDGE2: whitespace only | `   	    ` | 200 | `SMALL_TALK` | I didn't catch that — could you share what you'd like help with? | Y | Y |
+| 1 | EDGE1: empty body | `` | 200 | `EMPTY_INPUT` | Could you share your question or what you'd like help with? I can answer about Mackertich ONE products, your account, market data, or arrange a callback. | Y | Y |
+| 2 | EDGE2: whitespace only | `   	    ` | 200 | `EMPTY_INPUT` | Could you share your question or what you'd like help with? I can answer about Mackertich ONE products, your account, market data, or arrange a callback. | Y | Y |
 | 3 | EDGE3: single char | `?` | 200 | `SMALL_TALK` | Could you share a bit more? I can help with Mackertich ONE products, your account, market data, or arranging a callback. | Y | Y |
 | 4 | EDGE4: too-long (6500 chars) | `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` | 200 | `AUTH_CHALLENGE` | Just to be sure — please reply with **client** or **employee** so I can pull up the right record.  (Note: I trimmed your message to the first 5,000 characters so I could respond — please re-send the rest in a follow-up if needed.) | Y | Y |
 | 5 | EDGE5: emoji-only | `😀😀😀` | 200 | `SMALL_TALK` | How may I help you today? You can ask about Mackertich ONE products, your account, market data, or request a callback. | Y | Y |

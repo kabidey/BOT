@@ -359,7 +359,7 @@ class TestOrchestratorShortCircuits:
         with patch("agents.llm.call_with_fallback", new=AsyncMock(side_effect=AssertionError("no llm"))):
             out = await orchestrator.run_turn(db, sid, "   ")
         assert _has_text_block(out["blocks"])
-        assert out["intent"] in ("SMALL_TALK", "OUT_OF_SCOPE")
+        assert out["intent"] in ("SMALL_TALK", "OUT_OF_SCOPE", "EMPTY_INPUT")
 
     async def test_emoji_only_nudges(self):
         from agents import orchestrator

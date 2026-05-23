@@ -182,6 +182,10 @@ def build_admin_router(db) -> APIRouter:
         esc = next((i["count"] for i in intent_dist if i["intent"] == "ESCALATION"), 0)
         escalation_rate = round(esc / total_assist, 4)
 
+        # Phase 13 — resilience + security signal counters
+        sec_7d = await db.security_events.count_documents({"created_at": {"$gte": since}})
+        err_7d = await db.errors.count_documents({"created_at": {"$gte": since}})
+
         return {
             "range": range,
             "totals": {"sessions": sessions, "messages": messages, "verified_clients": verified},
@@ -189,6 +193,8 @@ def build_admin_router(db) -> APIRouter:
             "lead_asset_classes": lead_classes,
             "low_confidence_intents": [],
             "escalation_rate": escalation_rate,
+            "security_events_7d": sec_7d,
+            "errors_7d": err_7d,
         }
 
     # ---------------- Leads ----------------
@@ -454,6 +460,76 @@ def build_admin_router(db) -> APIRouter:
         import handoff as _h
         rows = await _h.list_handoffs(db, limit=limit)
         return {"handoffs": rows, "count": len(rows)}
+
+    # ---------------- Phase 13 — errors + security_events read surface ----------------
+    @router.get("/errors")
+    async def list_errors(limit: int = 50, since: Optional[str] = None):
+        """Newest-first window over the `errors` collection. PII-scrubbed at
+        ingestion (see resilience.log_error). `since` is an ISO-8601 string."""
+        limit = max(1, min(int(limit or 50), 200))
+        q: Dict[str, Any] = {}
+        if since:
+            q["created_at"] = {"$gte": since}
+        total = await db.errors.count_documents(q)
+        cur = db.errors.find(q, {"_id": 0}).sort("created_at", -1).limit(limit)
+        rows = await cur.to_list(length=limit)
+        items: List[Dict[str, Any]] = []
+        import hashlib
+        for r in rows:
+            tb = r.get("traceback") or ""
+            tb_hash = hashlib.sha1(tb.encode("utf-8")).hexdigest()[:12] if tb else None
+            items.append({
+                "error_id": r.get("error_id"),
+                "ts": r.get("created_at"),
+                "path": r.get("endpoint"),
+                "exception_class": r.get("exc_type"),
+                "exception_message": (r.get("exc_message") or "")[:300],
+                "message_excerpt": r.get("user_message_excerpt") or "",
+                "session_role": r.get("role_state"),
+                "session_id": r.get("session_id"),
+                "traceback_hash": tb_hash,
+            })
+        return {"total": total, "items": items}
+
+    @router.get("/security_events")
+    async def list_security_events(limit: int = 50, since: Optional[str] = None,
+                                    kind: Optional[str] = None):
+        """Newest-first window over `security_events`, optionally filtered by
+        a single `kind`. Adds a `by_kind` summary across the SAME filter."""
+        limit = max(1, min(int(limit or 50), 200))
+        q: Dict[str, Any] = {}
+        if since:
+            q["created_at"] = {"$gte": since}
+        if kind:
+            q["kind"] = kind
+        total = await db.security_events.count_documents(q)
+        cur = db.security_events.find(q, {"_id": 0}).sort("created_at", -1).limit(limit)
+        rows = await cur.to_list(length=limit)
+        items = [{
+            "ts": r.get("created_at"),
+            "kind": r.get("kind"),
+            "pattern_matched": r.get("kind"),  # alias — same signal lives in `kind`
+            "session_role": r.get("role_state"),
+            "session_id": r.get("session_id"),
+            "message_excerpt": r.get("user_message_excerpt") or "",
+            "action": r.get("action"),
+        } for r in rows]
+
+        # by_kind aggregate over the SAME since/kind filter (kind filter is
+        # idempotent on aggregate — if set it returns a single row).
+        agg_q: Dict[str, Any] = {}
+        if since:
+            agg_q["created_at"] = {"$gte": since}
+        if kind:
+            agg_q["kind"] = kind
+        pipe = [
+            {"$match": agg_q},
+            {"$group": {"_id": "$kind", "count": {"$sum": 1}}},
+            {"$project": {"_id": 0, "kind": "$_id", "count": 1}},
+            {"$sort": {"count": -1}},
+        ]
+        by_kind = await db.security_events.aggregate(pipe).to_list(length=50)
+        return {"total": total, "by_kind": by_kind, "items": items}
 
     return router
 
