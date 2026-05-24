@@ -647,6 +647,31 @@ def build_admin_router(db) -> APIRouter:
         by_kind = await db.security_events.aggregate(pipe).to_list(length=50)
         return {"total": total, "by_kind": by_kind, "items": items}
 
+    # ---------------- Phase 18 — Deck Vector Engine fallback status ----------------
+    @router.get("/deck_search/status")
+    async def deck_search_status(limit_calls: int = 25):
+        """Phase 18 (Workstream A) operations panel.
+
+        Surfaces:
+          * The current flag state (`enabled`) + soft kill-switch suspension.
+          * In-memory ring buffer of the most recent calls (status, latency,
+            totalIndexed_seen, audience-dropped counts) — useful when the
+            ops team is debugging unexpected zero-result responses.
+          * A bounded slice of the `deck_search_calls` telemetry collection
+            for longer-window auditing.
+        """
+        from agents import deck_search as _ds
+        snap = _ds.status()
+        rows: List[Dict[str, Any]] = []
+        try:
+            cur = db.deck_search_calls.find({}, {"_id": 0}).sort("created_at", -1).limit(max(1, min(limit_calls, 200)))
+            async for row in cur:
+                rows.append(row)
+        except Exception:
+            logger.exception("deck_search_status query failed (non-fatal)")
+        snap["recent_telemetry"] = rows
+        return snap
+
     return router
 
 

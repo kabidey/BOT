@@ -149,15 +149,51 @@ SMALL_TALK_PROMPT = (
 )
 
 
-def _maybe_inject_context(system_prompt: str, identity_obj: Optional[Dict[str, Any]]) -> str:
+# Phase 18 — Workstream B (multilingual). Three-locale v1 (en / hi / ta).
+# Locale instruction is appended (non-negotiable wording — adherence is
+# load-bearing) to the system prompt for every branch when the session
+# carries a non-English locale.
+SUPPORTED_LOCALES = {"en", "hi", "ta"}
+_LOCALE_INSTRUCTION = {
+    "hi": (
+        "\n\nRespond entirely in Hindi. Use Devanagari script for Hindi. "
+        "Keep technical terms (PAN, UCC, NAV, AUM, ARN, SIP, NCD) in English "
+        "where they are proper nouns."
+    ),
+    "ta": (
+        "\n\nRespond entirely in Tamil. Use Tamil script for Tamil. "
+        "Keep technical terms (PAN, UCC, NAV, AUM, ARN, SIP, NCD) in English "
+        "where they are proper nouns."
+    ),
+}
+
+
+def _maybe_inject_context(system_prompt: str, identity_obj: Optional[Dict[str, Any]],
+                          locale: Optional[str] = None) -> str:
     block = auth_agent.context_block_for(identity_obj)
-    return system_prompt + block if block else system_prompt
+    out = system_prompt + block if block else system_prompt
+    # Phase 18 — locale instruction. The locale travels separately from
+    # identity (visitors have no identity but may still want Hindi/Tamil),
+    # so honour the explicit `locale` arg first, then fall back to anything
+    # the identity blob carries. English (default) leaves the prompt untouched.
+    loc = (locale or (identity_obj or {}).get("locale") or "en").lower()
+    if loc in _LOCALE_INSTRUCTION:
+        out = out + _LOCALE_INSTRUCTION[loc]
+    return out
+
+
+def locale_instruction(locale: Optional[str]) -> str:
+    """Public hook so the RAG agent (which builds its own system prompt)
+    can append the same locale instruction string. Returns "" for English."""
+    loc = (locale or "en").lower()
+    return _LOCALE_INSTRUCTION.get(loc, "")
 
 
 async def _branch_small_talk(message: str, history: List[Dict[str, Any]],
                              identity_obj: Optional[Dict[str, Any]],
-                             emit_token: TokenEmitter = None) -> Dict[str, Any]:
-    msgs = [{"role": "system", "content": _maybe_inject_context(SMALL_TALK_PROMPT, identity_obj)}]
+                             emit_token: TokenEmitter = None,
+                             locale: Optional[str] = None) -> Dict[str, Any]:
+    msgs = [{"role": "system", "content": _maybe_inject_context(SMALL_TALK_PROMPT, identity_obj, locale=locale)}]
     msgs += [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
     msgs.append({"role": "user", "content": message})
     if emit_token is not None:
@@ -194,7 +230,8 @@ async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
                             emit_citations: CitationsEmitter = None,
                             db=None,
                             session_type: Optional[str] = None,
-                            auth_state: Optional[str] = None) -> Dict[str, Any]:
+                            auth_state: Optional[str] = None,
+                            locale: Optional[str] = None) -> Dict[str, Any]:
     if emit_token is not None:
         full_text = ""
         citations: List[Dict[str, Any]] = []
@@ -204,7 +241,7 @@ async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
         fallback_blocks: List[Dict[str, Any]] = []
         async for ev, data in rag_agent.stream_answer(
             message, history, client_context=identity_obj, session_id=session_id,
-            session_type=session_type, auth_state=auth_state, db=db,
+            session_type=session_type, auth_state=auth_state, db=db, locale=locale,
         ):
             if ev == "citations":
                 citations = data
@@ -228,7 +265,7 @@ async def _branch_knowledge(message: str, history: List[Dict[str, Any]],
         return result
     out = await rag_agent.answer(
         message, history, client_context=identity_obj, session_id=session_id,
-        session_type=session_type, auth_state=auth_state, db=db,
+        session_type=session_type, auth_state=auth_state, db=db, locale=locale,
     )
     blocks = [{"type": "text", "text": out["reply_text"], "grounded": out["grounded"]}]
     if out.get("fallback_blocks"):
@@ -601,6 +638,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
             session_context = {
                 "session_type": auth_row.get("session_type", "visitor"),
                 "auth_state": auth_row.get("auth_state"),
+                "locale": (auth_row.get("locale") or "en"),
             }
             routing = await classify(message, history, session_context=session_context)
             intent = routing["intent"]
@@ -630,6 +668,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
                     emit_token=emit_token, emit_citations=emit_citations, db=db,
                     session_type=session_context.get("session_type"),
                     auth_state=session_context.get("auth_state"),
+                    locale=session_context.get("locale"),
                 )
                 if isinstance(out, dict) and out.get("intent_hint"):
                     intent = out["intent_hint"]
@@ -658,7 +697,10 @@ async def run_turn(db, session_id: Optional[str], message: str,
             elif intent == "ESCALATION":
                 out = await _branch_escalation(message)
             else:  # SMALL_TALK
-                out = await _branch_small_talk(message, history, identity_obj, emit_token=emit_token)
+                out = await _branch_small_talk(
+                    message, history, identity_obj, emit_token=emit_token,
+                    locale=session_context.get("locale"),
+                )
             trace.append({"step": "specialist", "intent": intent, "status": "ok"})
 
     # Promote intent_hint into the final intent if the auth agent emitted one.

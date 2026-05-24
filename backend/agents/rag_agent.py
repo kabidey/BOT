@@ -170,7 +170,8 @@ def _hits_to_chunks(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def _build_messages(message: str, history: List[Dict[str, Any]],
                     grounded: bool, client_context: Optional[Dict[str, Any]],
-                    session_type: Optional[str] = None) -> List[Dict[str, str]]:
+                    session_type: Optional[str] = None,
+                    locale: Optional[str] = None) -> List[Dict[str, str]]:
     system_content = BASE_PROMPT + (GROUNDED_INSTR if grounded else UNGROUNDED_INSTR)
     if client_context:
         from .auth_agent import context_block_for
@@ -181,6 +182,10 @@ def _build_messages(message: str, history: List[Dict[str, Any]],
     if (session_type == "visitor") or (session_type is None and not client_context):
         import identity as _id
         system_content = system_content + _id.visitor_context_block()
+    # Phase 18 — multilingual locale instruction (Workstream B).
+    if locale and locale.lower() != "en":
+        from .orchestrator import locale_instruction
+        system_content = system_content + locale_instruction(locale)
     trimmed = history[-(RAG_HISTORY_TURNS * 2):]
     history_msgs = [{"role": m["role"], "content": m["content"]} for m in trimmed]
     return [{"role": "system", "content": system_content}] + history_msgs + [
@@ -219,6 +224,9 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "provider": h.get("provider"),
             "language": h.get("language"),
             "audience": h.get("audience") or "all",
+            # Phase 18 — Workstream A: flag the engine that produced this hit
+            # so the FE can render a subtle differentiator (no UI change yet).
+            "source_engine": h.get("source_engine") or "local_cosine",
         }
         return {k: v for k, v in out.items() if v is not None}
 
@@ -245,7 +253,8 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 async def _retrieve(message: str, session_type: Optional[str] = None,
-                    auth_state: Optional[str] = None) -> Tuple[List[Dict[str, Any]], bool, Dict[str, Any]]:
+                    auth_state: Optional[str] = None,
+                    locale: Optional[str] = None) -> Tuple[List[Dict[str, Any]], bool, Dict[str, Any]]:
     """Phase 9 retrieval + Phase 10/16 role gating.
 
     - employee + verified → all sources, all audiences
@@ -274,6 +283,27 @@ async def _retrieve(message: str, session_type: Optional[str] = None,
         restrict_sources=restrict, restrict_audiences=restrict_audiences,
     )
     grounded = bool(hits) and any(h["score"] >= RAG_MIN_SCORE for h in hits)
+
+    # Phase 18 — Deck Vector Engine fallback (Workstream A). Lazy and
+    # flag-gated; only fires when local cosine returns no above-threshold
+    # candidate. Imported lazily so test environments without httpx still
+    # import rag_agent cleanly.
+    if not grounded:
+        try:
+            from . import deck_search as _ds
+            deck_hits = await _ds.deck_search(
+                message, top_k=RAG_TOP_K,
+                session_type=session_type, auth_state=auth_state,
+                locale=(locale or "en"),
+            )
+            if deck_hits:
+                # Sort deck hits last among same-tier candidates by capping
+                # their score at the cosine threshold ceiling.
+                hits = hits + deck_hits
+                grounded = any(h["score"] >= RAG_MIN_SCORE for h in deck_hits)
+        except Exception:  # never block the user turn on deck failure
+            pass
+
     analysis = guardrails.analyse_retrieval(hits)
     return hits, grounded, analysis
 
@@ -333,9 +363,10 @@ async def answer(message: str, history: List[Dict[str, Any]],
                  session_id: Optional[str] = None,
                  session_type: Optional[str] = None,
                  auth_state: Optional[str] = None,
-                 db=None) -> Dict[str, Any]:
+                 db=None,
+                 locale: Optional[str] = None) -> Dict[str, Any]:
     """Non-streaming entry point. Returns {reply_text, citations, grounded, model}."""
-    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state)
+    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state, locale=locale)
     citations = _build_citations(hits) if grounded else []
 
     # Phase 11 — smarter short-circuit: always escalate brand-specific /
@@ -368,7 +399,7 @@ async def answer(message: str, history: List[Dict[str, Any]],
             "grounded": False, "model": None, "intent_hint": "ESCALATION",
         }
 
-    messages = _build_messages(message, history, grounded, client_context, session_type=session_type)
+    messages = _build_messages(message, history, grounded, client_context, session_type=session_type, locale=locale)
     chunks = _hits_to_chunks(hits) if grounded else None
     result = await chat_with_fallback(
         messages, context_chunks=chunks, session_id=session_id, intent="KNOWLEDGE",
@@ -411,8 +442,9 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
                         session_id: Optional[str] = None,
                         session_type: Optional[str] = None,
                         auth_state: Optional[str] = None,
-                        db=None) -> AsyncGenerator[Tuple[str, Any], None]:
-    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state)
+                        db=None,
+                        locale: Optional[str] = None) -> AsyncGenerator[Tuple[str, Any], None]:
+    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state, locale=locale)
     citations = _build_citations(hits) if grounded else []
     yield ("citations", citations)
 
@@ -447,7 +479,7 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
         })
         return
 
-    messages = _build_messages(message, history, grounded, client_context, session_type=session_type)
+    messages = _build_messages(message, history, grounded, client_context, session_type=session_type, locale=locale)
     chunks = _hits_to_chunks(hits) if grounded else None
     full_text = ""
     model_used: Optional[str] = None

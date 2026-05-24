@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle, Square } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle, Square, Globe } from "lucide-react";
 
 import TextBlock from "@/components/blocks/TextBlock";
 import VehicleCtaBlock from "@/components/blocks/VehicleCtaBlock";
@@ -19,6 +19,7 @@ import RoleChoiceBlock from "@/components/blocks/RoleChoiceBlock";
 import ProductChoiceBlock from "@/components/blocks/ProductChoiceBlock";
 import SaleFormBlock from "@/components/blocks/SaleFormBlock";
 import SaleConfirmationBlock from "@/components/blocks/SaleConfirmationBlock";
+import LocaleChoiceBlock, { LOCALE_OPTIONS } from "@/components/blocks/LocaleChoiceBlock";
 
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
 const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
@@ -50,6 +51,11 @@ export default function Chat({ embedded = false }) {
   const [identity, setIdentity] = useState(null); // full identity blob (employee|client)
   const [hydrating, setHydrating] = useState(false);
   const [widgetCfg, setWidgetCfg] = useState(null); // /api/widget/config response (embed mode)
+  // Phase 18 — multilingual locale state. Persists across refresh via localStorage.
+  const LOCALE_KEY = embedded ? "mackertich_embed_locale" : "smifs_locale";
+  const [locale, setLocale] = useState(() => localStorage.getItem(LOCALE_KEY) || "en");
+  const [localeMenuOpen, setLocaleMenuOpen] = useState(false);
+  const localePopoverRef = useRef(null);
   const listRef = useRef(null);
   const abortRef = useRef(null);
   const SUGGESTIONS = (widgetCfg && widgetCfg.suggestion_chips && widgetCfg.suggestion_chips.length)
@@ -210,6 +216,13 @@ export default function Chat({ embedded = false }) {
         else setClient(null);
         if (data.identity) setIdentity(data.identity);
         else setIdentity(null);
+        // Phase 18 — sync server-side locale on rehydrate. If the server has
+        // a different value than localStorage (e.g. session resumed cross-
+        // device), the server is authoritative.
+        if (data.locale && data.locale !== locale) {
+          setLocale(data.locale);
+          localStorage.setItem(LOCALE_KEY, data.locale);
+        }
         const restored = (data.history || []).map((h) => {
           if (h.role === "user") return { role: "user", content: h.text };
           return {
@@ -479,13 +492,60 @@ export default function Chat({ embedded = false }) {
     try {
       const { data } = await axios.post(`${API}/sessions/${freshSid}/select_role`, { role });
       setAuthState(data.auth_state || null);
-      if (data.blocks && data.blocks.length) {
-        setMessages([{ role: "assistant", blocks: data.blocks, citations: [] }]);
+      const initialBlocks = (data.blocks && data.blocks.length) ? [...data.blocks] : [];
+      // Phase 18 — surface the LocaleChoiceBlock right after the role pick so
+      // users see the language toggle inline before sending their first turn.
+      initialBlocks.push({ type: "locale_choice", data: {} });
+      setMessages([{ role: "assistant", blocks: initialBlocks, citations: [] }]);
+      // If the user already had a non-English locale stashed locally, replay
+      // it to the new session so the next turn honours it from the get-go.
+      if (locale && locale !== "en") {
+        try {
+          await axios.post(`${API}/agent/locale`, { session_id: freshSid, locale });
+        } catch (_) { /* non-fatal */ }
       }
     } catch (e) {
       setErrorMsg(e?.response?.data?.detail || "Couldn't start the session.");
     }
   };
+
+  // Phase 18 — push locale change to backend and persist locally.
+  const applyLocale = useCallback(async (nextLocale) => {
+    if (!nextLocale || nextLocale === locale) {
+      setLocaleMenuOpen(false);
+      return;
+    }
+    setLocale(nextLocale);
+    localStorage.setItem(LOCALE_KEY, nextLocale);
+    setLocaleMenuOpen(false);
+    if (sessionId) {
+      try {
+        await axios.post(`${API}/agent/locale`, { session_id: sessionId, locale: nextLocale });
+      } catch (e) {
+        // Surface a tiny banner but don't unwind the optimistic update — the
+        // FE locale flag itself is harmless even if the backend write 502s.
+        setErrorMsg("Couldn't save the language preference. We'll keep trying.");
+      }
+    }
+  }, [API, LOCALE_KEY, locale, sessionId]);
+
+  // Click-outside / Escape closes the header locale popover.
+  useEffect(() => {
+    if (!localeMenuOpen) return;
+    const onClick = (ev) => {
+      if (localePopoverRef.current && !localePopoverRef.current.contains(ev.target)) {
+        setLocaleMenuOpen(false);
+      }
+    };
+    const onKey = (ev) => { if (ev.key === "Escape") setLocaleMenuOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [localeMenuOpen]);
+
 
   const onCitationClick = (msgIdx, citIdx) => {
     setActiveCitation((cur) =>
@@ -646,6 +706,16 @@ export default function Chat({ embedded = false }) {
             onAgain={(opt) => handleSaleConfAgain(opt)}
           />
         );
+      case "locale_choice":
+        return (
+          <LocaleChoiceBlock
+            key={key}
+            data={block.data}
+            current={locale}
+            disabled={false}
+            onChoice={(opt) => applyLocale(opt.id)}
+          />
+        );
       case "escalation_card":
         {
           // Grab the user question that triggered this escalation (preceding user turn)
@@ -729,6 +799,28 @@ export default function Chat({ embedded = false }) {
               </button>
             </div>
           )}
+          <div className="smifs-locale-popover-wrap" ref={localePopoverRef}>
+            <button
+              type="button"
+              className="smifs-locale-trigger"
+              aria-haspopup="dialog"
+              aria-expanded={localeMenuOpen ? "true" : "false"}
+              aria-label="Change reply language"
+              title="Change reply language"
+              data-testid="locale-toggle"
+              onClick={() => setLocaleMenuOpen((v) => !v)}
+            >
+              <Globe size={13} strokeWidth={2.25} />
+              <span data-testid="locale-current">{(LOCALE_OPTIONS.find((o) => o.id === locale)?.native) || "English"}</span>
+            </button>
+            {localeMenuOpen && (
+              <LocaleChoiceBlock
+                variant="popover"
+                current={locale}
+                onChoice={(opt) => applyLocale(opt.id)}
+              />
+            )}
+          </div>
           <div className="smifs-status" data-testid="health-pill">
             {health?.llm_reachable ? (
               <>

@@ -102,3 +102,61 @@ auth flow.
   - **knowledge_gaps.py + KnowledgeGapsTab.jsx**: new `by_role` counter strip showing hallu/WM/unique per client/employee/visitor.
 - **Deliverable**: `/app/deliverables/phase16/kb_matrix.md` — 23-row regression matrix.
 - **Verified live**: Phase 16 backfill ran successfully → 1977 chunks upserted, 84 audience=employee_only (sales_pitch + growth_*). Retrieval gating + bedrock boost verified in-process.
+
+---
+## Phase 18 — Deck-search fallback + multilingual (Feb 24, 2026)
+
+### Workstream A — Deck Vector Engine fallback (default OFF)
+- **`backend/agents/deck_search.py`** (new): lazy fall-through to
+  `POST https://deck.pesmifs.com/api/knowledge/search`. `enabled()` reads the
+  `DECK_SEARCH_FALLBACK` env flag fresh on every call so ops can flip it
+  without a restart. Soft kill-switch: 10 consecutive `totalIndexed==0`
+  responses → 1h backoff (one `security_events` row per suspension).
+- **Audience drop**: deck hits with `source ∈ {sales_pitch, growth_insurance,
+  growth_revenue}` are dropped for non-employee sessions (mirrors the local
+  retrieval audience gate). Drops are logged.
+- **Telemetry**: per-call rows into `deck_search_calls` (auto-prunes at 50k).
+- **`rag_agent._retrieve`** triggers `deck_search()` only when local cosine
+  retrieval returns no above-threshold hit. Hits are returned in the same
+  shape as `rag.search_weighted` so `_hits_to_chunks` / `_build_citations`
+  consume them unchanged. Citation rows tagged `source_engine: deck_search`.
+- **`GET /api/admin/deck_search/status`** (admin-token): returns flag state,
+  suspension window, in-memory ring buffer, recent telemetry slice.
+
+### Workstream B — Multilingual UX (English / Hindi / Tamil)
+- **`POST /api/agent/locale`**: persists `locale` on the `sessions` row
+  (validated against `^(en|hi|ta)$`). `GET /api/sessions/{id}` returns it.
+- **`orchestrator.locale_instruction()`** + **`_maybe_inject_context(...,
+  locale=...)`**: appends the strict instruction
+  `"Respond entirely in <Hindi|Tamil>. Use Devanagari/Tamil script. Keep
+  technical terms (PAN, UCC, NAV, AUM, ARN, SIP, NCD) in English where
+  they are proper nouns."` to every system prompt for hi/ta sessions.
+  English (default) is a no-op.
+- **`rag_agent._build_messages` + `answer`/`stream_answer`** accept a
+  `locale` kwarg and append the same instruction so RAG-grounded answers
+  honour the chosen language.
+- **`LocaleChoiceBlock.jsx`** (new): two variants —
+  - `variant="block"` chip row rendered inline immediately after the role
+    pick (so first-time users always see the language toggle).
+  - `variant="popover"` rendered from the header globe trigger for
+    mid-session switching.
+- **Header globe** in `Chat.jsx` + click-outside / Escape handling.
+- **Forms + structured data stay in English** — only chat prose localises.
+
+### Tests
+- `backend/tests/test_phase18_deck_search.py` — 8 tests (flag short-circuit,
+  audience drop matrix, end-to-end with mocked HTTP).
+- `backend/tests/test_phase18_locale.py` — 9 tests (instruction wording,
+  inject_context override rules, unknown-locale safety).
+
+### Verified live
+- Hindi reply: `नमस्ते! मैं मैकेर्टिच वन का वेल्थ-एंगेजमेंट एजेंट…`
+- Tamil reply: `வணக்கம், AIF என்பது Alternative Investment Fund ஆகும்…`
+- Admin status snapshot: `enabled=false, suspended=false, calls=0`.
+
+### Backlog (deferred to Phase 18.1+)
+- Bengali (bn) / Gujarati (gu) / Marathi (mr) — currently a `(en|hi|ta)`
+  whitelist on the API.
+- Hybrid local+deck merge ranker (deck hits currently appended after local
+  candidates).
+- Translation of the role-gate / static welcome card prose.

@@ -2011,6 +2011,162 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 .smifs-role-choice__btn.is-picked { opacity: 0.6; transform: scale(0.98); }
 .smifs-role-choice__btn:disabled { cursor: not-allowed; }
 
+/* ---- Phase 18 — Multilingual locale choice block ---- */
+.smifs-locale-choice {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 18px 14px;
+  margin-top: 8px;
+}
+.smifs-locale-choice__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.smifs-locale-choice__title { line-height: 1.35; }
+.smifs-locale-choice__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.smifs-locale-choice__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+}
+.smifs-locale-choice__chip:hover { background: rgba(9,140,98,0.12); border-color: var(--smifs-green); }
+.smifs-locale-choice__chip.is-picked {
+  background: var(--smifs-green);
+  color: #fff;
+  border-color: var(--smifs-green);
+}
+.smifs-locale-choice__chip-native { font-weight: 600; }
+.smifs-locale-choice__chip-label { font-size: 12px; opacity: 0.8; }
+.smifs-locale-choice__chip:disabled { cursor: not-allowed; opacity: 0.55; }
+.smifs-locale-choice__foot {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* Header globe icon */
+.smifs-locale-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+.smifs-locale-trigger:hover { background: rgba(9,140,98,0.14); border-color: var(--smifs-green); }
+.smifs-locale-trigger[aria-expanded="true"] {
+  background: var(--smifs-green);
+  border-color: var(--smifs-green);
+  color: #fff;
+}
+
+.smifs-locale-popover-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.smifs-locale-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  z-index: 90;
+  background: #0d2a23;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+}
+.smifs-locale-popover__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 13px;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+.smifs-locale-popover__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.smifs-locale-popover__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  color: var(--ink);
+  position: relative;
+}
+.smifs-locale-popover__item:hover { background: rgba(9,140,98,0.10); border-color: var(--smifs-green); }
+.smifs-locale-popover__item.is-picked {
+  background: rgba(9,140,98,0.18);
+  border-color: var(--smifs-green);
+}
+.smifs-locale-popover__native {
+  font-size: 14px;
+  font-weight: 600;
+}
+.smifs-locale-popover__hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.smifs-locale-popover__item .lucide {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--smifs-green);
+}
+.smifs-locale-popover__foot {
+  margin-top: 10px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+
 /* product-choice — 5 product buttons */
 .smifs-product-choice {
   background: rgba(255,255,255,0.04);

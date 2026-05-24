@@ -614,6 +614,7 @@ async def get_session(session_id: str):
         "session_type": auth_row.get("session_type", "visitor"),
         "auth_state": auth_row.get("auth_state"),
         "lifecycle": auth_row.get("lifecycle", "active"),
+        "locale": auth_row.get("locale") or "en",
         "identity": identity_obj,
         # Back-compat: old FE expects `client` key
         "client": ({"name": (identity_obj or {}).get("first_name") or "Client",
@@ -671,6 +672,47 @@ async def session_select_role(session_id: str, payload: SelectRoleRequest):
         "blocks": result.get("blocks", []),
         "intent": result.get("intent_hint"),
     }
+
+
+# ---------------- Phase 18 — multilingual locale ----------------
+SUPPORTED_LOCALES = {"en", "hi", "ta"}
+
+
+class LocaleRequest(BaseModel):
+    session_id: str = Field(..., min_length=1)
+    locale: str = Field(..., pattern="^(en|hi|ta)$")
+
+
+class LocaleResponse(BaseModel):
+    session_id: str
+    locale: str
+    supported: List[str]
+
+
+@api_router.post("/agent/locale", response_model=LocaleResponse)
+async def set_locale(req: LocaleRequest):
+    """Phase 18 — Workstream B. Update the session-level locale that the
+    orchestrator injects into every LLM system prompt for the next turn.
+
+    Forms + structured data stay in English by design; only the chat
+    response prose is localised.
+    """
+    if req.locale not in SUPPORTED_LOCALES:
+        raise HTTPException(status_code=400, detail=f"Unsupported locale: {req.locale}")
+    from agents import auth_agent
+    # Ensure the session row exists so the upsert never silently no-ops.
+    await auth_agent.get_or_create_session_row(db, req.session_id)
+    now_dt = datetime.now(timezone.utc)
+    await db.sessions.update_one(
+        {"_id": req.session_id},
+        {"$set": {"locale": req.locale,
+                  "updated_at": now_dt.isoformat(),
+                  "updated_at_dt": now_dt}},
+    )
+    return LocaleResponse(
+        session_id=req.session_id, locale=req.locale,
+        supported=sorted(SUPPORTED_LOCALES),
+    )
 
 
 # ---------------- Phase 7 — rehydration endpoints ----------------
