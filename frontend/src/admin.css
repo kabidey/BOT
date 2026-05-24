@@ -531,3 +531,163 @@
 .smifs-widget-jsonpreview { margin-top: 12px; font-size: 0.8rem; }
 .smifs-widget-jsonpreview pre { background: #f6f4ee; color: #16263a; padding: 10px; border-radius: 6px; max-height: 240px; overflow: auto; }
 @media (max-width: 980px) { .smifs-widget-grid { grid-template-columns: 1fr; } .smifs-widget-preview { position: static; } }
+
+/* ============================================================ */
+/* Phase 14 — Sales Pipeline tab                                 */
+/* ============================================================ */
+.smifs-admin-kpis {
+  display: flex;
+  gap: 12px;
+  margin: 14px 0 16px;
+  flex-wrap: wrap;
+}
+.smifs-admin-kpi {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  min-width: 160px;
+  color: var(--ink);
+}
+.smifs-admin-kpi--wide { flex: 1; min-width: 360px; }
+.smifs-admin-kpi-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink-muted);
+}
+.smifs-admin-kpi-value {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--ink);
+}
+.smifs-admin-kpi-value span { color: var(--gold); font-size: 14px; }
+.smifs-admin-kpi-breakdown {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.smifs-admin-prod-pill {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(9,140,98,0.16);
+  color: var(--ink);
+}
+
+.smifs-admin-filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+.smifs-admin-filter-row label {
+  display: flex;
+  flex-direction: column;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  gap: 4px;
+}
+.smifs-admin-filter-row select {
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-family: var(--font-sans);
+  min-width: 140px;
+}
+
+.smifs-admin-status {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+.smifs-admin-status--submitted  { background: rgba(201,168,106,0.22); color: var(--gold); }
+.smifs-admin-status--logged     { background: rgba(9,140,98,0.22);    color: var(--gold-soft); }
+.smifs-admin-status--funded     { background: rgba(9,140,98,0.34);    color: #fff; }
+.smifs-admin-status--reconciled { background: rgba(78,167,128,0.46);  color: #fff; }
+.smifs-admin-status--cancelled  { background: rgba(224,122,110,0.22); color: var(--danger); }
+
+.smifs-admin-pill--ok {
+  background: rgba(9,140,98,0.22);
+  color: var(--gold-soft);
+}
+.smifs-admin-pill--skip {
+  background: rgba(255,255,255,0.06);
+  color: var(--ink-muted);
+}
+
+.smifs-admin-row-click { cursor: pointer; }
+.smifs-admin-row-click:hover { background: rgba(9,140,98,0.08); }
+
+.smifs-admin-drawer-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.42);
+  z-index: 200;
+  display: flex; justify-content: flex-end;
+}
+.smifs-admin-drawer {
+  width: min(640px, 100vw);
+  background: var(--navy-900);
+  border-left: 1px solid var(--line-strong);
+  padding: 22px 26px;
+  overflow-y: auto;
+  font-family: var(--font-sans);
+}
+.smifs-admin-drawer-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 18px;
+}
+.smifs-admin-drawer-head h3 {
+  margin: 0;
+  font-family: var(--font-serif);
+  color: var(--gold);
+  font-size: 19px;
+}
+.smifs-admin-section {
+  margin: 18px 0 8px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--gold);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+.smifs-admin-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px 18px;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.smifs-admin-detail-grid b { color: var(--ink-muted); font-weight: 500; font-size: 11.5px;
+  text-transform: uppercase; letter-spacing: 0.5px; }
+.smifs-admin-detail-grid code { font-family: JetBrains Mono, monospace; font-size: 13px; }
+.smifs-admin-drawer-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.smifs-admin-drawer-actions select {
+  background: rgba(0,0,0,0.22);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.smifs-admin-empty { text-align: center; padding: 24px; color: var(--ink-muted); }
+.smifs-admin-dim   { color: var(--ink-muted); font-size: 12.5px; }

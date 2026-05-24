@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive, TrendingDown } from "lucide-react";
+import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive, TrendingDown, Briefcase } from "lucide-react";
 
 import OverviewTab from "@/components/admin/OverviewTab";
 import LeadsTab from "@/components/admin/LeadsTab";
+import SalesPipelineTab from "@/components/admin/SalesPipelineTab";
 import CostLedgerTab from "@/components/admin/CostLedgerTab";
 import InsightsTab from "@/components/admin/InsightsTab";
 import KnowledgeGapsTab from "@/components/admin/KnowledgeGapsTab";
@@ -18,6 +19,7 @@ const TOKEN_KEY = "smifs_admin_token";
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "leads", label: "Leads", icon: Inbox },
+  { id: "sales", label: "Sales Pipeline", icon: Briefcase },
   { id: "cost", label: "Cost Ledger", icon: Wallet },
   { id: "insights", label: "Insights", icon: BarChart3 },
   { id: "gaps", label: "Knowledge Gaps", icon: TrendingDown },
@@ -123,6 +125,7 @@ export default function Admin() {
   const TabComp =
     activeTab === "overview" ? OverviewTab :
     activeTab === "leads"    ? LeadsTab :
+    activeTab === "sales"    ? SalesPipelineTab :
     activeTab === "cost"     ? CostLedgerTab :
     activeTab === "insights" ? InsightsTab :
     activeTab === "gaps"     ? KnowledgeGapsTab :

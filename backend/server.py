@@ -735,6 +735,8 @@ async def widget_config_preflight(request: Request):
 
 
 # ---------------- App wiring ----------------
+import sales_api
+api_router.include_router(sales_api.build_router(db))
 app.include_router(api_router)
 app.include_router(build_admin_router(db))
 bind_llm_db(db)

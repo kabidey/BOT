@@ -461,6 +461,114 @@ def build_admin_router(db) -> APIRouter:
         rows = await _h.list_handoffs(db, limit=limit)
         return {"handoffs": rows, "count": len(rows)}
 
+    # ---------------- Phase 14 — Sales Pipeline ----------------
+    @router.get("/sales")
+    async def list_sales(limit: int = 50, since: Optional[str] = None,
+                          product: Optional[str] = None,
+                          status: Optional[str] = None):
+        """List sales (newest first). Client PAN masked in this view."""
+        limit = max(1, min(int(limit or 50), 200))
+        q: Dict[str, Any] = {}
+        if since:
+            q["created_at"] = {"$gte": since}
+        if product:
+            q["product"] = product
+        if status:
+            q["status"] = status
+        total = await db.sales_entries.count_documents(q)
+        cur = db.sales_entries.find(q, {"_id": 0}).sort("created_at", -1).limit(limit)
+        rows = await cur.to_list(length=limit)
+        items: List[Dict[str, Any]] = []
+        for r in rows:
+            cli = r.get("client") or {}
+            emp = r.get("employee") or {}
+            name = (cli.get("client_name") or "").strip()
+            masked_name = name
+            if " " in name:
+                parts = name.split()
+                masked_name = parts[0] + " " + (parts[-1][:1] + "***" if parts[-1] else "")
+            items.append({
+                "submission_id": r.get("submission_id"),
+                "product": r.get("product"),
+                "employee_name": emp.get("name"),
+                "employee_id": emp.get("employee_id"),
+                "client_name_masked": masked_name,
+                "amount_inr": r.get("amount_inr"),
+                "expected_login_date": r.get("expected_login_date"),
+                "expected_payment_date": r.get("expected_payment_date"),
+                "status": r.get("status"),
+                "email_sent": bool(r.get("email_sent")),
+                "email_status": r.get("email_status"),
+                "created_at": r.get("created_at"),
+            })
+        # KPIs
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        now = _dt.now(_tz.utc)
+        today_iso = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        week_iso = (now - _td(days=7)).isoformat()
+        kpis = {
+            "today_count": await db.sales_entries.count_documents({"created_at": {"$gte": today_iso}}),
+            "week_count": await db.sales_entries.count_documents({"created_at": {"$gte": week_iso}}),
+        }
+        # by-product breakdown (last 7d)
+        pipe = [
+            {"$match": {"created_at": {"$gte": week_iso}}},
+            {"$group": {"_id": "$product", "count": {"$sum": 1},
+                        "total_inr": {"$sum": "$amount_inr"}}},
+            {"$project": {"_id": 0, "product": "$_id", "count": 1, "total_inr": 1}},
+        ]
+        kpis["by_product_7d"] = await db.sales_entries.aggregate(pipe).to_list(length=10)
+        # today + week total INR
+        for label, gte in (("today_total_inr", today_iso), ("week_total_inr", week_iso)):
+            agg = await db.sales_entries.aggregate([
+                {"$match": {"created_at": {"$gte": gte}}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount_inr"}}},
+            ]).to_list(length=1)
+            kpis[label] = (agg[0]["total"] if agg else 0)
+        return {"total": total, "items": items, "kpis": kpis}
+
+    @router.get("/sales/{submission_id}")
+    async def sale_detail(submission_id: str):
+        row = await db.sales_entries.find_one({"submission_id": submission_id}, {"_id": 0})
+        if not row:
+            raise HTTPException(status_code=404, detail="Sale not found")
+        return row  # full payload incl. plaintext PAN (admin-only)
+
+    @router.patch("/sales/{submission_id}/status")
+    async def update_sale_status(submission_id: str, payload: Dict[str, Any]):
+        new_status = (payload.get("status") or "").strip().lower()
+        allowed = {"submitted", "logged", "funded", "reconciled", "cancelled"}
+        if new_status not in allowed:
+            raise HTTPException(status_code=400, detail=f"status must be one of {sorted(allowed)}")
+        res = await db.sales_entries.update_one(
+            {"submission_id": submission_id},
+            {"$set": {"status": new_status,
+                      "status_updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        if res.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Sale not found")
+        return {"ok": True, "submission_id": submission_id, "status": new_status}
+
+    @router.post("/sales/{submission_id}/resend_email")
+    async def resend_sale_email(submission_id: str):
+        row = await db.sales_entries.find_one({"submission_id": submission_id}, {"_id": 0})
+        if not row:
+            raise HTTPException(status_code=404, detail="Sale not found")
+        import email_relay as _er
+        result = await _er.send_sale_notification(row)
+        await db.sales_entries.update_one(
+            {"submission_id": submission_id},
+            {"$set": {
+                "email_sent": bool(result.get("ok")),
+                "email_status": result.get("reason"),
+                "email_recipients": result.get("recipients") or [],
+                "email_sent_at": (datetime.now(timezone.utc).isoformat()
+                                   if result.get("ok") else row.get("email_sent_at")),
+            }},
+        )
+        return {"ok": result.get("ok"), "reason": result.get("reason"),
+                "recipients": result.get("recipients")}
+
     # ---------------- Phase 13 — errors + security_events read surface ----------------
     @router.get("/errors")
     async def list_errors(limit: int = 50, since: Optional[str] = None):

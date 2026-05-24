@@ -1,19 +1,48 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
 
+/* ============================================================
+   Phase 14 — SMIFS.com brand-matched palette
+   Source probe: /app/backend/SMIFS_BRAND.md
+   We keep the legacy variable NAMES (--navy-*, --gold) so the
+   1800-line file doesn't need a global rewrite — only the VALUES
+   shift from navy/gold to smifs-green/emerald.
+   ============================================================ */
 :root {
-  --navy-900: #0b1b2b;
-  --navy-800: #0f2235;
-  --navy-700: #142b41;
-  --navy-600: #1a3851;
-  --line: rgba(201, 168, 106, 0.18);
-  --line-strong: rgba(201, 168, 106, 0.42);
-  --gold: #c9a86a;
-  --gold-soft: #d8bd86;
-  --gold-deep: #a98548;
-  --ink: #e9e2d0;
-  --ink-muted: #97a6b4;
-  --ink-dim: #6e7e8c;
-  --danger: #e07a6e;
+  /* Dark "navy" spine now reads as SMIFS deep-green */
+  --navy-900: #023726;   /* smifs darkest-CTA — shell background */
+  --navy-800: #064c34;   /* slightly lifted */
+  --navy-700: #0a5c41;   /* hover surfaces */
+  --navy-600: #0f6e4f;   /* borders / lifted cards */
+
+  --line: rgba(9, 140, 98, 0.20);
+  --line-strong: rgba(9, 140, 98, 0.46);
+
+  /* Accent "gold" now reads as SMIFS primary green */
+  --gold:      #098c62;
+  --gold-soft: #14a47a;
+  --gold-deep: #066b4a;
+
+  /* Body ink — keep warm-light against the deep-green background */
+  --ink:       #ecf3ef;
+  --ink-muted: #a4c4b4;
+  --ink-dim:   #6e8b7c;
+  --danger:    #e07a6e;
+
+  /* SMIFS-named tokens for fresh components */
+  --smifs-green:        #098c62;
+  --smifs-green-deep:   #065b40;
+  --smifs-green-darkest:#023726;
+  --smifs-green-tint:   #e8f5ef;
+  --smifs-ink:          #191a15;
+  --smifs-ink-muted:    #808080;
+  --smifs-hairline:     #d9d9d9;
+  --smifs-canvas:       #ffffff;
+  --smifs-canvas-soft:  #f9f9f9;
+
+  /* Typography */
+  --font-serif: "Libre Baskerville", Georgia, "Times New Roman", serif;
+  --font-sans:  "Inter", "Helvetica Neue", -apple-system, BlinkMacSystemFont,
+                "Segoe UI", Roboto, system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -26,10 +55,16 @@ html, body, #root, .App {
 body {
   background: var(--navy-900);
   color: var(--ink);
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   letter-spacing: 0.005em;
+}
+
+/* Serif headlines wherever the legacy CSS uses Cormorant Garamond. */
+.smifs-brand-title, .smifs-header h1, .smifs-card-title, h1.smifs-h1, h2.smifs-h2 {
+  font-family: var(--font-serif);
+  letter-spacing: 0.4px;
 }
 
 /* ---------- Shell ---------- */
@@ -37,8 +72,8 @@ body {
   position: relative;
   min-height: 100vh;
   width: 100%;
-  background: radial-gradient(1200px 700px at 85% -10%, #14304a 0%, transparent 55%),
-              radial-gradient(900px 600px at -10% 110%, #0a1f33 0%, transparent 60%),
+  background: radial-gradient(1200px 700px at 85% -10%, #0e624a 0%, transparent 55%),
+              radial-gradient(900px 600px at -10% 110%, #032a1d 0%, transparent 60%),
               var(--navy-900);
   display: flex;
   flex-direction: column;
@@ -92,7 +127,7 @@ body {
   display: grid; place-items: center;
   border: 1px solid var(--line-strong);
   color: var(--gold);
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 600;
   font-size: 24px;
   letter-spacing: 0.04em;
@@ -101,7 +136,7 @@ body {
 
 .smifs-title {
   margin: 0;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 28px;
   letter-spacing: 0.01em;
@@ -169,7 +204,7 @@ body {
 }
 .smifs-welcome-title {
   margin: 0 0 14px;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: clamp(32px, 4vw, 44px);
   line-height: 1.1;
@@ -461,7 +496,7 @@ body {
 }
 .smifs-popover-title {
   margin: 0 0 4px;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 22px;
   color: #f3ecd8;
@@ -652,7 +687,7 @@ body {
 }
 .smifs-form-title {
   margin: 2px 0 0;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 22px;
   color: #f3ecd8;
@@ -760,7 +795,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 }
 .smifs-form-success-title {
   margin: 0 0 4px;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-size: 20px;
   font-weight: 500;
   color: #f3ecd8;
@@ -820,7 +855,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   text-transform: uppercase;
 }
 .smifs-mkt-price {
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 38px;
   color: #f3ecd8;
@@ -869,7 +904,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 }
 .smifs-client-name {
   margin: 0;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 22px;
   color: #f3ecd8;
@@ -928,7 +963,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 }
 .smifs-esc-title {
   margin: 0;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 22px;
   color: #f3ecd8;
@@ -1055,7 +1090,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   color: rgba(243,236,216,0.55);
 }
 .smifs-kpi-value {
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 30px;
   color: #f3ecd8;
@@ -1093,7 +1128,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 .smifs-admin-card header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .smifs-admin-h3 {
   margin: 0;
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 20px;
   color: #f3ecd8;
@@ -1209,7 +1244,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   display: flex; flex-direction: column; line-height: 1.1;
 }
 .smifs-client-chip-name {
-  font-family: "Cormorant Garamond", serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 14px;
   color: #f3ecd8;
@@ -1290,7 +1325,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   color: var(--gold); margin: 0 0 4px;
 }
 .smifs-emp-name {
-  font-family: "Cormorant Garamond", serif; font-weight: 600;
+  font-family: var(--font-serif); font-weight: 600;
   font-size: 22px; color: var(--ink); margin: 0;
 }
 .smifs-emp-eid {
@@ -1419,7 +1454,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   display: flex; justify-content: space-between; align-items: flex-start;
   margin-bottom: 6px; gap: 12px;
 }
-.smifs-admin-detail-head h3 { margin: 0; font-family: "Cormorant Garamond", serif; font-size: 22px; color: var(--ink); }
+.smifs-admin-detail-head h3 { margin: 0; font-family: var(--font-serif); font-size: 22px; color: var(--ink); }
 .smifs-admin-transcript {
   margin-top: 12px; flex: 1; overflow: auto;
   border-top: 1px solid var(--line); padding-top: 10px;
@@ -1819,7 +1854,7 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   color: var(--gold); font-weight: 600; margin: 0 0 10px;
 }
 .smifs-role-title {
-  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-family: var(--font-serif);
   font-size: 30px; font-weight: 500; color: var(--ink);
   letter-spacing: 0.005em; margin: 0 0 6px;
 }
@@ -1870,3 +1905,307 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   to { opacity: 1; transform: translateY(0); }
 }
 
+
+/* ============================================================
+   Phase 14 — sales-ops bridge blocks
+   ============================================================ */
+.smifs-block { width: 100%; }
+
+/* role-choice — Yes/No after employee verify */
+.smifs-role-choice {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 18px 16px;
+  margin-top: 8px;
+}
+.smifs-role-choice__title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.smifs-role-choice__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.smifs-role-choice__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+.smifs-role-choice__btn.is-primary {
+  background: var(--smifs-green);
+  color: #fff;
+  border-color: var(--smifs-green);
+}
+.smifs-role-choice__btn.is-primary:hover { background: var(--smifs-green-deep); border-color: var(--smifs-green-deep); }
+.smifs-role-choice__btn.is-secondary {
+  background: transparent;
+  color: var(--ink);
+}
+.smifs-role-choice__btn.is-secondary:hover { background: rgba(9,140,98,0.16); }
+.smifs-role-choice__btn.is-picked { opacity: 0.6; transform: scale(0.98); }
+.smifs-role-choice__btn:disabled { cursor: not-allowed; }
+
+/* product-choice — 5 product buttons */
+.smifs-product-choice {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 18px 16px;
+  margin-top: 8px;
+}
+.smifs-product-choice__title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.smifs-product-choice__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.smifs-product-choice__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background 0.15s, transform 0.15s, border-color 0.15s;
+}
+.smifs-product-choice__btn:hover {
+  background: rgba(9,140,98,0.18);
+  border-color: var(--smifs-green);
+}
+.smifs-product-choice__btn.is-picked {
+  background: var(--smifs-green);
+  color: #fff;
+  border-color: var(--smifs-green);
+}
+.smifs-product-choice__btn:disabled { cursor: not-allowed; opacity: 0.6; }
+
+/* sale-form — inline form card */
+.smifs-sale-form {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+  margin-top: 8px;
+}
+.smifs-sale-form__heading {
+  font-family: var(--font-serif);
+  font-size: 19px;
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+.smifs-sale-form__heading span {
+  color: var(--gold);
+  font-weight: 700;
+}
+.smifs-sale-form__section {
+  margin: 18px 0 10px;
+  padding-bottom: 4px;
+  font-size: 11.5px;
+  color: var(--gold);
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+.smifs-sale-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 16px;
+}
+.smifs-sale-form__field { display: flex; flex-direction: column; }
+.smifs-sale-form__label {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+.smifs-sale-form__input,
+.smifs-sale-form select.smifs-sale-form__input,
+.smifs-sale-form textarea.smifs-sale-form__input {
+  width: 100%;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  padding: 9px 12px;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.smifs-sale-form__input:focus { border-color: var(--smifs-green); background: rgba(0,0,0,0.28); }
+.smifs-sale-form__input.is-error { border-color: var(--danger); }
+.smifs-sale-form__err {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--danger);
+}
+.smifs-sale-form__radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.smifs-sale-form__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.smifs-sale-form__radio.is-active {
+  background: var(--smifs-green);
+  border-color: var(--smifs-green);
+  color: #fff;
+}
+.smifs-sale-form__radio input { display: none; }
+.smifs-sale-form__alert {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: rgba(224,122,110,0.16);
+  border: 1px solid var(--danger);
+  border-radius: 9px;
+  color: var(--danger);
+  font-size: 13px;
+}
+.smifs-sale-form__actions {
+  margin-top: 22px;
+  display: flex;
+  justify-content: flex-end;
+}
+.smifs-sale-form__submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 22px;
+  background: var(--smifs-green);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.smifs-sale-form__submit:hover { background: var(--smifs-green-deep); }
+.smifs-sale-form__submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* sale-confirmation card */
+.smifs-sale-conf {
+  background: linear-gradient(180deg, rgba(9,140,98,0.18), rgba(9,140,98,0.06));
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 20px 22px;
+  margin-top: 8px;
+}
+.smifs-sale-conf__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gold-soft);
+  margin-bottom: 6px;
+}
+.smifs-sale-conf__title {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  color: var(--ink);
+}
+.smifs-sale-conf__ref {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-bottom: 14px;
+  font-family: var(--font-sans);
+}
+.smifs-sale-conf__ref span {
+  color: var(--gold);
+  font-weight: 600;
+  font-family: JetBrains Mono, monospace;
+}
+.smifs-sale-conf__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--ink);
+  border-bottom: 1px dashed var(--line);
+}
+.smifs-sale-conf__row span { color: var(--ink-muted); }
+.smifs-sale-conf__msg {
+  margin: 14px 0 12px;
+  font-size: 13.5px;
+  color: var(--ink-muted);
+}
+.smifs-sale-conf__cta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.smifs-sale-conf__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.smifs-sale-conf__btn.is-primary {
+  background: var(--smifs-green);
+  border-color: var(--smifs-green);
+  color: #fff;
+}
+.smifs-sale-conf__btn.is-primary:hover { background: var(--smifs-green-deep); }
+.smifs-sale-conf__btn:hover:not(.is-primary) { background: rgba(9,140,98,0.16); }
+
+/* Embed-mode override: when the chat is inside an iframe with a white card,
+   the form bg switches to light surface. */
+.smifs-embed .smifs-sale-form,
+.smifs-embed .smifs-role-choice,
+.smifs-embed .smifs-product-choice,
+.smifs-embed .smifs-sale-conf {
+  background: var(--smifs-canvas-soft);
+  border-color: var(--smifs-hairline);
+}
+.smifs-embed .smifs-sale-form__input { background: var(--smifs-canvas); color: var(--smifs-ink); border-color: var(--smifs-hairline); }
+.smifs-embed .smifs-sale-form__label,
+.smifs-embed .smifs-sale-conf__row span,
+.smifs-embed .smifs-sale-conf__msg,
+.smifs-embed .smifs-sale-conf__ref { color: var(--smifs-ink-muted); }
+.smifs-embed .smifs-sale-form__heading,
+.smifs-embed .smifs-sale-conf__title,
+.smifs-embed .smifs-role-choice__title,
+.smifs-embed .smifs-product-choice__title,
+.smifs-embed .smifs-sale-conf__row { color: var(--smifs-ink); }

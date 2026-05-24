@@ -14,6 +14,10 @@ import DirectoryCardBlock from "@/components/blocks/DirectoryCardBlock";
 import DirectoryListBlock from "@/components/blocks/DirectoryListBlock";
 import OrgStatsCardBlock from "@/components/blocks/OrgStatsCardBlock";
 import ReportingChainCardBlock from "@/components/blocks/ReportingChainCardBlock";
+import RoleChoiceBlock from "@/components/blocks/RoleChoiceBlock";
+import ProductChoiceBlock from "@/components/blocks/ProductChoiceBlock";
+import SaleFormBlock from "@/components/blocks/SaleFormBlock";
+import SaleConfirmationBlock from "@/components/blocks/SaleConfirmationBlock";
 
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
 const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
@@ -493,6 +497,62 @@ export default function Chat({ embedded = false }) {
     sendStreaming("Please call me back at your earliest convenience.");
   };
 
+  // ---------- Phase 14 sales-ops bridge handlers (pure client-side flow) ----------
+  const appendAssistantBlocks = (blocks, opts = {}) => {
+    setMessages((m) => [...m, {
+      role: "assistant", blocks,
+      content: blocks.filter((b) => b.type === "text").map((b) => b.text || "").join("\n\n"),
+      intent: opts.intent || null, model: opts.model || null, citations: [],
+    }]);
+  };
+
+  const handleRoleChoice = (opt) => {
+    if (!opt) return;
+    // Echo the user's choice as a regular user bubble so the transcript is honest.
+    setMessages((m) => [...m, { role: "user", content: opt.label }]);
+    if (opt.intent === "open_sale_flow" || opt.id === "log_sale") {
+      appendAssistantBlocks([
+        { type: "text", text: "Great — which product?" },
+        { type: "product_choice", data: {} },
+      ], { intent: "SALE_PRODUCT_PICK" });
+    } else {
+      appendAssistantBlocks([
+        { type: "text", text: "Sure — what would you like to know? I can help with directory lookups, product specifics, or the SMIFS knowledge base." },
+      ], { intent: "EMPLOYEE_QA_READY" });
+    }
+  };
+
+  const handleProductPick = (product) => {
+    if (!product) return;
+    setMessages((m) => [...m, { role: "user", content: product.label }]);
+    appendAssistantBlocks([
+      { type: "text", text: `Please fill in the ${product.label} sale details below — Sales Ops will pick it up as soon as you submit.` },
+      { type: "sale_form", data: { product: product.id } },
+    ], { intent: "SALE_FORM_OPEN" });
+  };
+
+  const handleSaleSubmitted = (resp) => {
+    if (!resp || !resp.submission_id) return;
+    appendAssistantBlocks([
+      { type: "sale_confirmation", data: resp },
+    ], { intent: "SALE_LOGGED" });
+  };
+
+  const handleSaleConfAgain = (opt) => {
+    if (!opt) return;
+    setMessages((m) => [...m, { role: "user", content: opt.label }]);
+    if (opt.id === "another_sale") {
+      appendAssistantBlocks([
+        { type: "text", text: "Of course — which product this time?" },
+        { type: "product_choice", data: {} },
+      ], { intent: "SALE_PRODUCT_PICK" });
+    } else {
+      appendAssistantBlocks([
+        { type: "text", text: "Sure — what would you like to know?" },
+      ], { intent: "EMPLOYEE_QA_READY" });
+    }
+  };
+
   const renderBlock = (block, bi, msgIdx, msg) => {
     const key = `${msgIdx}-${bi}`;
     switch (block.type) {
@@ -532,6 +592,44 @@ export default function Chat({ embedded = false }) {
         return <OrgStatsCardBlock key={key} block={block} />;
       case "reporting_chain_card":
         return <ReportingChainCardBlock key={key} block={block} />;
+      // ---- Phase 14: sales-ops bridge blocks ----
+      case "role_choice":
+        return (
+          <RoleChoiceBlock
+            key={key}
+            data={block.data}
+            disabled={msgIdx !== messages.length - 1}
+            onChoice={(opt) => handleRoleChoice(opt)}
+          />
+        );
+      case "product_choice":
+        return (
+          <ProductChoiceBlock
+            key={key}
+            data={block.data}
+            disabled={msgIdx !== messages.length - 1}
+            onPick={(p) => handleProductPick(p)}
+          />
+        );
+      case "sale_form":
+        return (
+          <SaleFormBlock
+            key={key}
+            data={block.data}
+            sessionId={sessionId}
+            disabled={msgIdx !== messages.length - 1}
+            onSubmitted={(resp) => handleSaleSubmitted(resp)}
+          />
+        );
+      case "sale_confirmation":
+        return (
+          <SaleConfirmationBlock
+            key={key}
+            data={block.data}
+            disabled={msgIdx !== messages.length - 1}
+            onAgain={(opt) => handleSaleConfAgain(opt)}
+          />
+        );
       case "escalation_card":
         {
           // Grab the user question that triggered this escalation (preceding user turn)

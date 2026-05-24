@@ -83,6 +83,7 @@ auth flow.
 - Phase 11: WhatsApp/Email handoff CTAs, Knowledge Gaps tab, 15-min KB delta-sync, Stop-generating button
 - Phase 12: OrgLens OpenAPI re-probe + 6 client tools (portfolio/ledger/trades/deposits/MF folios/SIPs); alphanumeric UCC fix; PII strip in `identity.raw`
 - **Phase 13 (Feb 2026)**: Resilient bot — always-reply envelope on every endpoint, SSE heartbeat→10s + hard 60s cap, adversarial-input short-circuit (24 injection patterns + recommendation/off-topic/profanity), self-healing UCC/PAN/email/phone parsing, role-aware graceful messages, new `errors` + `security_events` collections, 30-row acceptance matrix 30/30.
+- **Phase 14 (Feb 2026)**: smifs.com theme match (deep-green `#065B40` + emerald `#098C62` + Libre Baskerville) — all bot/admin surfaces re-skinned; Sales-Ops Bridge — verified employees get role choice → product picker → product-specific form for MF/AIF/PMS/FD/Insurance; `POST /api/sales` persists to `sales_entries` (PAN-hashed + plaintext for ops) with graceful-no-op SMTP relay via `aiosmtplib`; new admin Sales Pipeline tab with KPIs, row drawer, status workflow, resend email.
 
 ## Backlog
 - P1: Persistent device tokens for re-auth (skip PAN on same device)

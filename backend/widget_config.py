@@ -23,13 +23,15 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "bubble_icon": "💬",
     "position": "bottom-right",
     "theme": {
-        "primary": "#0B1B2B",
-        "accent": "#C9A86A",
+        # Phase 14 — SMIFS.com palette (smifs deep-green spine, emerald accent).
+        # See /app/backend/SMIFS_BRAND.md for the source probe.
+        "primary": "#065B40",         # smifs secondary-800 (deep green)
+        "accent": "#098C62",          # smifs primary-500 / lightgreen-500
         "background": "#FFFFFF",
-        "user_bubble": "#0B1B2B",
-        "assistant_bubble": "#F4F1EA",
-        "text": "#0B1B2B",
-        "header_bg": "#0B1B2B",
+        "user_bubble": "#065B40",
+        "assistant_bubble": "#F1F5F2", # very faint green tint
+        "text": "#191A15",            # smifs ink-900
+        "header_bg": "#023726",       # smifs darkest CTA
         "header_text": "#FFFFFF",
     },
     "suggestion_chips": [

@@ -556,8 +556,7 @@ def _employee_verified_payload(emp: Dict[str, Any]) -> Dict[str, Any]:
     rt_clause = f", reporting to {rt}" if rt else ""
     welcome = (
         f"Welcome, {first}. You're verified {role_clause}{rt_clause}. "
-        "Happy to help with internal product specifics, KB queries, or anything else. "
-        "How can I help today?"
+        "Would you like to log a new sale today, or do you have a question?"
     ).replace("verified .", "verified.")
     # Strip the bulky `raw` blob before shipping the card to the FE
     card_data = {k: v for k, v in emp.items() if k != "raw"}
@@ -566,6 +565,18 @@ def _employee_verified_payload(emp: Dict[str, Any]) -> Dict[str, Any]:
         "blocks": [
             {"type": "text", "text": welcome},
             {"type": "employee_card", "data": card_data},
+            # Phase 14 — Sales-Ops bridge: present the Yes/No choice right after
+            # the verified card so the rep doesn't have to ask twice.
+            {"type": "role_choice",
+             "data": {
+                 "title": "What would you like to do?",
+                 "options": [
+                     {"id": "log_sale", "label": "Yes — log a sale",
+                      "intent": "open_sale_flow"},
+                     {"id": "ask", "label": "No — I have a question",
+                      "intent": "continue_qa"},
+                 ],
+             }},
         ],
         "citations": [], "model": None,
         "intent_hint": "AUTH_VERIFIED",
