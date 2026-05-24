@@ -1,0 +1,130 @@
+{
+  "request": {
+    "q": "PURPLE STYLE LABS NCD debt funding focused vehicle",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "PURPLE STYLE LABS NCD debt funding focused vehicle",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "vehicle:cc602b11-9fc2-4bbd-b6af-df529f3bf719:0",
+          "score": 0.7818,
+          "source": "vehicle",
+          "sourceId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719",
+          "title": "PURPLE STYLE LABS | DEBT FUNDING",
+          "section": "NCD",
+          "content": "Investment Product: PURPLE STYLE LABS | DEBT FUNDING\nCategory: NCD\nPresently taking investments.\nAI sales pitch available in 13 languages.",
+          "metadata": {
+            "vehicleType": "NCD",
+            "customTypeName": null,
+            "isFocused": true,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": true,
+            "salesPitchLanguages": [
+              "en",
+              "hi",
+              "bn",
+              "mr",
+              "gu",
+              "ta",
+              "te",
+              "kn",
+              "ml",
+              "pa",
+              "or",
+              "ur",
+              "as"
+            ],
+            "updatedAt": "2026-05-10T21:27:39.652187+00:00"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:89",
+          "score": 0.5228,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "es, benchmark indices, expense ratios, and AUM.\nFunds...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 25\n\nSMIFS DECK FORTNIGHTLY OFFERINGS · May 2026 · Edition 2\nFORTNIGHTLY · NON-CONVERTIBLE DEBENTURES\nNon-Convertible Debentures.\nNON-CONVERTIBLE DEBENTURES\nNON-CONVERTIBLE DEBENTURES\nPURPLE STYLE LABS | DEBT FUNDING\nl PRESENTLY TAKING INVESTMENTS\n(cid:127) 4 reference documents on file\n(cid:127) The provided spreadsheet, titled \"PSLR KYI Sheet - NCDs,\" outlines key information required for\nNon-Convertible Debenture (NCD) investments. It captures investor details, including name, commitment\namount, father's na...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 26",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 89,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:c16c54bc-00cd-4cca-bb53-ea46098108b3:16",
+          "score": 0.5008,
+          "source": "documents_full",
+          "sourceId": "c16c54bc-00cd-4cca-bb53-ea46098108b3",
+          "title": "Aditya Birla Structured  Opportunities Fund Series 2 · ABSL Structured Opportunities Fund Series II_Deck.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "ting cash flows\nCalibrated portfolio construction to achieve blended IRR of 14.5% with low risk\n*PEP : Politically Exposed Person, EPC : Engineering, Procurement, and Construction 17\n\nInvestment Focus - Performing Credit Fund\nSectoral Universe\nAim to achieve\nFocus On\nblended IRR of 14.5%\nSteel Chemicals Roads Auto & Auto\nAncillaries\nLooking to Solve For Power Engineering & Ports Healthcare\nCapital Goods\nAcquisition Sponsor/Hold Last Mile Capex/ Mezz Debt\nFinance Co Finance Bridge Finance\nSolutions Offered\nBespoke Regulatory Quasi Equity Structured\nSituations Arbitrage Requirements Transactions\nPre-IPO Financing Late-\nFinancing Stage Start-ups\nDoor to door tenure not exceeding 4 years\n18",
+          "metadata": {
+            "vehicleId": "c9a9c7df-dfee-4fa5-b5e1-a2cbdcffd389",
+            "vehicleName": "Aditya Birla Structured  Opportunities Fund Series 2",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "ABSL Structured Opportunities Fund Series II_Deck.pdf",
+            "fileSize": 1331980,
+            "ordinal": 16,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "sales_pitch:cc602b11-9fc2-4bbd-b6af-df529f3bf719:en:0",
+          "score": 0.4978,
+          "source": "sales_pitch",
+          "sourceId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719:en",
+          "title": "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (English)",
+          "section": "Sales Pitch · NCD",
+          "content": "Headline: India's Luxury Boom Play — 45% Gross Margins, Zero Listed Competition, Pre-IPO Lock at 6.4x Revenue\n\nElevator: Purple Style Labs owns Pernia's Pop-Up Shop — India's #1 omni-channel luxury fashion destination, scaling 11x from FY21 to FY24 and targeting ₹1,600 Cr by FY29. This NCD offers 12-month fixed-income exposure to a monopolistic platform riding India's fastest-growing luxury segment — projected to hit $85–90 Bn by 2030 — with a marquee cap table (Binny Bansal, Bajaj Holdings, Utpal Sheth-RARE), imminent 12–18 month IPO, and breakeven-to-double-digit EBITDA inflection already underway.\n\nIdeal Client: ₹50L–5Cr ticket HNI / family office with 12–24 month horizon, appetite for structured credit in high-growth private cos, seeking pre-IPO exposure with downside protection and comfort in consumption-led India themes.",
+          "metadata": {
+            "vehicleId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719",
+            "vehicleName": "PURPLE STYLE LABS | DEBT FUNDING",
+            "vehicleType": "NCD",
+            "language": "en",
+            "languageLabel": "English",
+            "languageNative": "English",
+            "isFocused": true,
+            "generatedAt": "2026-05-10T21:32:36.194666+00:00",
+            "model": "claude-sonnet-4-5-20250929",
+            "ordinal": 0
+          }
+        },
+        {
+          "id": "documents_full:c16c54bc-00cd-4cca-bb53-ea46098108b3:38",
+          "score": 0.4909,
+          "source": "documents_full",
+          "sourceId": "c16c54bc-00cd-4cca-bb53-ea46098108b3",
+          "title": "Aditya Birla Structured  Opportunities Fund Series 2 · ABSL Structured Opportunities Fund Series II_Deck.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "ignificant capex for downstream value addition.\n• Project being funded in Debt to Equity mix of 3:1; Senior debt has been sanctioned\n• At the time of transaction, ~50% of equity was pumped in; funding sought for part of balance equity portion\n• Debt backed by charge over Borrower assets\n• Also secured by exclusive pledge & CG of group company (owns property valued at 3.0x debt amount)\n• Tenor: 48 months, with Put/ Call option of 36 months\n• Stipulated Security Cover: 2.5x; actual cover considering Issuer & guarantor assets is > 3.0x\n• Amortizing structure; quarterly servicing from cashflows\nExit Strategy\n• Even at peak borrowings, Company likely to have net debt to EBITDA of less than 3.0x\n• Can be comfortably serviced through operating cash flows of Borrower over 3- 4 years and part refinance.\nInvestment – Rs 79 Cr || IRR – 15.6%\n30",
+          "metadata": {
+            "vehicleId": "c9a9c7df-dfee-4fa5-b5e1-a2cbdcffd389",
+            "vehicleName": "Aditya Birla Structured  Opportunities Fund Series 2",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "ABSL Structured Opportunities Fund Series II_Deck.pdf",
+            "fileSize": 1331980,
+            "ordinal": 38,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 2488
+    },
+    "elapsed_ms": 2418
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "request": {
+    "q": "PMS திட்டம் என்ன",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "PMS திட்டம் என்ன",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "documents_full:ceff9f02-f43c-4179-9799-00909baad3e8:62",
+          "score": 0.3696,
+          "source": "documents_full",
+          "sourceId": "ceff9f02-f43c-4179-9799-00909baad3e8",
+          "title": "Aditya Birla Innovation Portfolio · ABSL Innovation_Deck.pdf",
+          "section": "Vehicle Document · PMS",
+          "content": "dicated PMS toll free No: 1800 270 7000\nAditya Birla Sun Life Portfolio Management Services is a division of Aditya Birla Sun Life AMC Limited\nCIN no. L65991MH1994PLC080811; Website: https://portfoliomanagementservices.adityabirlacapital.com/#\nOne World Center, Tower 1, 17th Floor, Jupiter Mills, Senapati Bapat Marg, Elphinstone Road, Mumbai - 400 013.\nTel: 4356 8000. Fax: 4356 8110 / 8111\n36\nAAddiittyyaa BBiirrllaa SSuunn LLiiffee AAMMCC LLiimmiitteedd",
+          "metadata": {
+            "vehicleId": "6224f168-9435-412e-ae72-eec9e932770c",
+            "vehicleName": "Aditya Birla Innovation Portfolio",
+            "vehicleType": "PMS",
+            "fileType": "pdf",
+            "fileName": "ABSL Innovation_Deck.pdf",
+            "fileSize": 1583161,
+            "ordinal": 62,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "growth_revenue:pms:0",
+          "score": 0.3448,
+          "source": "growth_revenue",
+          "sourceId": "pms",
+          "title": "PMS",
+          "section": "Growth · Revenue Sharing · PMS",
+          "content": "Revenue Sharing · PMS\n\nVertical: PMS\n\n[Table] PMS Strategies\nPMS Strategy | RM Credit\nASK SPECIAL OPPORTUNITIES PORTFOLIO | 0.035\nALCHEMY SELECT STOCK | 0.03\nALCHEMY SMART ALPHA 250 PMS | 0.025\nALCHEMY 250 | 0.018\nASK PMS | 0.035\nICICI PRUDENTIAL ACE | 0.029\nADITYA BIRLA - SELECT  SECTOR PORTFOLIO | 0.015",
+          "metadata": {
+            "vertical": "pms",
+            "label": "PMS",
+            "tableCount": 1,
+            "rowCount": 7,
+            "updatedAt": "2026-05-16T08:48:19.872472+00:00",
+            "updatedBy": "nandini.biswas@smifs.com"
+          }
+        },
+        {
+          "id": "vehicle:093c196e-3377-4d3d-90de-565a8b9cdb24:0",
+          "score": 0.3363,
+          "source": "vehicle",
+          "sourceId": "093c196e-3377-4d3d-90de-565a8b9cdb24",
+          "title": "ICICI Pru PMS Contra Strategy",
+          "section": "PMS",
+          "content": "Investment Product: ICICI Pru PMS Contra Strategy\nCategory: PMS",
+          "metadata": {
+            "vehicleType": "PMS",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-03-24T12:01:49.816703+00:00"
+          }
+        },
+        {
+          "id": "documents_full:43531267-f683-45e1-be4e-fca84d431bd6:18",
+          "score": 0.3294,
+          "source": "documents_full",
+          "sourceId": "43531267-f683-45e1-be4e-fca84d431bd6",
+          "title": "ASK Special Opportunities Portfolio (SOP) · ASK Special Opportunities Portfolio Presentation.pdf",
+          "section": "Vehicle Document · PMS",
+          "content": "ent by portfolio manager, adverse political or economic developments etc. The PMS is run with an objective to achieve reasonable returns consistently. Given this\nbackgroundtheinvestorinvestinginthePMSfacesthefollowingrisks\n(i)Political,economicand/orrelatedrisks\nTheAssetValueof theportfolio andtheliquidityof thesharesmaybeaffected bychanges ingovernment policy, taxation, interest rates,socialandreligious instabilityandpolitical, economic or other\ndevelopmentsinoraffectingIndia.\n(ii) Industryrisk\nThe value of shares of companies in a particular industry may be affected due to factors affecting the industry like changes in government policy on duties, FDI or a foreign country, which is a big\nmarketfortheindustry, mayimposerestrictionsonimportetc.\n(iii) TheIndianSecuritiesMarket\nThe Indian stock markets in the past experienced substantial price volatility and no assurance can be given that",
+          "metadata": {
+            "vehicleId": "9290fc10-c1f4-499d-8eec-b76af7c65e8f",
+            "vehicleName": "ASK Special Opportunities Portfolio (SOP)",
+            "vehicleType": "PMS",
+            "fileType": "pdf",
+            "fileName": "ASK Special Opportunities Portfolio Presentation.pdf",
+            "fileSize": 1762757,
+            "ordinal": 18,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "vehicle:b6c27cb4-2e45-4917-b36b-78cde9069335:0",
+          "score": 0.3269,
+          "source": "vehicle",
+          "sourceId": "b6c27cb4-2e45-4917-b36b-78cde9069335",
+          "title": "ICICI Pru PMS ACE Strategy",
+          "section": "PMS",
+          "content": "Investment Product: ICICI Pru PMS ACE Strategy\nCategory: PMS",
+          "metadata": {
+            "vehicleType": "PMS",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-03-24T12:00:49.933671+00:00"
+          }
+        }
+      ],
+      "totalIndexed": 2486
+    },
+    "elapsed_ms": 2434
+  }
+}

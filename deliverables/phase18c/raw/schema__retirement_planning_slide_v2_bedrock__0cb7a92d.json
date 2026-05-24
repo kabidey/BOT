@@ -1,0 +1,11 @@
+{
+  "request": {
+    "q": "Retirement planning slide v2 bedrock",
+    "top_k": 5
+  },
+  "response": {
+    "ok": false,
+    "status": 520,
+    "elapsed_ms": 55
+  }
+}

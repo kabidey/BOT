@@ -1,0 +1,117 @@
+{
+  "request": {
+    "q": "investment opportunities right now",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "investment opportunities right now",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "documents_full:5de42226-9a9b-44f6-a311-4fc9c85dfe85:45",
+          "score": 0.5494,
+          "source": "documents_full",
+          "sourceId": "5de42226-9a9b-44f6-a311-4fc9c85dfe85",
+          "title": "ICICI Prudential  Alpha Opportunities  Fund · ICICI Pru_Alpha Opportunites Fund_Deck.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "Market Opportunities,\nunderappreciated by others\nconsolidation in sectors,\nchanging consumer trends,\nspecial situations,\nbusinesses facing\ntemporary headwinds\nTheaforesaidfactorsareonlyindicative.Theremaybeotherrisksthatmayberelevantdependinguponvariedmarketconditions.KindlyrefertothePPMfordetailedriskfactors.\nTheinformationcontainedhereinissolelyforprivatecirculationforreading/understandingofregistereddistributorsandshouldnotbecirculatedtoinvestors/prospectiveinvestors. 26",
+          "metadata": {
+            "vehicleId": "95f8a4da-f26e-43bb-beb8-3a165c6b05da",
+            "vehicleName": "ICICI Prudential  Alpha Opportunities  Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "ICICI Pru_Alpha Opportunites Fund_Deck.pdf",
+            "fileSize": 1944265,
+            "ordinal": 45,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:5de42226-9a9b-44f6-a311-4fc9c85dfe85:9",
+          "score": 0.5349,
+          "source": "documents_full",
+          "sourceId": "5de42226-9a9b-44f6-a311-4fc9c85dfe85",
+          "title": "ICICI Prudential  Alpha Opportunities  Fund · ICICI Pru_Alpha Opportunites Fund_Deck.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "ntainedhereinissolelyforprivatecirculationforreading/understandingofregistereddistributorsandshouldnotbecirculatedtoinvestors/prospectiveinvestors. 5\n\nMicro Drivers of Opportunities\nTrade Consumption\nExports promotion Improving penetration\nImports substitution Higher discretionary\nspending\nInvestment Government Policies\nLocal/regional Unorganised to\nmanufacturing base organized\nAutomation and Change in regulations\nDigitisation led opportunities\nTheinformationcontainedhereinissolelyforprivatecirculationforreading/understandingofregistereddistributorsandshouldnotbecirculatedtoinvestors/prospectiveinvestors. 6\n\nOpportunities in\nEquity Markets",
+          "metadata": {
+            "vehicleId": "95f8a4da-f26e-43bb-beb8-3a165c6b05da",
+            "vehicleName": "ICICI Prudential  Alpha Opportunities  Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "ICICI Pru_Alpha Opportunites Fund_Deck.pdf",
+            "fileSize": 1944265,
+            "ordinal": 9,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:622",
+          "score": 0.5213,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "d:358)(cid:406)(cid:241)(cid:360)(cid:326)(cid:287)(cid:417)\nGlobal Private Equity Firms\nAvailability of Capital High Low (Paucity of Capital) High\n• (cid:80)(cid:326)(cid:312)(cid:320)(cid:856)(cid:165)(cid:437)(cid:241)(cid:349)(cid:326)(cid:429)(cid:468)(cid:856)(cid:187)(cid:287)(cid:360)(cid:241)(cid:360)(cid:429)(cid:417)(cid:856)(cid:241)(cid:360)(cid:279)(cid:856)(cid:163)(cid:241)(cid:437)(cid:272)(cid:326)(cid:429)(cid:468)(cid:856)(cid:371)(cid:311)(cid:856)(cid:32)(cid:241)(cid:406)(cid:326)(cid:429)(cid:241)(cid:349)\n• Opportunity to invest in companies that buymid-sized high quality commercial real estate due to lower availability of\ncapital in this segment\n(cid:819)(cid:856)",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 622,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:160",
+          "score": 0.5155,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "vestments in\nownership past 16 years, across\nstrategies for Real Estate\nAssets with high quality tenants\nInvestments including\nCommercial real estate assets\n(cid:85)(cid:360)(cid:279)(cid:326)(cid:241)(cid:856)(cid:831)(cid:856)(cid:128)(cid:311)(cid:486)(cid:272)(cid:287)(cid:856)(cid:429)(cid:371)(cid:856)(cid:429)(cid:320)(cid:287)(cid:856)(cid:218)(cid:371)(cid:409)(cid:349)(cid:279)\nIndia has advantage of (cid:349)(cid:241)(cid:409)(cid:312)(cid:287)(cid:856) (cid:128)(cid:311)(cid:486)(cid:272)(cid:287)(cid:856)(cid:417)(cid:406)(cid:241)(cid:272)(cid:287) has grown over ~2X Over the last decade (cid:73)(cid:409)(cid:371)(cid:462)(cid:429)(cid:320)(cid:856)(cid:326)(cid:360)(cid:856)\n(cid:429)(cid:241)(cid:349)(cid:287)(cid:360)(cid:429)(cid:856)(cid:406)(cid:371)(cid:371)(cid:349)(cid:856)being available for the last decade Rent has occurred despite",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 160,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:623",
+          "score": 0.5085,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "to invest in companies that buymid-sized high quality commercial real estate due to lower availability of\ncapital in this segment\n(cid:819)(cid:856) (cid:117)(cid:371)(cid:856)(cid:287)(cid:241)(cid:409)(cid:349)(cid:468)(cid:856)(cid:417)(cid:429)(cid:241)(cid:312)(cid:287)(cid:856)(cid:371)(cid:409)(cid:856)(cid:279)(cid:287)(cid:461)(cid:287)(cid:349)(cid:371)(cid:406)(cid:358)(cid:287)(cid:360)(cid:429)(cid:856)(cid:166)(cid:326)(cid:417)(cid:345)\n• Investments to be made in companies which will buy commercial properties that are completed, pre-leased or have\nlease commitments while nearing completion which reduces approval, construction and leasing risk (Not more than\n30% built to suit / vacant)\n(cid:819)(cid:856) (cid:163)(cid:371)(cid:326)(cid:417)(cid:287)(cid:279)(cid:856)(cid:311)(cid:371)(cid:409)(cid:856)(cid:73)(cid:409)(cid:371)(cid:462)(cid:429)(cid:320)\n• Focus on",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 623,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 2486
+    },
+    "elapsed_ms": 2424
+  }
+}

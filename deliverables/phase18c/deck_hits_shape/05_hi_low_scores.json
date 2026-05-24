@@ -1,0 +1,115 @@
+{
+  "request": {
+    "q": "निवेश के अवसर",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "निवेश के अवसर",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "vehicle:ea4ad966-01d9-41dc-aed9-15c0663b6250:0",
+          "score": 0.3141,
+          "source": "vehicle",
+          "sourceId": "ea4ad966-01d9-41dc-aed9-15c0663b6250",
+          "title": "NIVA-BUPA-ReAssure Forever",
+          "section": "Mediclaim",
+          "content": "Investment Product: NIVA-BUPA-ReAssure Forever\nCategory: Mediclaim",
+          "metadata": {
+            "vehicleType": "Mediclaim",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-05-05T11:11:05.946323+00:00"
+          }
+        },
+        {
+          "id": "sales_pitch:cc602b11-9fc2-4bbd-b6af-df529f3bf719:mr:1",
+          "score": 0.292,
+          "source": "sales_pitch",
+          "sourceId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719:mr",
+          "title": "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (Marathi)",
+          "section": "Sales Pitch · NCD",
+          "content": "नफा (उद्योगाच्या 25-35% पेक्षा जास्त), निव्वळ टेक-रेट वर्चस्व.\n- FY24 मध्ये 'ब्रेकइव्हन' (0.3% EBITDA); FY26 मध्ये 10% EBITDA, FY27 मध्ये ₹1,000 Cr महसूल, ₹120 Cr EBITDA अपेक्षित.\n\nHard Data & Track Record:\n- महसूल CAGR FY22-24: 70%; FY24 निव्वळ विक्री ₹508 Cr, FY29 लक्ष्य ₹1,600 Cr.\n- सकल नफा मार्जिन 43.2% (FY24) वरून 46.9% (FY28) पर्यंत वाढ; कॉन्ट्रिब्यूशन मार्जिन 5% वरून 15% (FY23-FY25) तिप्पट.\n- सध्याचे ₹3,513 Cr मूल्यांकन (FY25E महसुलाच्या 6.4x), Nykaa (8.4x), Ethos (7.0x) च्या तुलनेत 24% सवलतीत.\n\nWhy Now — The Window:\n- लक्झरी इन्फ्लेक्शन पॉईंट: भारत आता तिसरा सर्वात मोठा प्रायव्हेट-जेट बाजार; 163M USD मिलेनियर्स 2026 पर्यंत.\n- IPO बाहेर पडण्याची शक्यता: 12-18 महिन्यांत IPO मुळे लिक्विडिटी आणि डेट धारकांसाठी पुनर्-मूल्यांकन.\n\nClient Motivators:\n- भारताच्या लक्झरी वाढीत सहभागी व्हा: 1980 च्या चीन प्रमाणेच, PSL एकमेव मोठा ओमनी-चॅनेल ब्रँड.\n- निश्चित उत्पन्न व इक्विटीसारखे वाढीचे फायदे: एकाधिकार असलेल्या 'युनिकॉर्न' मध्ये सुरक्षित, प्रतिष्ठित पाठिंबा.",
+          "metadata": {
+            "vehicleId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719",
+            "vehicleName": "PURPLE STYLE LABS | DEBT FUNDING",
+            "vehicleType": "NCD",
+            "language": "mr",
+            "languageLabel": "Marathi",
+            "languageNative": "मराठी",
+            "isFocused": true,
+            "generatedAt": "2026-05-10T21:32:36.194666+00:00",
+            "model": "claude-sonnet-4-5-20250929",
+            "ordinal": 1
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:98",
+          "score": 0.2917,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "insurance\nsavings plan designed to cater to evolving financial needs at different life stages, such as education, li...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 29\n\nSMIFS DECK FORTNIGHTLY OFFERINGS · May 2026 · Edition 2\nINSURANCE\nBandhan Life iGuarantee VISHWAS\n(cid:127) 1 reference document on file\n(cid:127) Bandhan Life focuses on providing easy and simple life insurance solutions, boasting a 95%+ application\nissuance rate and a 99.66% claim settlement ratio in FY23-24, placing them among the industry's top 5 for four\nye...\nINSURANCE\nBandhan Life iIncome Wealth Plan\n(cid:127) 1 reference document on file\n(cid:127) \"Bharat ki Udaan, Bandhan Se\" highlights Indians' lack of emergency funds and struggles with rising expenses.\nIt introduces a non-linked participating life insurance plan as a solution.",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 98,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:99",
+          "score": 0.2914,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "ights Indians' lack of emergency funds and struggles with rising expenses.\nIt introduces a non-linked participating life insurance plan as a solution. The plan offers \"Advance Income...\nINSURANCE\nEdelweiss Life - Flexi Dream Plan\n(cid:127) 1 reference document on file\n(cid:127) The Edelweiss Life Flexi Dream Plan is a non-linked, participating, savings life insurance plan offering financial\nsecurity and customized payouts. Key features include Milestone and LiveLong options, the Two-gether o...\nINSURANCE\nEdelweiss Life – Assured Income STAR Plan\n(cid:127) 1 reference document on file\n(cid:127) Edelweiss Life Assured Income STAR is a non-linked, non-participating, savings life insurance plan offering\nfinancial security through life cover and guaranteed regular income.",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 99,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "sales_pitch:cc602b11-9fc2-4bbd-b6af-df529f3bf719:mr:2",
+          "score": 0.2814,
+          "source": "sales_pitch",
+          "sourceId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719:mr",
+          "title": "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (Marathi)",
+          "section": "Sales Pitch · NCD",
+          "content": "ागी व्हा: 1980 च्या चीन प्रमाणेच, PSL एकमेव मोठा ओमनी-चॅनेल ब्रँड.\n- निश्चित उत्पन्न व इक्विटीसारखे वाढीचे फायदे: एकाधिकार असलेल्या 'युनिकॉर्न' मध्ये सुरक्षित, प्रतिष्ठित पाठिंबा.\n\nObjection Handling:\nQ: वाढत्या कंपनीत कर्ज का, इक्विटी चांगली नाही का?\nA: निश्चित कूपनसह कर्ज डाउनसाइड संरक्षण देते; IPO मुळे इक्विटीसारखे वाढीचे फायदे मिळतील – दोन्हीचा फायदा.\nQ: लक्झरी खर्च ऐच्छिक आहे; मॅक्रो अर्थव्यवस्थेत बदल झाल्यास काय?\nA: $30M+ निव्वळ संपत्ती असलेल्या UHNWI चा खर्च बदलत नाही; PSL ची AOV, पुनरावृत्ती दर लवचिकता दर्शवते.\n\nConviction: भारताची लक्झरी लाट आली आहे – PSL ही एकमेव मोठी संधी आहे, गुंतवणूकदार मोठे आहेत, IPO जवळ आहे, NCD ची अंतिम तारीख 7 मे आहे. वाट पाहिल्यास 'नेक्स्ट नायका' चुकवाल!",
+          "metadata": {
+            "vehicleId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719",
+            "vehicleName": "PURPLE STYLE LABS | DEBT FUNDING",
+            "vehicleType": "NCD",
+            "language": "mr",
+            "languageLabel": "Marathi",
+            "languageNative": "मराठी",
+            "isFocused": true,
+            "generatedAt": "2026-05-10T21:32:36.194666+00:00",
+            "model": "claude-sonnet-4-5-20250929",
+            "ordinal": 2
+          }
+        }
+      ],
+      "totalIndexed": 2486
+    },
+    "elapsed_ms": 2586
+  }
+}

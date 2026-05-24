@@ -1,0 +1,116 @@
+{
+  "request": {
+    "q": "What is an AIF Category II?",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "What is an AIF Category II?",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "score": 0.6045,
+          "source": "bedrock",
+          "sourceId": "b4d11a33-5320-4373-9b3d-cb780c727ed0",
+          "title": "Category III AIFs- Slide 1",
+          "section": "brand",
+          "content": "Bedrock Item: Category III AIFs- Slide 1\nSection: brand\nVersion No: v12.1\nCollateral No: SMIFS-BR-023",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Mar 23, 2026 - Investment Insights - Category III AIFs - 1.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v12.1",
+            "collateralNo": "SMIFS-BR-023"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:39",
+          "score": 0.5646,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": ")(cid:417)(cid:287)(cid:409)\nFund AIF II\nTransformation of Commercial Real Estate\nTurning bricks into potential",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 39,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "vehicle:aa047bfe-6972-43b3-8b8b-189f264d71fd:0",
+          "score": 0.5624,
+          "source": "vehicle",
+          "sourceId": "aa047bfe-6972-43b3-8b8b-189f264d71fd",
+          "title": "Aditya Birla India Special Opportunities Fund Series II",
+          "section": "AIF",
+          "content": "Investment Product: Aditya Birla India Special Opportunities Fund Series II\nCategory: AIF",
+          "metadata": {
+            "vehicleType": "AIF",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-03-24T11:37:08.354563+00:00"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:24",
+          "score": 0.5619,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "id:358)(cid:326)(cid:417)(cid:287)(cid:409)\nFund AIF II\nTransformation of Commercial Real Estate\nTurning bricks into potential",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 24,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:48",
+          "score": 0.5588,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": ")(cid:287)(cid:409)\nFund AIF II\nTransformation of Commercial Real Estate\nTurning bricks into potential",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 48,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 2488
+    },
+    "elapsed_ms": 3419
+  }
+}

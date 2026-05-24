@@ -1,0 +1,117 @@
+{
+  "request": {
+    "q": "गुंतवणुकीच्या संधी",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "गुंतवणुकीच्या संधी",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:152",
+          "score": 0.3114,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "6)(cid:241)(cid:360)(cid:279)(cid:856)(cid:241)(cid:409)(cid:287)(cid:856)(cid:360)(cid:371)(cid:429)(cid:856)(cid:241)(cid:360)(cid:856)(cid:371)(cid:311)(cid:311)(cid:287)(cid:409)(cid:856)(cid:311)(cid:371)(cid:409)(cid:856)(cid:417)(cid:241)(cid:349)(cid:287)(cid:856)(cid:371)(cid:409)(cid:856)\n(cid:417)(cid:371)(cid:349)(cid:326)(cid:272)(cid:326)(cid:429)(cid:241)(cid:429)(cid:326)(cid:371)(cid:360)(cid:856)(cid:311)(cid:371)(cid:409)(cid:856)(cid:326)(cid:360)(cid:461)(cid:287)(cid:417)(cid:429)(cid:358)(cid:287)(cid:360)(cid:429)(cid:417)(cid:856)(cid:326)(cid:360)(cid:856)(cid:429)(cid:320)(cid:287)(cid:856)(cid:174)(cid:272)(cid:320)(cid:287)(cid:358)(cid:287)(cid:822)(cid:1)(cid:85)(cid:72)(cid:809)(cid:856)(cid:1)(cid:349)(cid:349)(cid:856)(cid:279)(cid:241)(cid:429)(cid:241)(cid:822)(cid:326)(cid:360)(cid:311)(cid:371)(cid:409)(cid:358)(cid:241)(cid:429)(cid:326)(cid:371)(ci",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 152,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:1eda3b42-f4ea-4e16-8958-16fb19a8f5d3:197",
+          "score": 0.3083,
+          "source": "documents_full",
+          "sourceId": "1eda3b42-f4ea-4e16-8958-16fb19a8f5d3",
+          "title": "ICICI Pru Growth Leaders Fund-Series VI · ICICI Pru Growth Leaders Fund Series VI - Presentation(Regular)_Feb 26 (1).pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "nexure – NSE Benchmark Report\nICICI Prudential Growth Leaders Fund – Series",
+          "metadata": {
+            "vehicleId": "0e6e0789-5bf5-48ba-830a-b35662d65987",
+            "vehicleName": "ICICI Pru Growth Leaders Fund-Series VI",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "ICICI Pru Growth Leaders Fund Series VI - Presentation(Regular)_Feb 26 (1).pdf",
+            "fileSize": 1592219,
+            "ordinal": 197,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:414",
+          "score": 0.3079,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "cid:279)(cid:241)(cid:429)(cid:287)(cid:417)(cid:809)",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 414,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:423",
+          "score": 0.3053,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "cid:241)(cid:429)(cid:287)(cid:417)(cid:809)",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 423,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:405",
+          "score": 0.3053,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "cid:406)(cid:279)(cid:241)(cid:429)(cid:287)(cid:417)(cid:809)",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 405,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 2486
+    },
+    "elapsed_ms": 2318
+  }
+}

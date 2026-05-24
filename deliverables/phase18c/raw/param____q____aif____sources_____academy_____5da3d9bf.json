@@ -1,0 +1,26 @@
+{
+  "request": {
+    "q": "AIF",
+    "top_k": 5,
+    "sources": [
+      "academy"
+    ]
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "AIF",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [
+        "academy"
+      ],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [],
+      "totalIndexed": 2486
+    },
+    "elapsed_ms": 470
+  }
+}

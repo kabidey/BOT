@@ -1,0 +1,11 @@
+{
+  "request": {
+    "q": "What is an AIF Category II?",
+    "top_k": 5
+  },
+  "response": {
+    "ok": false,
+    "status": 520,
+    "elapsed_ms": 52
+  }
+}

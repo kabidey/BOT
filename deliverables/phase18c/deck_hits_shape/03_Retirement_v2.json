@@ -1,0 +1,112 @@
+{
+  "request": {
+    "q": "Retirement planning slide v2 bedrock",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "Retirement planning slide v2 bedrock",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "bedrock:23295de8-aa82-4b5d-885e-194e22076882:meta",
+          "score": 0.8079,
+          "source": "bedrock",
+          "sourceId": "23295de8-aa82-4b5d-885e-194e22076882",
+          "title": "Retirement Planning- Slide 1",
+          "section": "brand",
+          "content": "Bedrock Item: Retirement Planning- Slide 1\nSection: brand\nVersion No: v2.1\nCollateral No: SMIFS-BR-003",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "WealthyMindset- slide 1.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v2.1",
+            "collateralNo": "SMIFS-BR-003"
+          }
+        },
+        {
+          "id": "bedrock:555420a8-b8ba-4936-9a25-39cda284b5df:meta",
+          "score": 0.8028,
+          "source": "bedrock",
+          "sourceId": "555420a8-b8ba-4936-9a25-39cda284b5df",
+          "title": "Retirement Planning- Slide 2",
+          "section": "brand",
+          "content": "Bedrock Item: Retirement Planning- Slide 2\nSection: brand\nVersion No: v2.2\nCollateral No: SMIFS-BR-004",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "WealthyMindset- Slide 2.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v2.2",
+            "collateralNo": "SMIFS-BR-004"
+          }
+        },
+        {
+          "id": "bedrock:53d5609e-2d97-4e36-b588-8433929dcfe2:meta",
+          "score": 0.6232,
+          "source": "bedrock",
+          "sourceId": "53d5609e-2d97-4e36-b588-8433929dcfe2",
+          "title": "Systematic Investment Plan- Slide 1",
+          "section": "brand",
+          "content": "Bedrock Item: Systematic Investment Plan- Slide 1\nSection: brand\nVersion No: v5.1\nCollateral No: SMIFS-BR-009",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Mar 10, 2026 - InsightsthatMatter - 1.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v5.1",
+            "collateralNo": "SMIFS-BR-009"
+          }
+        },
+        {
+          "id": "bedrock:dbfe29c1-9b62-435e-8c51-147dd77b8deb:meta",
+          "score": 0.6194,
+          "source": "bedrock",
+          "sourceId": "dbfe29c1-9b62-435e-8c51-147dd77b8deb",
+          "title": "Systematic Investment Plan- Slide 2",
+          "section": "brand",
+          "content": "Bedrock Item: Systematic Investment Plan- Slide 2\nSection: brand\nVersion No: v5.2\nCollateral No: SMIFS-BR-010",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Mar 10, 2026 - InsightsthatMatter - 2.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v5.2",
+            "collateralNo": "SMIFS-BR-010"
+          }
+        },
+        {
+          "id": "bedrock:3e7831b2-cb54-437a-8c08-c0bf95ee7b60:meta",
+          "score": 0.5954,
+          "source": "bedrock",
+          "sourceId": "3e7831b2-cb54-437a-8c08-c0bf95ee7b60",
+          "title": "Portfolio Rebalancing- Slide 1",
+          "section": "brand",
+          "content": "Bedrock Item: Portfolio Rebalancing- Slide 1\nSection: brand\nVersion No: v21.1\nCollateral No: SMIFS-BR-040",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Apr 06, 2026 - InsightsthatMatter - 1.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v21.1",
+            "collateralNo": "SMIFS-BR-040"
+          }
+        }
+      ],
+      "totalIndexed": 2488
+    },
+    "elapsed_ms": 3029
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "request": {
+    "q": "ARN transfer process for mutual funds",
+    "top_k": 5
+  },
+  "response": {
+    "ok": false,
+    "status": 520,
+    "elapsed_ms": 78
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "request": {
+    "q": "AIF",
+    "top_k": 5,
+    "sources": [
+      "bedrock"
+    ]
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "AIF",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [
+        "bedrock"
+      ],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "score": 0.5423,
+          "source": "bedrock",
+          "sourceId": "b4d11a33-5320-4373-9b3d-cb780c727ed0",
+          "title": "Category III AIFs- Slide 1",
+          "section": "brand",
+          "content": "Bedrock Item: Category III AIFs- Slide 1\nSection: brand\nVersion No: v12.1\nCollateral No: SMIFS-BR-023",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Mar 23, 2026 - Investment Insights - Category III AIFs - 1.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v12.1",
+            "collateralNo": "SMIFS-BR-023"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:8",
+          "score": 0.4751,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "file\n(cid:127) The ASK Absolute Return Fund, a Category III AIF, launched on January 31, 2024, employs a long-short,\nmulti-strategy investment style. Minimum investment is n1 crore with monthly redemptions after a 5-day notice.\nAs o...\n(cid:127) ASK Absolute Return Fund, an AIF Category III fund from ASK Group (INR 84,000 crores AUM), aims for\nabsolute returns with lower volatility than Indian equity indices. The experienced investment team of 19 years\nfocus...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 3",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 8,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "bedrock:61adff15-94c3-4119-befa-89ff33cd8d54:16",
+          "score": 0.448,
+          "source": "bedrock",
+          "sourceId": "61adff15-94c3-4119-befa-89ff33cd8d54",
+          "title": "SMIFS Corporate PPT",
+          "section": "corporate",
+          "content": "ourse.\nSEBI Reg: INZ000220635 | CDSL & NSDL: IN-DP-414-2019 | AMFI: ARN-3080 | PMS: INP000004623 | helpdesk@smifs.com Download ARTH App www.smifs.com\n\nAIF / PMS Strategic Collaboration\n MotilalOswalAsset Management Company\n Reliance AMC\n ICICI Prudential Asset Management Co. Ltd.\n IDFC\n Incred\n Negen\n I-wealth\n Carnelian AMC\n SundaramAlternate Assets Ltd.\n Ambit Investment Advisors Pvt Ltd.\n ASK Investment Managers\n Renaissance Invest\n Alchemy Capital Management Pvt.Ltd.\n Citrus Advisors\n Nippon Life India AIF Management Limited\n Aditya Birla Sun Life AMC Limited\n Invesco Asset Management (India) Private Limited\n UTI Alternatives\nSEBI Reg: INZ000220635 | CDSL & NSDL: IN-DP-414-2019 | AMFI: ARN-3080 | PMS: INP000004623 | helpdesk@smifs.com Download ARTH App www.smifs.com",
+          "metadata": {
+            "section": "corporate",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Corporate_8th May_2026_Geeta_Mumbai.pdf",
+            "ordinal": 16,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "bedrock:03a9c0fb-8404-4634-82bc-4d4b0ee25751:meta",
+          "score": 0.4332,
+          "source": "bedrock",
+          "sourceId": "03a9c0fb-8404-4634-82bc-4d4b0ee25751",
+          "title": "Category III AIFS- Slide 2",
+          "section": "brand",
+          "content": "Bedrock Item: Category III AIFS- Slide 2\nSection: brand\nVersion No: v12.2\nCollateral No: SMIFS-BR-024",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Mar 23, 2026 - Investment Insights - Category III AIFs - 2.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v12.2",
+            "collateralNo": "SMIFS-BR-024"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:21",
+          "score": 0.4078,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "ent on file\n(cid:127) Nippon India Digital Innovation (NIDI) Fund 2A is a \"Multi Manager Winners\" fund investing in growth-stage\ntechnology start-ups. It's backed by Nippon Life Insurance (NLI), a Fortune 500 company with $645B in assets....\nALTERNATIVE INVESTMENT FUNDS\nSundaram Alternative Opportunities Fund (ATLAS)\n(cid:127) 2 reference documents on file\n(cid:127) The Sundaram Alternative Opportunities Fund - ATLAS, an open-ended Category III AIF, focuses on India's\ngrowth story, drawing parallels to economic transformations in countries like China and the USA after crossing\nth...\n(cid:127) The Sundaram Alternative Opportunities Fund (ATLAS), a Category III AIF, targets long-term capital\nappreciation through a multi-cap portfolio of 15-25 stocks.",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 21,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 2486
+    },
+    "elapsed_ms": 871
+  }
+}

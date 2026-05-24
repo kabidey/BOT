@@ -1,0 +1,11 @@
+{
+  "request": {
+    "q": "PURPLE STYLE LABS NCD debt funding focused vehicle",
+    "top_k": 5
+  },
+  "response": {
+    "ok": false,
+    "status": 520,
+    "elapsed_ms": 55
+  }
+}

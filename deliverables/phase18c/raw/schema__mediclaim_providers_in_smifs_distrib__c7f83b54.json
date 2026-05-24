@@ -1,0 +1,109 @@
+{
+  "request": {
+    "q": "Mediclaim providers in SMIFS distribution",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "Mediclaim providers in SMIFS distribution",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:112",
+          "score": 0.5757,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "e plan. It offers\nenhanced protection against death and terminal illness, with options for accidental death benefits...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 34\n\nSMIFS DECK FORTNIGHTLY OFFERINGS · May 2026 · Edition 2\nFORTNIGHTLY · MEDICLAIM\nMediclaim.\nMEDICLAIM\nMEDICLAIM\nCare Supreme PPT\n(cid:127) 1 reference document on file\nMEDICLAIM\nCare Supreme.\n(cid:127) 1 reference document on file\nMEDICLAIM\nElevate-ICICII-Lombard\n(cid:127) 1 reference document on file\nMEDICLAIM\nHDFC ERGO\n(cid:127) 1 reference document on file\nMEDICLAIM\nNIVA-BUPA-ReAssure Forever\n(cid:127) 1 reference document on file\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 35",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 112,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "growth_insurance:779d4522-e8fa-4566-ab87-b2a6ff329130:0",
+          "score": 0.5285,
+          "source": "growth_insurance",
+          "sourceId": "779d4522-e8fa-4566-ab87-b2a6ff329130",
+          "title": "ICICI Lombard",
+          "section": "Growth · Insurance · Health",
+          "content": "Insurance Provider: ICICI Lombard\n\nCategory: Health\n\nNotes & disclaimers:\n- *Port revenue is applicable over & above 10lacs onwards.\n\n[Table] Default Grid\nProduct | PPT | Comm %\n    Indemnity New(Health Fresh)                         <5 Lac                     | 5 Lac                       >5 Lac                                    >=7 Lac                         | >=10 Lac\n             Revenue%                                                             0%                                                                      | 36.02%                 36.02%                                      36.02% | 36.02%\nIndemnity Long Term(Health with tenure)\t\t\t           Y2                                                                                                                                                                                                                                                                                                                                                                          Y3                 |                            Y3                                                            Y4                                               | Y5\n                                                                                                               21.19% |                        16.95%                                                 12.71%                               | 12.71%\nRenewal\t                                                                                                                    | Fresh(13th) | Repeat(25th Months)\n |     16.95%                                             |        12.71%\nTOP-up(Active Booster-4140/4113/4226)                            |       36.02% | \nFamily shiled, critishield, PA(Benefit-4111 / 4065 /4018) |       36.02% | \nTravel insurance |       36.02% | \nHome(4013/4118) |       36.02% | \nRollover(Port)\t\t\t\t\t                     >= 10 Lac |      16.95% |",
+          "metadata": {
+            "vertical": "insurance",
+            "provider": "ICICI Lombard",
+            "category": "Health",
+            "tableCount": 1,
+            "rowCount": 11,
+            "updatedAt": "2026-05-14T11:05:07.713333+00:00",
+            "updatedBy": "debashree.chakraborty@smifs.com"
+          }
+        },
+        {
+          "id": "bedrock:61d7ff0f-5847-4e4e-921f-729106bc29df:12",
+          "score": 0.525,
+          "source": "bedrock",
+          "sourceId": "61d7ff0f-5847-4e4e-921f-729106bc29df",
+          "title": "SMIFS Business Partner PPT",
+          "section": "corporate",
+          "content": "ffer. SMIFS Limited is acting solely in the capacity of a distributor of non-broking products and services and these are not exchange traded products. All disputes with respect to\ndistributionactivitiesshallnothaveaccesstoExchangeInvestorRedressalForumorArbitrationmechanism.ServicesaresubjecttoapplicableSEBIregulationsandclient\nonboardingrequirements.MutualFundinvestmentsaresubjecttomarketrisks,readallschemerelateddocumentscarefully.InsurancesolutionsarenotExchangetraded\nproducts.AllImagesusedinthecreativearesourcedfromlicensedstockplatforms[Freepik/istock/AItools]areusedsolelyforillustrativepurposesundervalid\ncommerciallicense.Norealindividualsaredepicted.\nForcompletedetails,visit:www.smifs.comorformoreaboutT&CanddisclaimersVisit:www.smifs.com/static/disclaimer.aspx.\nDisclaimer\nDownload ARTH App www.smifs.com",
+          "metadata": {
+            "section": "corporate",
+            "fileType": "pdf",
+            "fileName": "Business Partner Presentation - 8th May 2026.pdf",
+            "ordinal": 12,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "vehicle:9ec5f73c-05f6-4b6d-b2f1-fd90cc282c23:0",
+          "score": 0.5185,
+          "source": "vehicle",
+          "sourceId": "9ec5f73c-05f6-4b6d-b2f1-fd90cc282c23",
+          "title": "Care Supreme.",
+          "section": "Mediclaim",
+          "content": "Investment Product: Care Supreme.\nCategory: Mediclaim",
+          "metadata": {
+            "vehicleType": "Mediclaim",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-05-05T11:01:50.695024+00:00"
+          }
+        },
+        {
+          "id": "growth_insurance:6c1e5ed4-8b8b-4e13-b981-81318aa4701f:0",
+          "score": 0.5127,
+          "source": "growth_insurance",
+          "sourceId": "6c1e5ed4-8b8b-4e13-b981-81318aa4701f",
+          "title": "HDFC Ergo",
+          "section": "Growth · Insurance · Health",
+          "content": "Insurance Provider: HDFC Ergo\n\nCategory: Health\n\nNotes & disclaimers:\n- 1.1. Renewal / Port R2&+ Retail health business(For 60 and above ages) - Maximum of 10% or partner renewal commission\n\n- Location Wise- Pay-outs from Star, Care and Lombard on Port R2 and Above...For (Port R2 and Above)- Non-Deductible, policies sourced inward from Star, Care and Lombard in the locations mentioned below will have 0% pay-out :\nAmritsar/Mansa/Tarn Taran/Faridabad/Ahmednagar/Jalgaon/Beed/NCR/Aligarh/Mathura/Surat\nNashik\nAhmedabad/Vadodara/Anand/Gandhinagar/Valsad/Rajkot/Sabar kantha\nDelhi/Rest of Haryana/Ghaziabad/Ludhiana/Gwalior\nGurgaon\nMumbai\nTelangana\n\n- Preferred Location- Chhatisgarh/AP/Orissa/Assam/Jharkhand\nEast States\nGurgaon\nKarnataka/Kerala/Tamil Nadu/ROI\nMumbai\nRest of Gujarat\nRest of Madhya Pradesh\nRest of UP (incl. Meerut)\nROM\nTelangana\nNon Preferred-Ahemdabad/Vadodara/Anand/Gandhinagar/Valsad/Rajkot/Sabarkantha\nAmritsar/Mansa/Tarn Taran/Faridabad/Ahmednagar/Jalgaon/Beed/NCR/Aligarh/Mathura/Surat\nDelhi/Rest of Harayana/Ghaziabad/Ludhiana/Gwalior\nNashik\nPune/Thane/Dhule/Palghar\n\n\n\n[Table] Untitled\nLocation | OS\n                                                                                                                        FRESH                                                                                       |                                                             PORT                                                                         \n                                                                                         <10 Lac\t                            >=10 Lac\t |      <10 Lac                                      10 Lac\t                                >10 Lac\t\nPreferred                                                                     33.90%                               38.14% |         12.71%                                     21.19%                                    21.19%\nNon-Preferred (Deductible)                            29.66%                              29.66% |         8.47%                                     14.83%                                   14.83%\nNon-Preferred (Non Deductible)                 16.95%                               21.19% |         0.0%                                        0.00%                                    12.71%\nRenewal.....14.83% | \nPersonal Accident                           Fresh-29.66%                                                       Renewal-29.66% | \nTravel Fresh                                         29.66% | \nGroup Insurance                              Fresh-6.36%                                                        Renewal-6.36% | \n\n[Table] Untitled",
+          "metadata": {
+            "vertical": "insurance",
+            "provider": "HDFC Ergo",
+            "category": "Health",
+            "tableCount": 2,
+            "rowCount": 9,
+            "updatedAt": "2026-05-14T09:16:05.653635+00:00",
+            "updatedBy": "debashree.chakraborty@smifs.com"
+          }
+        }
+      ],
+      "totalIndexed": 2486
+    },
+    "elapsed_ms": 6610
+  }
+}
