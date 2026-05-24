@@ -72,3 +72,93 @@ button work unchanged because they're product-agnostic.
   "Email subject convention" table.
 * When a field changes type / range: keep the "Validation guarantees" list
   in sync — it's the contract the testing agent reads.
+
+---
+
+## Phase 17 — Deck-pegged Sales-Ops picker + MF ARN Transfer (May 2026)
+
+### Catalog endpoint
+`GET /api/sales/catalog?session_id=<sid>` — verified-employee-only (403 otherwise).
+Source: `doc_chunks` rows where `subsource == "vehicle"`. 60-second in-process cache.
+Returns:
+```jsonc
+{
+  "generated_at": "2026-05-…",
+  "total_vehicles": 168, "unmapped_count": 0,
+  "totals": {"mutual_fund": 48, "aif": 31, "pms": 42, "fd": 4, "insurance": 42, "ncd_primary": 1},
+  "buckets": {
+    "mutual_fund": [{vehicle_id, vehicle_name, vehicle_type, is_focused, is_active, updated_at_iso}, …]
+  }
+}
+```
+Within each bucket: `is_focused=true` first, then alphabetical by `vehicle_name`. `is_active=false`
+rows are NOT filtered (user decision: "all deck vehicles are sellable").
+
+### `vehicle_type → product_type` mapping table
+
+| API `vehicle_type` | Bot product bucket | Count in current deck |
+|---|---|---|
+| `MF`        | `mutual_fund`  | 48 |
+| `AIF`       | `aif`          | 31 |
+| `PMS`       | `pms`          | 42 |
+| `FD`        | `fd`          |  4 |
+| `Insurance` | `insurance`    | 37 |
+| `Mediclaim` | `insurance`    |  5 |
+| `NCD`       | `ncd_primary`  |  1 |
+| _unmapped_  | dropped + logged to `security_events.kind="unmapped_vehicle_type"` | 0 |
+
+If the SMIFS Knowledge API ever ships a new `vehicle_type`, the catalog **does not crash and does
+not silently include it**: each unknown row creates one `security_events` row tagged
+`unmapped_vehicle_type` and is excluded from the picker until the mapping table is extended.
+
+### Picker UX
+1. Stage 1 (existing): user picks a product tile.
+2. Stage 2 (NEW): searchable vehicle dropdown — focused vehicles float to top with a ★ marker.
+3. On pick: the product-specific identity field auto-fills and locks read-only:
+   - `mutual_fund` → `scheme_name` (and `amc_name`)
+   - `aif` → `aif_name`
+   - `pms` → `strategy_name`
+   - `fd` → `issuer_name`
+   - `insurance` → `carrier`
+   - `ncd_primary` → `issuer_name`
+4. Empty deck for the chosen bucket → form is blocked with a graceful "No <product> in current deck —
+   contact RM/Sales Ops" message. **No free-text fallback.**
+
+### Cross-type enforcement (server-side)
+`POST /api/sales` rejects a payload whose `vehicle_id` belongs to a different product bucket than
+`form_type` with HTTP **400 vehicle_id belongs to product_type='X' but form_type='Y'`. Tampered
+requests can't bind off-bucket vehicles.
+
+### MF ARN Transfer (tag, not new product)
+- Toggle: a single `data-testid="mf-arn-transfer-toggle"` checkbox at the top of the MF form (after
+  a vehicle has been picked).
+- When ON, the body swaps to:
+  | Field | Validation |
+  |---|---|
+  | `existing_arn` | regex `^ARN-[A-Za-z0-9]{4,7}$` or `^[A-Za-z0-9]{4,7}$` |
+  | `new_arn` | same regex, MUST differ from `existing_arn` |
+  | `folio_numbers` | non-empty (comma-separated allowed) |
+  | `amc_name`, `scheme_name` | auto-filled from picked vehicle, locked read-only |
+  | `transfer_effective_date` | YYYY-MM-DD |
+  | `aum_inr` | ≥ ₹1,000 |
+  | `arn_remarks` | optional, ≤ 500 chars |
+- Persisted as `sales_entries.subtype = "arn_transfer"` with the 7 fields nested under
+  `product_details.arn_transfer`.
+
+### Email subject (Phase 17 addition)
+
+| Tag | Subject template |
+|---|---|
+| `subtype == "arn_transfer"` | `[SMIFS Sales-Ops] MF — ARN Transfer — <client_name> — ₹<aum>` |
+| Optional env routing override | `TO_EMAIL_MF_ARN_TRANSFER` — if set, ARN-tagged sales route there instead of `TO_EMAIL_MUTUAL_FUND`; if unset, fall through to the standard MF inbox. |
+
+### Admin Sales Pipeline
+- New column **Vehicle** (placed between Product and Client), truncated at 32 chars with full-name tooltip.
+- ARN-tagged rows show a small purple `ARN` pill next to the Product label and (when opened) in the drawer header.
+- New filter checkbox **ARN Transfer only** visible when the product filter is empty or set to `mutual_fund`.
+- Drawer flattens the nested `arn_transfer` sub-object into the specifics grid.
+
+### Backwards compatibility
+- Legacy `sales_entries` rows (pre-Phase 17) have no `vehicle_id` / `subtype`. These continue to list
+  with an em-dash in the Vehicle column. We do **not** mass-migrate; the constraint is enforced
+  on new submissions only.

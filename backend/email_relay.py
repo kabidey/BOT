@@ -56,10 +56,21 @@ def _is_configured() -> bool:
     )
 
 
-def _route_to(product: str) -> List[str]:
-    per_product = os.environ.get(_PRODUCT_ENV.get(product, ""), "").strip()
-    fallback = os.environ.get("TO_EMAIL", "").strip()
-    candidate = per_product or fallback
+def _route_to(product: str, *, is_arn_transfer: bool = False) -> List[str]:
+    """Pick the recipient list for this sale.
+
+    Phase 17 — if the entry carries `subtype == 'arn_transfer'` we first look
+    at the optional `TO_EMAIL_MF_ARN_TRANSFER` override so ARN transfers can
+    route to the back-office desk separately from regular MF sales. If unset
+    we fall through to the standard MF inbox.
+    """
+    candidate = ""
+    if is_arn_transfer:
+        candidate = os.environ.get("TO_EMAIL_MF_ARN_TRANSFER", "").strip()
+    if not candidate:
+        candidate = os.environ.get(_PRODUCT_ENV.get(product, ""), "").strip()
+    if not candidate:
+        candidate = os.environ.get("TO_EMAIL", "").strip()
     return [a.strip() for a in candidate.split(",") if a.strip()]
 
 
@@ -114,6 +125,19 @@ def _render_html(entry: Dict[str, Any]) -> str:
         + _row("Client phone", client.get("client_phone"))
         + _row("Client email", client.get("client_email"))
     )
+    # Phase 17 — flatten an ARN-transfer subobject into the product rows so
+    # the existing rendering shows existing/new ARN, folios, AUM, etc. The
+    # nested `arn_transfer` dict is dropped to avoid `Arn Transfer: {dict}`.
+    if details.get("arn_transfer"):
+        arn = details.pop("arn_transfer", {}) or {}
+        for k in ("existing_arn", "new_arn", "folio_numbers", "amc_name",
+                  "scheme_name", "transfer_effective_date", "aum_inr", "arn_remarks"):
+            if k in arn:
+                details.setdefault(k, arn[k])
+        details.setdefault("subtype", "ARN Transfer")
+    # Phase 17 — vehicle linkage breadcrumb when the picker bound a deck row.
+    if entry.get("vehicle_name"):
+        details.setdefault("deck_vehicle", entry["vehicle_name"])
     product_rows = "".join(_row(k.replace("_", " ").title(), v) for k, v in details.items())
     common_rows = (
         _row("Amount (INR)", amount_str)
@@ -166,7 +190,7 @@ async def send_sale_notification(entry: Dict[str, Any]) -> Dict[str, Any]:
             logger.exception("HTML render to disk failed (non-fatal)")
         return {"ok": False, "reason": "smtp_not_configured", "recipients": []}
 
-    recipients = _route_to(product)
+    recipients = _route_to(product, is_arn_transfer=(entry.get("subtype") == "arn_transfer"))
     if not recipients:
         logger.info("No recipient routing for product=%s, skipping email", product)
         return {"ok": False, "reason": "no_recipient", "recipients": []}
@@ -183,6 +207,16 @@ async def send_sale_notification(entry: Dict[str, Any]) -> Dict[str, Any]:
         amount = (entry.get("product_details") or {}).get("application_amount_inr") or entry.get("amount_inr")
         subject = (
             f"[SMIFS Sales-Ops] NCD Primary Issue — {client_name} — "
+            f"{_fmt_inr(amount)}"
+        )
+    # Phase 17 — MF ARN Transfer subject (the back-office filter rules
+    # branch on the literal "ARN Transfer" token).
+    if entry.get("subtype") == "arn_transfer":
+        client_name = (entry.get("client") or {}).get("client_name") or "unknown"
+        arn = (entry.get("product_details") or {}).get("arn_transfer") or {}
+        amount = arn.get("aum_inr") or entry.get("amount_inr")
+        subject = (
+            f"[SMIFS Sales-Ops] MF — ARN Transfer — {client_name} — "
             f"{_fmt_inr(amount)}"
         )
     html = _render_html(entry)

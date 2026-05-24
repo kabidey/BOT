@@ -23,10 +23,11 @@ import uuid
 from datetime import datetime, timezone, date
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 import identity as id_mod
 import email_relay
+import sales_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ PRODUCTS = {"mutual_fund", "aif", "pms", "fd", "insurance", "ncd_primary"}
 PAN_RE = re.compile(r"^[A-Z]{5}\d{4}[A-Z]$")
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 PHONE_DIGITS_RE = re.compile(r"\D+")
+ARN_RE = re.compile(r"^ARN-[A-Za-z0-9]{4,7}$|^[A-Za-z0-9]{4,7}$")
 
 # Per-product field schema. `req` = required, `optional` = optional,
 # `radio`/`select` define the allowed values for client+server validation.
@@ -245,6 +247,73 @@ def _validate_product(product: str, fields: Dict[str, Any]) -> Tuple[Dict[str, A
     return out, errors
 
 
+def _validate_mf_arn(fields: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    """Phase 17 — MF ARN-Transfer subtype.
+
+    Fires when payload.fields.arn_transfer == True. Replaces the SIP/lump-sum
+    contract with an ARN-specific one. AMC + scheme are still required but
+    derive from the locked vehicle picker (auto-filled, read-only on FE).
+    """
+    errors: List[Dict[str, str]] = []
+    out: Dict[str, Any] = {"subtype": "arn_transfer"}
+    sub = fields.get("arn_transfer_fields") or {}
+
+    existing = (sub.get("existing_arn") or "").strip().upper()
+    new = (sub.get("new_arn") or "").strip().upper()
+    if not ARN_RE.match(existing):
+        errors.append(_bad("existing_arn",
+                           "ARN must be 4-7 alphanumeric chars (optionally prefixed ARN-)."))
+    if not ARN_RE.match(new):
+        errors.append(_bad("new_arn",
+                           "ARN must be 4-7 alphanumeric chars (optionally prefixed ARN-)."))
+    if existing and new and existing == new:
+        errors.append(_bad("new_arn", "New ARN must differ from existing ARN."))
+
+    folio = (sub.get("folio_numbers") or "").strip()
+    if not folio:
+        errors.append(_bad("folio_numbers", "At least one folio number is required."))
+
+    amc = (sub.get("amc_name") or fields.get("amc_name") or "").strip()
+    scheme = (sub.get("scheme_name") or fields.get("scheme_name") or "").strip()
+    if not amc:
+        errors.append(_bad("amc_name", "AMC name is required (auto-fills from vehicle)."))
+    if not scheme:
+        errors.append(_bad("scheme_name", "Scheme name is required (auto-fills from vehicle)."))
+
+    eff = (sub.get("transfer_effective_date") or "").strip()
+    try:
+        date.fromisoformat(eff)
+    except Exception:
+        errors.append(_bad("transfer_effective_date", "Provide a valid date (YYYY-MM-DD)."))
+
+    try:
+        aum = float(sub.get("aum_inr") or 0)
+        if aum < 1000:
+            errors.append(_bad("aum_inr", "AUM transferred must be ≥ ₹1,000."))
+    except Exception:
+        errors.append(_bad("aum_inr", "AUM must be a number."))
+        aum = 0
+
+    remarks = (sub.get("arn_remarks") or "").strip()[:500]
+    out["arn_transfer"] = {
+        "existing_arn": existing,
+        "new_arn": new,
+        "folio_numbers": folio,
+        "amc_name": amc,
+        "scheme_name": scheme,
+        "transfer_effective_date": eff,
+        "aum_inr": aum,
+        "arn_remarks": remarks,
+    }
+    # For downstream consistency we also surface AMC/scheme at the top level
+    # of `product_details` so the existing UI / admin row continues to work
+    # without product-type-specific accessors.
+    out["amc_name"] = amc
+    out["scheme_name"] = scheme
+    out["scheme_type"] = "ARN Transfer"
+    return out, errors
+
+
 async def _next_submission_id(db) -> str:
     """Monotonic SALE-YYYY-NNN — uses a single counter doc with $inc."""
     year = datetime.now(timezone.utc).year
@@ -280,6 +349,17 @@ async def _verify_employee_session(db, session_id: Optional[str]) -> Dict[str, A
 def build_router(db) -> APIRouter:
     router = APIRouter()
 
+    @router.get("/sales/catalog")
+    async def sales_catalog_endpoint(session_id: str = Query(...)):
+        """Phase 17 — Deck-pegged vehicle catalog for the Sales-Ops picker.
+
+        Verified-employee-only (403 otherwise). Returns the same shape every
+        call; the FE filters by product bucket client-side.
+        """
+        await _verify_employee_session(db, session_id)
+        data = await sales_catalog.catalog(db)
+        return data
+
     @router.post("/sales")
     async def create_sale(payload: Dict[str, Any]):
         product = (payload.get("form_type") or payload.get("product") or "").strip().lower()
@@ -289,11 +369,33 @@ def build_router(db) -> APIRouter:
             raise HTTPException(status_code=400, detail=f"form_type must be one of {sorted(PRODUCTS)}")
         employee = await _verify_employee_session(db, session_id)
 
+        # Phase 17 — vehicle deck cross-check (additive: legacy submissions
+        # without vehicle_id still pass; new flows enforce it client-side via
+        # the deck-driven picker. We enforce cross-type matching on the server
+        # so a tampered request can't bind an NCD vehicle to the FD form.)
+        vehicle_id = (fields.get("vehicle_id") or payload.get("vehicle_id") or "").strip() or None
+        vehicle_row: Optional[Dict[str, Any]] = None
+        if vehicle_id:
+            vehicle_row = await sales_catalog.find_vehicle(db, vehicle_id)
+            if not vehicle_row:
+                raise HTTPException(status_code=400,
+                                    detail="vehicle_id not found in current deck")
+            if vehicle_row["product_type"] != product:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"vehicle_id belongs to product_type='{vehicle_row['product_type']}' "
+                            f"but form_type='{product}' — cross-type mismatch"),
+                )
+
         common, errs_c = _validate_common(fields)
-        product_fields, errs_p = _validate_product(product, fields)
+        # Phase 17 — MF ARN-Transfer branches on the `arn_transfer` toggle.
+        is_arn = product == "mutual_fund" and bool(fields.get("arn_transfer"))
+        if is_arn:
+            product_fields, errs_p = _validate_mf_arn(fields)
+        else:
+            product_fields, errs_p = _validate_product(product, fields)
         all_errors = errs_c + errs_p
         if all_errors:
-            # Aggregate validation errors into a single 422.
             raise HTTPException(status_code=422, detail={"errors": all_errors})
 
         submission_id = await _next_submission_id(db)
@@ -301,6 +403,7 @@ def build_router(db) -> APIRouter:
             "_id": str(uuid.uuid4()),
             "submission_id": submission_id,
             "product": product,
+            "subtype": "arn_transfer" if is_arn else None,
             "employee": employee,
             "client": {
                 "client_name": common["client_name"],
@@ -319,6 +422,9 @@ def build_router(db) -> APIRouter:
             "email_sent_at": None,
             "email_recipients": [],
             "session_id": session_id,
+            "vehicle_id": vehicle_id,
+            "vehicle_name": (vehicle_row or {}).get("vehicle_name"),
+            "vehicle_type": (vehicle_row or {}).get("vehicle_type"),
             "created_at": _now_iso(),
         }
         await db.sales_entries.insert_one(entry)
@@ -350,6 +456,9 @@ def build_router(db) -> APIRouter:
                 "The Sales Ops team will follow up shortly."
             ),
             "product": product,
+            "subtype": entry["subtype"],
+            "vehicle_id": vehicle_id,
+            "vehicle_name": entry.get("vehicle_name"),
             "amount_inr": common["amount_inr"],
             "client_name": common["client_name"],
             "client_pan_masked": id_mod.mask_pan(common["client_pan"]),

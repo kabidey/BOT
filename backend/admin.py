@@ -465,7 +465,8 @@ def build_admin_router(db) -> APIRouter:
     @router.get("/sales")
     async def list_sales(limit: int = 50, since: Optional[str] = None,
                           product: Optional[str] = None,
-                          status: Optional[str] = None):
+                          status: Optional[str] = None,
+                          subtype: Optional[str] = None):
         """List sales (newest first). Client PAN masked in this view."""
         limit = max(1, min(int(limit or 50), 200))
         q: Dict[str, Any] = {}
@@ -475,6 +476,9 @@ def build_admin_router(db) -> APIRouter:
             q["product"] = product
         if status:
             q["status"] = status
+        if subtype:
+            # Phase 17 — `subtype=arn_transfer` toggles the ARN-only view.
+            q["subtype"] = subtype
         total = await db.sales_entries.count_documents(q)
         cur = db.sales_entries.find(q, {"_id": 0}).sort("created_at", -1).limit(limit)
         rows = await cur.to_list(length=limit)
@@ -490,6 +494,10 @@ def build_admin_router(db) -> APIRouter:
             items.append({
                 "submission_id": r.get("submission_id"),
                 "product": r.get("product"),
+                "subtype": r.get("subtype"),
+                "vehicle_id": r.get("vehicle_id"),
+                "vehicle_name": r.get("vehicle_name"),
+                "vehicle_type": r.get("vehicle_type"),
                 "employee_name": emp.get("name"),
                 "employee_id": emp.get("employee_id"),
                 "client_name_masked": masked_name,

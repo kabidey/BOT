@@ -2289,3 +2289,134 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   font-size: 11px;
   color: var(--ink-dim);
 }
+
+/* ====== Phase 17 — Sales-Ops deck-pegged picker + ARN ====== */
+.smifs-sale-form__picker {
+  position: relative;
+  margin-bottom: 14px;
+}
+.smifs-sale-form__picker--loading,
+.smifs-sale-form__picker--empty {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.06);
+  font-size: 13px;
+  color: var(--ink-muted);
+  display: flex; align-items: center; gap: 8px;
+}
+.smifs-sale-form__picker--empty strong { color: var(--smifs-green, #156c46); }
+.smifs-sale-form__picker-input {
+  display: flex; align-items: center; gap: 6px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 8px;
+  padding: 4px 10px;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.smifs-sale-form__picker-input:focus-within {
+  border-color: var(--smifs-green, #156c46);
+  box-shadow: 0 0 0 3px rgba(21,108,70,0.12);
+}
+.smifs-sale-form__picker-input.is-error { border-color: #C03A2B; }
+.smifs-sale-form__picker-input input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13.5px;
+  padding: 8px 0;
+}
+.smifs-sale-form__picker-clear,
+.smifs-sale-form__picker-caret {
+  cursor: pointer;
+  color: var(--ink-muted);
+  background: transparent;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+}
+.smifs-sale-form__picker-clear:hover,
+.smifs-sale-form__picker-caret:hover { background: rgba(0,0,0,0.05); }
+.smifs-sale-form__picker-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+  margin: 0; padding: 4px 0;
+  list-style: none;
+}
+.smifs-sale-form__picker-row {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px;
+  transition: background 100ms ease;
+}
+.smifs-sale-form__picker-row:hover { background: rgba(21,108,70,0.06); }
+.smifs-sale-form__picker-name { flex: 1; }
+.smifs-sale-form__picker-type {
+  font-size: 11px;
+  color: var(--ink-muted);
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.05);
+  letter-spacing: 0.04em;
+}
+.smifs-sale-form__picker-star { color: var(--gold, #C9A86A); }
+.smifs-sale-form__picker-empty-row {
+  padding: 10px 12px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+.smifs-sale-form__picker-selected {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(21,108,70,0.08);
+  font-size: 12.5px;
+  color: var(--smifs-green, #156c46);
+}
+.smifs-sale-form__arn-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  margin: 8px 0 14px;
+  border-radius: 8px;
+  background: rgba(21,108,70,0.06);
+  border: 1px solid rgba(21,108,70,0.18);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--smifs-green, #156c46);
+}
+.smifs-sale-form__arn-toggle input[type="checkbox"] { accent-color: var(--smifs-green, #156c46); }
+.smifs-sale-form__input.is-readonly {
+  background: rgba(0,0,0,0.04);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+.smifs-admin-pill--arn {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  background: rgba(120,90,200,0.12);
+  color: #6b3fa0;
+  border: 1px solid rgba(120,90,200,0.22);
+}
+.smifs-admin-arn-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin-left: 6px;
+}
+.smifs-admin-arn-toggle input[type="checkbox"] { accent-color: var(--smifs-green, #156c46); }

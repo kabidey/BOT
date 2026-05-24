@@ -31,6 +31,7 @@ export default function SalesPipelineTab({ api }) {
 
   const [productFilter, setProductFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [arnOnly, setArnOnly] = useState(false);  // Phase 17 — ARN Transfer filter
 
   const [drawerSubId, setDrawerSubId] = useState(null);
   const [drawerData, setDrawerData] = useState(null);
@@ -45,6 +46,7 @@ export default function SalesPipelineTab({ api }) {
       const params = { limit: 100 };
       if (productFilter) params.product = productFilter;
       if (statusFilter) params.status = statusFilter;
+      if (arnOnly) params.subtype = "arn_transfer";
       const { data } = await adminApi.get("/admin/sales", { params });
       setRows(data.items || []);
       setKpis(data.kpis || {});
@@ -54,7 +56,7 @@ export default function SalesPipelineTab({ api }) {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [productFilter, statusFilter]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [productFilter, statusFilter, arnOnly]);
 
   const openDrawer = async (submission_id) => {
     setDrawerSubId(submission_id);
@@ -149,6 +151,13 @@ export default function SalesPipelineTab({ api }) {
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
+        {(productFilter === "" || productFilter === "mutual_fund") && (
+          <label className="smifs-admin-arn-toggle" data-testid="sales-filter-arn-row">
+            <input type="checkbox" checked={arnOnly} onChange={(e) => setArnOnly(e.target.checked)}
+                   data-testid="sales-filter-arn-only" />
+            ARN Transfer only
+          </label>
+        )}
         <button className="smifs-admin-btn-ghost" onClick={load} disabled={loading} data-testid="sales-refresh">
           <RefreshCw size={14} /> Refresh
         </button>
@@ -161,7 +170,7 @@ export default function SalesPipelineTab({ api }) {
           <tr>
             <th>Reference</th>
             <th>Product</th>
-            <th>Employee</th>
+            <th>Vehicle</th>
             <th>Client</th>
             <th>Amount</th>
             <th>Login</th>
@@ -174,21 +183,29 @@ export default function SalesPipelineTab({ api }) {
           {rows.length === 0 && !loading && (
             <tr><td colSpan={9} className="smifs-admin-empty">No sales yet.</td></tr>
           )}
-          {rows.map((r) => (
-            <tr key={r.submission_id} onClick={() => openDrawer(r.submission_id)} className="smifs-admin-row-click" data-testid={`sales-row-${r.submission_id}`}>
-              <td><b>{r.submission_id}</b></td>
-              <td>{PRODUCT_LABEL[r.product] || r.product}</td>
-              <td>{r.employee_name}</td>
-              <td>{r.client_name_masked}</td>
-              <td>{fmtINR(r.amount_inr)}</td>
-              <td>{fmtDate(r.expected_login_date)}</td>
-              <td><span className={`smifs-admin-status smifs-admin-status--${r.status}`}>{r.status}</span></td>
-              <td>{r.email_sent
-                ? <span className="smifs-admin-pill smifs-admin-pill--ok"><MailCheck size={11} /> sent</span>
-                : <span className="smifs-admin-pill smifs-admin-pill--skip"><MailX size={11} /> {r.email_status || "—"}</span>}</td>
-              <td className="smifs-admin-dim">{(r.created_at || "").slice(0, 19).replace("T", " ")}</td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const vName = r.vehicle_name || "—";
+            const vShort = vName.length > 32 ? vName.slice(0, 32) + "…" : vName;
+            const isArn = r.subtype === "arn_transfer";
+            return (
+              <tr key={r.submission_id} onClick={() => openDrawer(r.submission_id)} className="smifs-admin-row-click" data-testid={`sales-row-${r.submission_id}`}>
+                <td><b>{r.submission_id}</b></td>
+                <td>
+                  {PRODUCT_LABEL[r.product] || r.product}
+                  {isArn && <span className="smifs-admin-pill smifs-admin-pill--arn" data-testid={`sales-arn-badge-${r.submission_id}`}>ARN</span>}
+                </td>
+                <td title={vName} data-testid={`sales-vehicle-${r.submission_id}`}>{vShort}</td>
+                <td>{r.client_name_masked}</td>
+                <td>{fmtINR(r.amount_inr)}</td>
+                <td>{fmtDate(r.expected_login_date)}</td>
+                <td><span className={`smifs-admin-status smifs-admin-status--${r.status}`}>{r.status}</span></td>
+                <td>{r.email_sent
+                  ? <span className="smifs-admin-pill smifs-admin-pill--ok"><MailCheck size={11} /> sent</span>
+                  : <span className="smifs-admin-pill smifs-admin-pill--skip"><MailX size={11} /> {r.email_status || "—"}</span>}</td>
+                <td className="smifs-admin-dim">{(r.created_at || "").slice(0, 19).replace("T", " ")}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
@@ -204,7 +221,15 @@ export default function SalesPipelineTab({ api }) {
             {drawerData && (
               <div className="smifs-admin-drawer-body">
                 <div className="smifs-admin-detail-grid">
-                  <div><b>Product</b><br/>{PRODUCT_LABEL[drawerData.product]}</div>
+                  <div><b>Product</b><br/>{PRODUCT_LABEL[drawerData.product]}
+                    {drawerData.subtype === "arn_transfer" && (
+                      <span className="smifs-admin-pill smifs-admin-pill--arn"
+                            data-testid="sales-drawer-arn-badge"> ARN Transfer</span>
+                    )}
+                  </div>
+                  <div><b>Vehicle</b><br/>{drawerData.vehicle_name || "—"}
+                    {drawerData.vehicle_type ? <span className="smifs-admin-dim"> · {drawerData.vehicle_type}</span> : null}
+                  </div>
                   <div><b>Amount</b><br/>{fmtINR(drawerData.amount_inr)}</div>
                   <div><b>Login date</b><br/>{fmtDate(drawerData.expected_login_date)}</div>
                   <div><b>Payment date</b><br/>{fmtDate(drawerData.expected_payment_date)}</div>
@@ -216,11 +241,22 @@ export default function SalesPipelineTab({ api }) {
                   <div><b>Phone</b><br/>{drawerData.client?.client_phone}</div>
                   <div><b>Email</b><br/>{drawerData.client?.client_email}</div>
                 </div>
-                <div className="smifs-admin-section">{PRODUCT_LABEL[drawerData.product]} specifics</div>
-                <div className="smifs-admin-detail-grid">
-                  {Object.entries(drawerData.product_details || {}).map(([k, v]) => (
-                    <div key={k}><b>{k.replace(/_/g, " ")}</b><br/>{String(v)}</div>
-                  ))}
+                <div className="smifs-admin-section">{drawerData.subtype === "arn_transfer" ? "ARN Transfer details" : `${PRODUCT_LABEL[drawerData.product]} specifics`}</div>
+                <div className="smifs-admin-detail-grid" data-testid="sales-drawer-product-details">
+                  {(() => {
+                    const pd = { ...(drawerData.product_details || {}) };
+                    // Phase 17 — flatten ARN sub-object into the grid.
+                    const arn = pd.arn_transfer;
+                    if (arn && typeof arn === "object") {
+                      delete pd.arn_transfer;
+                      for (const [k, v] of Object.entries(arn)) {
+                        if (!(k in pd)) pd[k] = v;
+                      }
+                    }
+                    return Object.entries(pd).map(([k, v]) => (
+                      <div key={k} data-testid={`sales-drawer-field-${k}`}><b>{k.replace(/_/g, " ")}</b><br/>{String(v)}</div>
+                    ));
+                  })()}
                 </div>
                 <div className="smifs-admin-section">Submitted by</div>
                 <div className="smifs-admin-detail-grid">
