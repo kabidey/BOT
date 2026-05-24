@@ -85,7 +85,20 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
             const key = `${msgIdx}-${ci}`;
             const isOfficial = c.is_official || c.source === "smifs_knowledge";
             const updatedLabel = formatUpdatedAt(c.updated_at);
-            const versionLabel = c.version_no != null ? `v${c.version_no}` : null;
+            // Phase 16.1 — gate version badge on `version_major >= 2`.
+            // `version_no` can be a string like "v8.1" or "v1.2"; we use the
+            // backend-parsed `version_major` for the >=2 check, and surface
+            // the raw `version_no` label when present (else "v<major>").
+            const versionMajor = typeof c.version_major === "number"
+              ? c.version_major
+              : (typeof c.version_no === "number"
+                  ? c.version_no
+                  : (typeof c.version_no === "string"
+                      ? parseInt((c.version_no.match(/v?(\d+)/i) || [, ""])[1], 10) || null
+                      : null));
+            const versionLabel = (versionMajor != null && versionMajor >= 2)
+              ? (typeof c.version_no === "string" ? c.version_no : `v${versionMajor}`)
+              : null;
             return (
               <button
                 key={ci}

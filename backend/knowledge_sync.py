@@ -173,16 +173,26 @@ def _project_metadata(api_chunk: Dict[str, Any]) -> Dict[str, Any]:
 
     - Pulls vehicle linkage, curation flags, version + recency proxies, and the
       growth/insurance vertical labels.
+    - For `vehicle` subsource chunks (the parent vehicle row), the API does NOT
+      populate `metadata.vehicleId/Name` because the chunk IS the vehicle —
+      we derive these from the chunk's own `sourceId` + `title` so retrieval-time
+      CTA chips fire on vehicle hits too.
     - Computes an `audience` tag used by retrieval-time role gating
       (`sales_pitch` / `growth_*` are employee-only).
     - Strips PII (updatedBy author email).
     """
     sub = api_chunk.get("source") or ""
     meta = api_chunk.get("metadata") or {}
+    vehicle_id = meta.get("vehicleId")
+    vehicle_name = meta.get("vehicleName")
+    if sub == "vehicle" and not vehicle_id:
+        # Parent vehicle chunk — backfill self-linkage from sourceId + title.
+        vehicle_id = api_chunk.get("sourceId") or api_chunk.get("id")
+        vehicle_name = vehicle_name or api_chunk.get("title")
     out: Dict[str, Any] = {
         "doc_type": sub,
-        "vehicle_id": meta.get("vehicleId"),
-        "vehicle_name": meta.get("vehicleName"),
+        "vehicle_id": vehicle_id,
+        "vehicle_name": vehicle_name,
         "vehicle_type": meta.get("vehicleType"),
         "is_active": meta.get("isActive"),
         "is_focused": meta.get("isFocused"),
@@ -197,6 +207,20 @@ def _project_metadata(api_chunk: Dict[str, Any]) -> Dict[str, Any]:
         "updated_at_iso": meta.get("updatedAt"),
         "audience": "employee_only" if sub in _EMPLOYEE_ONLY_SUBSOURCES else "all",
     }
+    # Phase 16.1 — `version_no` arrives as a string ("v8.1", "v2.2"). Parse the
+    # major version so the UI can gate "v<n>" badges on `>= 2` and the ranking
+    # layer can sort versions numerically.
+    v_raw = out.get("version_no")
+    if isinstance(v_raw, str):
+        import re as _re
+        m = _re.match(r"v?(\d+)", v_raw.strip(), flags=_re.IGNORECASE)
+        if m:
+            try:
+                out["version_major"] = int(m.group(1))
+            except ValueError:
+                pass
+    elif isinstance(v_raw, (int, float)):
+        out["version_major"] = int(v_raw)
     return {k: v for k, v in out.items() if v is not None}
 
 
@@ -343,8 +367,14 @@ async def sync(db, *, mode: str = "delta", dry_run: bool = False) -> Dict[str, A
     return out
 
 
-async def status(db) -> Dict[str, Any]:
-    """Counts + health for the admin KB tab."""
+async def status(db, *, include_runs: int = 5) -> Dict[str, Any]:
+    """Counts + health for the admin KB tab.
+
+    `include_runs` (1..50, default 5) caps how many recent rows from
+    `knowledge_sync_runs` we surface in `last_run_summary`. Independently we
+    ALWAYS pin the `phase16_backfill` run (if it exists) as
+    `phase16_backfill_run` so the audit trail survives the rolling window.
+    """
     counts_cursor = db.doc_chunks.aggregate([
         {"$group": {"_id": "$source", "count": {"$sum": 1}}},
     ])
@@ -353,8 +383,15 @@ async def status(db) -> Dict[str, Any]:
         counts[row["_id"] or "unknown"] = row["count"]
     meta = await db.kb_sync_meta.find_one({"_id": KB_SOURCE}, {"_id": 0})
     # Phase 11 — scheduler info
-    runs_cur = db.knowledge_sync_runs.find({}, {"_id": 0}).sort("started_at", -1).limit(5)
-    last_runs = await runs_cur.to_list(length=5)
+    include_runs = max(1, min(int(include_runs or 5), 50))
+    runs_cur = db.knowledge_sync_runs.find({}, {"_id": 0}).sort("started_at", -1).limit(include_runs)
+    last_runs = await runs_cur.to_list(length=include_runs)
+    # Phase 16 — pin the one-time full backfill run independent of the rolling
+    # window, so admins can audit it weeks/months later.
+    phase16_run = await db.knowledge_sync_runs.find_one(
+        {"triggered_by": "phase16_backfill"}, {"_id": 0},
+        sort=[("started_at", -1)],
+    )
     return {
         "api_configured": configured(),
         "api_reachable": await probe_reachable(),
@@ -369,6 +406,9 @@ async def status(db) -> Dict[str, Any]:
         "auto_sync_interval_seconds": KB_DELTA_SYNC_INTERVAL,
         "next_scheduled_sync_at": _NEXT_SYNC_AT_ISO,
         "last_run_summary": last_runs,
+        "last_run_summary_window": include_runs,
+        # Phase 16 — pinned backfill audit (None if backfill has not yet run)
+        "phase16_backfill_run": phase16_run,
     }
 
 

@@ -394,10 +394,10 @@ def build_admin_router(db) -> APIRouter:
         return await _ks.run_sync(db, mode=payload.mode, dry_run=payload.dry_run, trigger="manual")
 
     @router.get("/knowledge/status")
-    async def knowledge_status():
+    async def knowledge_status(include_runs: int = 5):
         import knowledge_sync as _ks
         import guardrails as _gd
-        stat = await _ks.status(db)
+        stat = await _ks.status(db, include_runs=include_runs)
         stat["hallucination_events_7d"] = await _gd.recent_count(db, days=7)
         return stat
 

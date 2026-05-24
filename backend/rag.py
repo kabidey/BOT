@@ -250,7 +250,7 @@ async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, 
         "is_active": 1, "is_focused": 1, "sales_pitch_ready": 1,
         "version_no": 1, "collateral_no": 1, "kind": 1, "language": 1,
         "provider": 1, "category": 1, "vertical": 1,
-        "updated_at_iso": 1, "audience": 1,
+        "updated_at_iso": 1, "audience": 1, "version_major": 1,
     })
     rows = await cursor.to_list(length=5000)
     if not rows:
@@ -272,6 +272,7 @@ async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, 
         "is_focused": r.get("is_focused"),
         "sales_pitch_ready": r.get("sales_pitch_ready"),
         "version_no": r.get("version_no"),
+        "version_major": r.get("version_major"),
         "collateral_no": r.get("collateral_no"),
         "kind": r.get("kind"),
         "language": r.get("language"),

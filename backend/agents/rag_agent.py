@@ -213,6 +213,7 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "vehicle_name": h.get("vehicle_name"),
             "vehicle_type": h.get("vehicle_type"),
             "version_no": h.get("version_no"),
+            "version_major": h.get("version_major"),
             "updated_at": h.get("updated_at_iso"),
             "is_focused": h.get("is_focused"),
             "is_active": h.get("is_active"),
