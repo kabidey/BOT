@@ -1,0 +1,1452 @@
+{
+  "base": "https://deck.pesmifs.com",
+  "probe_started_at": 1779651650.1437106,
+  "totalIndexed_window": [
+    {
+      "t_s": 0,
+      "totalIndexed": 2489,
+      "n_results": 1
+    },
+    {
+      "t_s": 10,
+      "totalIndexed": 2489,
+      "n_results": 1
+    },
+    {
+      "t_s": 20,
+      "totalIndexed": 2489,
+      "n_results": 1
+    },
+    {
+      "t_s": 30,
+      "totalIndexed": 2489,
+      "n_results": 1
+    },
+    {
+      "t_s": 40,
+      "totalIndexed": 2489,
+      "n_results": 1
+    },
+    {
+      "t_s": 50,
+      "totalIndexed": 2489,
+      "n_results": 1
+    },
+    {
+      "t_s": 60,
+      "totalIndexed": 2489,
+      "n_results": 1
+    }
+  ],
+  "envelope_keys": {
+    "query": 5,
+    "model": 5,
+    "provider": 5,
+    "sources": 5,
+    "topK": 5,
+    "minScore": 5,
+    "results": 5,
+    "totalIndexed": 5
+  },
+  "hit_keys": {
+    "id": 25,
+    "score": 25,
+    "source": 25,
+    "sourceId": 25,
+    "title": 25,
+    "section": 25,
+    "content": 25,
+    "metadata": 25
+  },
+  "metadata_keys_by_source": {
+    "bedrock": {
+      "section": 12,
+      "fileType": 12,
+      "isVideo": 6,
+      "fileName": 12,
+      "kind": 12,
+      "versionNo": 6,
+      "collateralNo": 6,
+      "ordinal": 6
+    },
+    "documents_full": {
+      "vehicleId": 5,
+      "vehicleName": 5,
+      "vehicleType": 5,
+      "fileType": 5,
+      "fileName": 5,
+      "fileSize": 5,
+      "ordinal": 5,
+      "kind": 5
+    },
+    "vehicle": {
+      "vehicleType": 5,
+      "customTypeName": 5,
+      "isFocused": 5,
+      "isActive": 5,
+      "documentCount": 5,
+      "salesPitchReady": 5,
+      "salesPitchLanguages": 5,
+      "updatedAt": 5
+    },
+    "sales_pitch": {
+      "vehicleId": 1,
+      "vehicleName": 1,
+      "vehicleType": 1,
+      "language": 1,
+      "languageLabel": 1,
+      "languageNative": 1,
+      "isFocused": 1,
+      "generatedAt": 1,
+      "model": 1,
+      "ordinal": 1
+    },
+    "growth_insurance": {
+      "vertical": 2,
+      "provider": 2,
+      "category": 2,
+      "tableCount": 2,
+      "rowCount": 2,
+      "updatedAt": 2,
+      "updatedBy": 2
+    }
+  },
+  "param_results": [
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "min_score": 0.1
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.1,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "minScore": 0.1
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "sources": [
+          "bedrock"
+        ]
+      },
+      "echo": {
+        "echoed_sources": [
+          "bedrock"
+        ],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "bedrock",
+          "bedrock",
+          "bedrock",
+          "bedrock",
+          "bedrock"
+        ],
+        "result_ids": [
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:8",
+          "bedrock:61adff15-94c3-4119-befa-89ff33cd8d54:16",
+          "bedrock:03a9c0fb-8404-4634-82bc-4d4b0ee25751:meta",
+          "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:21"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "sources": [
+          "academy"
+        ]
+      },
+      "echo": {
+        "echoed_sources": [
+          "academy"
+        ],
+        "echoed_minScore": 0.0,
+        "n_results": 0,
+        "result_sources": [],
+        "result_ids": [],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "sources": [
+          "document"
+        ]
+      },
+      "echo": {
+        "echoed_sources": [
+          "document"
+        ],
+        "echoed_minScore": 0.0,
+        "n_results": 0,
+        "result_sources": [],
+        "result_ids": [],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "source": "bedrock"
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "subsource": "bedrock"
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "exclude_sources": [
+          "sales_pitch"
+        ]
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "audience": "all"
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "audience": "employee_only"
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "language": "en"
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "is_focused": true
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "is_active": true
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "vehicle_id": "cc602b11-9fc2-4bbd-b6af-df529f3bf719"
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    },
+    {
+      "req": {
+        "q": "AIF",
+        "top_k": 5,
+        "filters": {
+          "source": "bedrock"
+        }
+      },
+      "echo": {
+        "echoed_sources": [],
+        "echoed_minScore": 0.0,
+        "n_results": 5,
+        "result_sources": [
+          "growth_revenue",
+          "documents_full",
+          "documents_full",
+          "bedrock",
+          "documents_full"
+        ],
+        "result_ids": [
+          "growth_revenue:aif:0",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71"
+        ],
+        "totalIndexed": 2489,
+        "status": 200
+      }
+    }
+  ],
+  "multilingual": [
+    {
+      "lang": "en",
+      "q": "investment opportunities right now",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "documents_full",
+        "documents_full",
+        "documents_full",
+        "documents_full",
+        "documents_full"
+      ],
+      "top_titles": [
+        "ICICI Prudential  Alpha Opportunities  Fund · ICICI Pru_Alph",
+        "ICICI Prudential  Alpha Opportunities  Fund · ICICI Pru_Alph",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield "
+      ],
+      "top_scores": [
+        0.5494,
+        0.5349,
+        0.5213,
+        0.5155,
+        0.5085
+      ]
+    },
+    {
+      "lang": "hi",
+      "q": "निवेश के अवसर",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "vehicle",
+        "sales_pitch",
+        "bedrock",
+        "bedrock",
+        "sales_pitch"
+      ],
+      "top_titles": [
+        "NIVA-BUPA-ReAssure Forever",
+        "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (Marathi)",
+        "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (Marathi)"
+      ],
+      "top_scores": [
+        0.3141,
+        0.292,
+        0.2917,
+        0.2914,
+        0.2814
+      ]
+    },
+    {
+      "lang": "hi2",
+      "q": "AIF क्या होता है",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "growth_revenue",
+        "documents_full",
+        "documents_full",
+        "documents_full",
+        "bedrock"
+      ],
+      "top_titles": [
+        "AIF",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "Category III AIFs- Slide 1"
+      ],
+      "top_scores": [
+        0.528,
+        0.4464,
+        0.4464,
+        0.4351,
+        0.4227
+      ]
+    },
+    {
+      "lang": "ta",
+      "q": "AIF க்கான தமிழ் pitch",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "growth_revenue",
+        "vehicle",
+        "bedrock",
+        "vehicle",
+        "vehicle"
+      ],
+      "top_titles": [
+        "AIF",
+        "Bharat Value Fund Series VI (Fund Of Fund)",
+        "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "Aditya Birla India Equity  Opportunities Fund",
+        "Nippon India Digital Innovation (NIDI) Fund 2A"
+      ],
+      "top_scores": [
+        0.4785,
+        0.4351,
+        0.3599,
+        0.355,
+        0.3526
+      ]
+    },
+    {
+      "lang": "ta2",
+      "q": "PMS திட்டம் என்ன",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "documents_full",
+        "growth_revenue",
+        "vehicle",
+        "documents_full",
+        "vehicle"
+      ],
+      "top_titles": [
+        "Aditya Birla Innovation Portfolio · ABSL Innovation_Deck.pdf",
+        "PMS",
+        "ICICI Pru PMS Contra Strategy",
+        "ASK Special Opportunities Portfolio (SOP) · ASK Special Oppo",
+        "ICICI Pru PMS ACE Strategy"
+      ],
+      "top_scores": [
+        0.3696,
+        0.3448,
+        0.3363,
+        0.3294,
+        0.3269
+      ]
+    },
+    {
+      "lang": "bn",
+      "q": "এআইএফ বিনিয়োগ সুযোগ",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "sales_pitch",
+        "documents_full",
+        "sales_pitch",
+        "sales_pitch",
+        "documents_full"
+      ],
+      "top_titles": [
+        "Bharat Value Fund Series VI (Fund Of Fund) — Sales Pitch (Be",
+        "Aditya Birla Structured  Opportunities Fund Series 2 · ABSL ",
+        "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (Assamese)",
+        "Bharat Value Fund Series VI (Fund Of Fund) — Sales Pitch (As",
+        "Aditya Birla Innovation Portfolio · ABSL Innovation_Deck.pdf"
+      ],
+      "top_scores": [
+        0.3439,
+        0.3195,
+        0.3145,
+        0.3088,
+        0.3044
+      ]
+    },
+    {
+      "lang": "mr",
+      "q": "गुंतवणुकीच्या संधी",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "documents_full",
+        "documents_full",
+        "documents_full",
+        "documents_full",
+        "documents_full"
+      ],
+      "top_titles": [
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Pru Growth Leaders Fund-Series VI · ICICI Pru Growth L",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield "
+      ],
+      "top_scores": [
+        0.3114,
+        0.3083,
+        0.3079,
+        0.3053,
+        0.3053
+      ]
+    },
+    {
+      "lang": "hinglish",
+      "q": "AIF ka structure kya hai",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "growth_revenue",
+        "bedrock",
+        "documents_full",
+        "documents_full",
+        "vehicle"
+      ],
+      "top_titles": [
+        "AIF",
+        "Category III AIFs- Slide 1",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "Aditya Birla Structured  Opportunities Fund Series 2"
+      ],
+      "top_scores": [
+        0.5244,
+        0.4649,
+        0.4564,
+        0.4564,
+        0.4522
+      ]
+    },
+    {
+      "lang": "en2",
+      "q": "what is AIF structure",
+      "status": 200,
+      "n_results": 5,
+      "top_sources": [
+        "growth_revenue",
+        "documents_full",
+        "documents_full",
+        "documents_full",
+        "documents_full"
+      ],
+      "top_titles": [
+        "AIF",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield ",
+        "ICICI Prudential Office Yield Optimiser Fund · Office Yield "
+      ],
+      "top_scores": [
+        0.5617,
+        0.5152,
+        0.5092,
+        0.5069,
+        0.5038
+      ]
+    }
+  ],
+  "score_stats": {
+    "n": 150,
+    "min": 0.2966,
+    "max": 0.8079,
+    "p10": 0.388,
+    "p25": 0.4526,
+    "median": 0.4927,
+    "p75": 0.5389,
+    "p90": 0.6114,
+    "p99": 0.8028
+  },
+  "per_query_hist": [
+    {
+      "q": "What is an AIF Category II?",
+      "n": 5,
+      "max": 0.6045,
+      "min": 0.5588,
+      "elapsed_ms": 2560
+    },
+    {
+      "q": "PURPLE STYLE LABS NCD debt funding focused vehicle",
+      "n": 5,
+      "max": 0.7818,
+      "min": 0.4909,
+      "elapsed_ms": 2796
+    },
+    {
+      "q": "Retirement planning slide v2 bedrock",
+      "n": 5,
+      "max": 0.8079,
+      "min": 0.5954,
+      "elapsed_ms": 2720
+    },
+    {
+      "q": "ARN transfer process for mutual funds",
+      "n": 5,
+      "max": 0.5041,
+      "min": 0.4825,
+      "elapsed_ms": 2451
+    },
+    {
+      "q": "Mediclaim providers in SMIFS distribution",
+      "n": 5,
+      "max": 0.5757,
+      "min": 0.5127,
+      "elapsed_ms": 2501
+    },
+    {
+      "q": "PMS strategy small cap focused",
+      "n": 5,
+      "max": 0.6202,
+      "min": 0.612,
+      "elapsed_ms": 2537
+    },
+    {
+      "q": "NCD primary issue tenure",
+      "n": 5,
+      "max": 0.388,
+      "min": 0.3695,
+      "elapsed_ms": 2894
+    },
+    {
+      "q": "fixed deposit rates corporate",
+      "n": 5,
+      "max": 0.4922,
+      "min": 0.4753,
+      "elapsed_ms": 2593
+    },
+    {
+      "q": "insurance distribution providers",
+      "n": 5,
+      "max": 0.4853,
+      "min": 0.4695,
+      "elapsed_ms": 3008
+    },
+    {
+      "q": "mutual fund SIP eligibility KYC",
+      "n": 5,
+      "max": 0.5039,
+      "min": 0.4825,
+      "elapsed_ms": 2414
+    },
+    {
+      "q": "bharat NCD series III tranche",
+      "n": 5,
+      "max": 0.5138,
+      "min": 0.5096,
+      "elapsed_ms": 4054
+    },
+    {
+      "q": "AIF sales pitch script",
+      "n": 5,
+      "max": 0.5456,
+      "min": 0.5053,
+      "elapsed_ms": 2524
+    },
+    {
+      "q": "OrgLens employee directory",
+      "n": 5,
+      "max": 0.3255,
+      "min": 0.2966,
+      "elapsed_ms": 3038
+    },
+    {
+      "q": "what is alpha generation",
+      "n": 5,
+      "max": 0.5511,
+      "min": 0.4612,
+      "elapsed_ms": 2581
+    },
+    {
+      "q": "growth revenue dashboard FY26",
+      "n": 5,
+      "max": 0.4973,
+      "min": 0.4881,
+      "elapsed_ms": 2485
+    },
+    {
+      "q": "tax implications of long term capital gains AIF",
+      "n": 5,
+      "max": 0.6264,
+      "min": 0.5206,
+      "elapsed_ms": 2767
+    },
+    {
+      "q": "SEBI category II investor disclosure",
+      "n": 5,
+      "max": 0.5558,
+      "min": 0.5386,
+      "elapsed_ms": 2489
+    },
+    {
+      "q": "client onboarding KYC process",
+      "n": 5,
+      "max": 0.4084,
+      "min": 0.3671,
+      "elapsed_ms": 2355
+    },
+    {
+      "q": "house view bedrock fortnightly offering",
+      "n": 5,
+      "max": 0.5191,
+      "min": 0.4512,
+      "elapsed_ms": 2257
+    },
+    {
+      "q": "retirement planning slide v2.1",
+      "n": 5,
+      "max": 0.7109,
+      "min": 0.4973,
+      "elapsed_ms": 2244
+    },
+    {
+      "q": "PMS provider Marcellus",
+      "n": 5,
+      "max": 0.4528,
+      "min": 0.4345,
+      "elapsed_ms": 2652
+    },
+    {
+      "q": "Sapphire AIF lock in tenure",
+      "n": 5,
+      "max": 0.4671,
+      "min": 0.44,
+      "elapsed_ms": 2299
+    },
+    {
+      "q": "PURPLE STYLE LABS NCD coupon",
+      "n": 5,
+      "max": 0.587,
+      "min": 0.3677,
+      "elapsed_ms": 2392
+    },
+    {
+      "q": "Mackertich ONE Fund of Fund Series VI",
+      "n": 5,
+      "max": 0.629,
+      "min": 0.5927,
+      "elapsed_ms": 2412
+    },
+    {
+      "q": "Mediclaim group health insurance",
+      "n": 5,
+      "max": 0.5824,
+      "min": 0.5261,
+      "elapsed_ms": 2692
+    },
+    {
+      "q": "what does AIF mean",
+      "n": 5,
+      "max": 0.5672,
+      "min": 0.4825,
+      "elapsed_ms": 2930
+    },
+    {
+      "q": "how to invest in NCDs",
+      "n": 5,
+      "max": 0.5118,
+      "min": 0.481,
+      "elapsed_ms": 2635
+    },
+    {
+      "q": "wealth manager onboarding flow",
+      "n": 5,
+      "max": 0.4499,
+      "min": 0.4328,
+      "elapsed_ms": 2633
+    },
+    {
+      "q": "ARN code transfer documentation",
+      "n": 5,
+      "max": 0.4362,
+      "min": 0.4064,
+      "elapsed_ms": 2605
+    },
+    {
+      "q": "DCF valuation slide",
+      "n": 5,
+      "max": 0.528,
+      "min": 0.4724,
+      "elapsed_ms": 2521
+    }
+  ],
+  "all_scores": [
+    0.6045,
+    0.5646,
+    0.5624,
+    0.5619,
+    0.5588,
+    0.7818,
+    0.5228,
+    0.5008,
+    0.4978,
+    0.4909,
+    0.8079,
+    0.8028,
+    0.6231,
+    0.6193,
+    0.5954,
+    0.5041,
+    0.4992,
+    0.491,
+    0.4866,
+    0.4825,
+    0.5757,
+    0.5285,
+    0.525,
+    0.5185,
+    0.5127,
+    0.6202,
+    0.6151,
+    0.6127,
+    0.6121,
+    0.612,
+    0.388,
+    0.3798,
+    0.3727,
+    0.371,
+    0.3695,
+    0.4922,
+    0.4866,
+    0.4788,
+    0.4763,
+    0.4753,
+    0.4853,
+    0.4829,
+    0.4802,
+    0.4774,
+    0.4695,
+    0.5039,
+    0.497,
+    0.4856,
+    0.4837,
+    0.4825,
+    0.5138,
+    0.512,
+    0.5118,
+    0.5103,
+    0.5096,
+    0.5456,
+    0.5456,
+    0.521,
+    0.5208,
+    0.5053,
+    0.3255,
+    0.3254,
+    0.3148,
+    0.2966,
+    0.2966,
+    0.5511,
+    0.4762,
+    0.4654,
+    0.4645,
+    0.4612,
+    0.4973,
+    0.4966,
+    0.4929,
+    0.4924,
+    0.4881,
+    0.6264,
+    0.5678,
+    0.5389,
+    0.5308,
+    0.5206,
+    0.5558,
+    0.5529,
+    0.5497,
+    0.5406,
+    0.5386,
+    0.4084,
+    0.3967,
+    0.3792,
+    0.373,
+    0.3671,
+    0.5191,
+    0.4778,
+    0.4759,
+    0.4526,
+    0.4512,
+    0.7109,
+    0.7007,
+    0.5124,
+    0.5043,
+    0.4973,
+    0.4528,
+    0.4467,
+    0.4426,
+    0.4399,
+    0.4345,
+    0.4671,
+    0.4565,
+    0.4455,
+    0.4428,
+    0.44,
+    0.587,
+    0.3996,
+    0.3761,
+    0.3704,
+    0.3677,
+    0.629,
+    0.6114,
+    0.6086,
+    0.5966,
+    0.5927,
+    0.5824,
+    0.5533,
+    0.5315,
+    0.5298,
+    0.5261,
+    0.5672,
+    0.4905,
+    0.488,
+    0.4829,
+    0.4825,
+    0.5118,
+    0.5057,
+    0.4967,
+    0.4877,
+    0.481,
+    0.4499,
+    0.448,
+    0.4428,
+    0.4385,
+    0.4328,
+    0.4362,
+    0.4362,
+    0.4233,
+    0.4158,
+    0.4064,
+    0.528,
+    0.5242,
+    0.4925,
+    0.4905,
+    0.4724
+  ],
+  "latency_serial_ms": {
+    "n": 30,
+    "p50": 2581,
+    "p95": 3038,
+    "min": 2244,
+    "max": 4054
+  },
+  "latency_parallel": {
+    "n": 10,
+    "wall_ms": 19991,
+    "individual_ms_sorted": [
+      5471,
+      6739,
+      7482,
+      17414,
+      17682,
+      17690,
+      17899,
+      19787,
+      19966,
+      19991
+    ]
+  },
+  "source_distribution": {
+    "growth_revenue": 4,
+    "documents_full": 357,
+    "bedrock": 103,
+    "vehicle": 29,
+    "growth_insurance": 6,
+    "sales_pitch": 1
+  },
+  "unique_ids_observed": 373,
+  "join_key_check": {
+    "sample_ids": [
+      "growth_revenue:aif:0",
+      "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+      "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+      "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+      "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71",
+      "vehicle:b6c27cb4-2e45-4917-b36b-78cde9069335:0",
+      "vehicle:093c196e-3377-4d3d-90de-565a8b9cdb24:0",
+      "vehicle:776dafa0-aa7b-44da-b1fe-e512f5beb531:0"
+    ],
+    "n_sampled": 25,
+    "matched_smifs_id": 12,
+    "miss_rate_pct": 52.0,
+    "sample_prefix_distribution": {
+      "growth_revenue": 2,
+      "documents_full": 13,
+      "bedrock": 4,
+      "vehicle": 5,
+      "growth_insurance": 1
+    }
+  },
+  "coverage_parity": [
+    {
+      "q": "What is in the Mackertich ONE Sapphire AIF Cat-II factsheet?",
+      "local_top1": "Category III AIFs- Slide 1",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.6243,
+      "deck_top1": "Category III AIFs- Slide 1",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.4994,
+      "overlap_of_3": 3,
+      "verdict": "identical"
+    },
+    {
+      "q": "Pull the latest fortnightly offering bedrock.",
+      "local_top1": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.6497,
+      "deck_top1": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.5215,
+      "overlap_of_3": 3,
+      "verdict": "identical"
+    },
+    {
+      "q": "Walk me through the AIF sales pitch script.",
+      "local_top1": "Alternative Investment Fund · Target Client Profiling & Lead",
+      "local_top1_sub": "academy",
+      "local_top1_score": 0.7786,
+      "deck_top1": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+      "deck_top1_src": "documents_full",
+      "deck_top1_score": 0.4808,
+      "overlap_of_3": 0,
+      "verdict": "no_overlap"
+    },
+    {
+      "q": "What insurance providers does SMIFS distribute?",
+      "local_top1": "SMIFS Business Partner PPT",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.7132,
+      "deck_top1": "SMIFS Business Partner PPT",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.5767,
+      "overlap_of_3": 3,
+      "verdict": "identical"
+    },
+    {
+      "q": "Show me the FY26 Q3 revenue dashboard summary.",
+      "local_top1": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.4621,
+      "deck_top1": "ICICI Pru Growth Leaders Fund-Series VI · ICICI Pru Growth Leaders Fund Series VI - Presentation(Regular)_Feb 26 (1).pdf",
+      "deck_top1_src": "documents_full",
+      "deck_top1_score": 0.4056,
+      "overlap_of_3": 0,
+      "verdict": "no_overlap"
+    },
+    {
+      "q": "Walk me through the AIF sales pitch.",
+      "local_top1": "Alternative Investment Fund · Target Client Profiling & Lead",
+      "local_top1_sub": "academy",
+      "local_top1_score": 0.7897,
+      "deck_top1": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+      "deck_top1_src": "documents_full",
+      "deck_top1_score": 0.498,
+      "overlap_of_3": 0,
+      "verdict": "no_overlap"
+    },
+    {
+      "q": "What is the SMIFS house view on PMS?",
+      "local_top1": "Portfolio Management Services · Product Masterclass: PMS Ins",
+      "local_top1_sub": "academy",
+      "local_top1_score": 0.5977,
+      "deck_top1": "SMIFS Corporate PPT",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.4638,
+      "overlap_of_3": 2,
+      "verdict": "partial_2"
+    },
+    {
+      "q": "Latest SMIFS market view document.",
+      "local_top1": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.7568,
+      "deck_top1": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.6146,
+      "overlap_of_3": 3,
+      "verdict": "identical"
+    },
+    {
+      "q": "Compare bedrock vs document chunk for the same offering.",
+      "local_top1": "Yield Enhancement on Core Holdings- Slide 2",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.6258,
+      "deck_top1": "Yield Enhancement on Core Holdings- Slide 2",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.5007,
+      "overlap_of_3": 3,
+      "verdict": "identical"
+    },
+    {
+      "q": "Tell me about the Bharat NCD primary issue.",
+      "local_top1": "PURPLE STYLE LABS | DEBT FUNDING · PSLR KYI Sheet - NCDs.xls",
+      "local_top1_sub": "document",
+      "local_top1_score": 0.5021,
+      "deck_top1": "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (English)",
+      "deck_top1_src": "sales_pitch",
+      "deck_top1_score": 0.3855,
+      "overlap_of_3": 1,
+      "verdict": "partial_1"
+    },
+    {
+      "q": "Who last updated the bedrock fortnightly offering?",
+      "local_top1": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.6252,
+      "deck_top1": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.5003,
+      "overlap_of_3": 3,
+      "verdict": "identical"
+    },
+    {
+      "q": "AIF returns guarantee.",
+      "local_top1": "Alternative Investment Fund · Objection Handling Masterclass",
+      "local_top1_sub": "academy",
+      "local_top1_score": 0.62,
+      "deck_top1": "AIF",
+      "deck_top1_src": "growth_revenue",
+      "deck_top1_score": 0.4987,
+      "overlap_of_3": 1,
+      "verdict": "partial_1"
+    },
+    {
+      "q": "What is my last NAV?",
+      "local_top1": "Navi Mutual Fund",
+      "local_top1_sub": "vehicle",
+      "local_top1_score": 0.5477,
+      "deck_top1": "Navi Mutual Fund",
+      "deck_top1_src": "vehicle",
+      "deck_top1_score": 0.4588,
+      "overlap_of_3": 1,
+      "verdict": "partial_1"
+    },
+    {
+      "q": "What is an AIF?",
+      "local_top1": "Alternative Investment Fund · Objection Handling Masterclass",
+      "local_top1_sub": "academy",
+      "local_top1_score": 0.7826,
+      "deck_top1": "AIF",
+      "deck_top1_src": "growth_revenue",
+      "deck_top1_score": 0.6069,
+      "overlap_of_3": 0,
+      "verdict": "no_overlap"
+    },
+    {
+      "q": "PURPLE STYLE LABS NCD focused vehicle details",
+      "local_top1": "PURPLE STYLE LABS | DEBT FUNDING",
+      "local_top1_sub": "vehicle",
+      "local_top1_score": 0.7516,
+      "deck_top1": "PURPLE STYLE LABS | DEBT FUNDING",
+      "deck_top1_src": "vehicle",
+      "deck_top1_score": 0.6101,
+      "overlap_of_3": 1,
+      "verdict": "partial_1"
+    },
+    {
+      "q": "Retirement planning bedrock slide v2",
+      "local_top1": "Retirement Planning- Slide 1",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.9117,
+      "deck_top1": "Retirement Planning- Slide 1",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.7493,
+      "overlap_of_3": 3,
+      "verdict": "identical"
+    },
+    {
+      "q": "How does ARN transfer work in mutual funds?",
+      "local_top1": "SMIFS Business Partner PPT",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.6058,
+      "deck_top1": "SMIFS Business Partner PPT",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.4833,
+      "overlap_of_3": 1,
+      "verdict": "partial_1"
+    },
+    {
+      "q": "KYC onboarding process",
+      "local_top1": "KYC, Compliance, and Onboarding",
+      "local_top1_sub": null,
+      "local_top1_score": 0.6378,
+      "deck_top1": "ASK Special Opportunities Portfolio (SOP) · ASK Special Opportunities Portfolio Presentation.pdf",
+      "deck_top1_src": "documents_full",
+      "deck_top1_score": 0.4361,
+      "overlap_of_3": 0,
+      "verdict": "no_overlap"
+    },
+    {
+      "q": "SEBI Category II investor disclosure",
+      "local_top1": "SMIFS Business Partner PPT",
+      "local_top1_sub": "bedrock",
+      "local_top1_score": 0.6898,
+      "deck_top1": "SMIFS Business Partner PPT",
+      "deck_top1_src": "bedrock",
+      "deck_top1_score": 0.5564,
+      "overlap_of_3": 1,
+      "verdict": "partial_1"
+    },
+    {
+      "q": "tax implications LTCG AIF",
+      "local_top1": "Alternative Investment Fund · Product Masterclass: Know Your",
+      "local_top1_sub": "academy",
+      "local_top1_score": 0.6876,
+      "deck_top1": "Aditya Birla Global Bluechip Equity Fund · ABSL Global Bluechip Equity Fund (IFSC) _Deck.pdf",
+      "deck_top1_src": "documents_full",
+      "deck_top1_score": 0.5278,
+      "overlap_of_3": 0,
+      "verdict": "no_overlap"
+    }
+  ],
+  "probe_completed_at": 1779652023.2529998
+}

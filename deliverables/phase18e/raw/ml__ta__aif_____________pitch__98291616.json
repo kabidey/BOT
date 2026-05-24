@@ -1,0 +1,126 @@
+{
+  "request": {
+    "q": "AIF க்கான தமிழ் pitch",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "AIF க்கான தமிழ் pitch",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "growth_revenue:aif:0",
+          "score": 0.4785,
+          "source": "growth_revenue",
+          "sourceId": "aif",
+          "title": "AIF",
+          "section": "Growth · Revenue Sharing · AIF",
+          "content": "Revenue Sharing · AIF\n\nVertical: AIF\n\n[Table] AIF Strategies\nAIF Strategy | RM Credit\nNIDI | 0.05\nTRITON AIF SERIES II | 0.07\nCARNELIAN BHARAT AMRITKAL FUND | 0.025\nSUNDARAM ALT -REAL ESTATE PER GEN FUNDS SERIES 5 | 0.03\nSUNDARAM PERFORMING CREDIT OPPORTUNITY FUND | 0.05\nALCHEMY LONG TERM VENTURES FUND SERIES 3 | 0.06\nADITYA BIRLA REAL ESTATE CREDIT OPPORTUNITIES FUND – SERIES II | 0.043\nAIF – A1 (EMKAY EMERGING STARS FUND, SERIOUS  ) | 0.07\nSUNDARAM ALTERNATES-CATEGORY II PCOF | 0.05\nBHARAT VALUE FUND SERIES VI | 0.06",
+          "metadata": {
+            "vertical": "aif",
+            "label": "AIF",
+            "tableCount": 1,
+            "rowCount": 10,
+            "updatedAt": "2026-05-16T08:48:33.685669+00:00",
+            "updatedBy": "nandini.biswas@smifs.com"
+          }
+        },
+        {
+          "id": "vehicle:5940616d-b7ca-49d4-be88-2bfd1a3706b9:0",
+          "score": 0.4351,
+          "source": "vehicle",
+          "sourceId": "5940616d-b7ca-49d4-be88-2bfd1a3706b9",
+          "title": "Bharat Value Fund Series VI (Fund Of Fund)",
+          "section": "AIF",
+          "content": "Investment Product: Bharat Value Fund Series VI (Fund Of Fund)\nCategory: AIF\nPresently taking investments.\nAI sales pitch available in 13 languages.",
+          "metadata": {
+            "vehicleType": "AIF",
+            "customTypeName": null,
+            "isFocused": true,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": true,
+            "salesPitchLanguages": [
+              "en",
+              "hi",
+              "bn",
+              "mr",
+              "gu",
+              "ta",
+              "te",
+              "kn",
+              "ml",
+              "pa",
+              "or",
+              "ur",
+              "as"
+            ],
+            "updatedAt": "2026-05-10T21:25:34.180617+00:00"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:8",
+          "score": 0.3599,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "file\n(cid:127) The ASK Absolute Return Fund, a Category III AIF, launched on January 31, 2024, employs a long-short,\nmulti-strategy investment style. Minimum investment is n1 crore with monthly redemptions after a 5-day notice.\nAs o...\n(cid:127) ASK Absolute Return Fund, an AIF Category III fund from ASK Group (INR 84,000 crores AUM), aims for\nabsolute returns with lower volatility than Indian equity indices. The experienced investment team of 19 years\nfocus...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 3",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 8,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "vehicle:6066adb2-084a-49be-8249-6d168d21955b:0",
+          "score": 0.355,
+          "source": "vehicle",
+          "sourceId": "6066adb2-084a-49be-8249-6d168d21955b",
+          "title": "Aditya Birla India Equity  Opportunities Fund",
+          "section": "AIF",
+          "content": "Investment Product: Aditya Birla India Equity  Opportunities Fund\nCategory: AIF",
+          "metadata": {
+            "vehicleType": "AIF",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-03-24T11:36:14.237127+00:00"
+          }
+        },
+        {
+          "id": "vehicle:c90f9d10-917f-436f-97b4-dc8f78bd1c8e:0",
+          "score": 0.3526,
+          "source": "vehicle",
+          "sourceId": "c90f9d10-917f-436f-97b4-dc8f78bd1c8e",
+          "title": "Nippon India Digital Innovation (NIDI) Fund 2A",
+          "section": "AIF",
+          "content": "Investment Product: Nippon India Digital Innovation (NIDI) Fund 2A\nCategory: AIF",
+          "metadata": {
+            "vehicleType": "AIF",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-04-23T12:38:37.190119+00:00"
+          }
+        }
+      ],
+      "totalIndexed": 2489
+    },
+    "elapsed_ms": 2714
+  }
+}

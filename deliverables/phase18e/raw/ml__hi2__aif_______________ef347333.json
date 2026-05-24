@@ -1,0 +1,114 @@
+{
+  "request": {
+    "q": "AIF क्या होता है",
+    "top_k": 5
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "AIF क्या होता है",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [
+        {
+          "id": "growth_revenue:aif:0",
+          "score": 0.528,
+          "source": "growth_revenue",
+          "sourceId": "aif",
+          "title": "AIF",
+          "section": "Growth · Revenue Sharing · AIF",
+          "content": "Revenue Sharing · AIF\n\nVertical: AIF\n\n[Table] AIF Strategies\nAIF Strategy | RM Credit\nNIDI | 0.05\nTRITON AIF SERIES II | 0.07\nCARNELIAN BHARAT AMRITKAL FUND | 0.025\nSUNDARAM ALT -REAL ESTATE PER GEN FUNDS SERIES 5 | 0.03\nSUNDARAM PERFORMING CREDIT OPPORTUNITY FUND | 0.05\nALCHEMY LONG TERM VENTURES FUND SERIES 3 | 0.06\nADITYA BIRLA REAL ESTATE CREDIT OPPORTUNITIES FUND – SERIES II | 0.043\nAIF – A1 (EMKAY EMERGING STARS FUND, SERIOUS  ) | 0.07\nSUNDARAM ALTERNATES-CATEGORY II PCOF | 0.05\nBHARAT VALUE FUND SERIES VI | 0.06",
+          "metadata": {
+            "vertical": "aif",
+            "label": "AIF",
+            "tableCount": 1,
+            "rowCount": 10,
+            "updatedAt": "2026-05-16T08:48:33.685669+00:00",
+            "updatedBy": "nandini.biswas@smifs.com"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:72",
+          "score": 0.4464,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "AIF II\nTransformation of Commercial Real Estate\nTurning bricks into potential",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 72,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:73",
+          "score": 0.4464,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "AIF II\nTransformation of Commercial Real Estate\nTurning bricks into potential",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 73,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "documents_full:34fa200d-3d34-46a9-bcc5-65065a89eb29:71",
+          "score": 0.4351,
+          "source": "documents_full",
+          "sourceId": "34fa200d-3d34-46a9-bcc5-65065a89eb29",
+          "title": "ICICI Prudential Office Yield Optimiser Fund · Office Yield Optimiser Fund II.pdf",
+          "section": "Vehicle Document · AIF",
+          "content": "d AIF II\nTransformation of Commercial Real Estate\nTurning bricks into potential",
+          "metadata": {
+            "vehicleId": "0afb1dcd-bf0c-41b7-9a53-3488b25a6391",
+            "vehicleName": "ICICI Prudential Office Yield Optimiser Fund",
+            "vehicleType": "AIF",
+            "fileType": "pdf",
+            "fileName": "Office Yield Optimiser Fund II.pdf",
+            "fileSize": 503677,
+            "ordinal": 71,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "score": 0.4227,
+          "source": "bedrock",
+          "sourceId": "b4d11a33-5320-4373-9b3d-cb780c727ed0",
+          "title": "Category III AIFs- Slide 1",
+          "section": "brand",
+          "content": "Bedrock Item: Category III AIFs- Slide 1\nSection: brand\nVersion No: v12.1\nCollateral No: SMIFS-BR-023",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Mar 23, 2026 - Investment Insights - Category III AIFs - 1.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v12.1",
+            "collateralNo": "SMIFS-BR-023"
+          }
+        }
+      ],
+      "totalIndexed": 2489
+    },
+    "elapsed_ms": 2992
+  }
+}
