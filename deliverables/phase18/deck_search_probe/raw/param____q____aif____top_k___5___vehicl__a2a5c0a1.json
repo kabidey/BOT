@@ -1,0 +1,21 @@
+{
+  "request": {
+    "q": "AIF",
+    "top_k": 5,
+    "vehicle_id": "cc602b11-9fc2-4bbd-b6af-df529f3bf719"
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "AIF",
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [],
+      "totalIndexed": 0
+    },
+    "elapsed_ms": 380
+  }
+}

@@ -1,0 +1,482 @@
+[
+  {
+    "q": "What is in the Mackertich ONE Sapphire AIF Cat-II factsheet?",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Category III AIFs- Slide 1",
+        "subsource": "bedrock",
+        "score": 0.6243,
+        "raw": 0.4994
+      },
+      {
+        "title": "SMIFS Business Partner PPT",
+        "subsource": "bedrock",
+        "score": 0.5982,
+        "raw": 0.4767
+      },
+      {
+        "title": "SMIFS Corporate PPT",
+        "subsource": "bedrock",
+        "score": 0.5875,
+        "raw": 0.4674
+      }
+    ]
+  },
+  {
+    "q": "Pull the latest fortnightly offering bedrock.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.6497,
+        "raw": 0.5215
+      },
+      {
+        "title": "Yield Enhancement on Core Holdings- Slide 1",
+        "subsource": "bedrock",
+        "score": 0.5315,
+        "raw": 0.4187
+      },
+      {
+        "title": "Yield Enhancement on Core Holdings- Slide 2",
+        "subsource": "bedrock",
+        "score": 0.5313,
+        "raw": 0.4186
+      }
+    ]
+  },
+  {
+    "q": "Walk me through the AIF sales pitch script.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Alternative Investment Fund · Target Client Profiling & Lead",
+        "subsource": "academy",
+        "score": 0.7786,
+        "raw": 0.6771
+      },
+      {
+        "title": "Alternative Investment Fund · Sales Pitch Scripts & Conversa",
+        "subsource": "academy",
+        "score": 0.7743,
+        "raw": 0.6733
+      },
+      {
+        "title": "Alternative Investment Fund · Case Studies & Deal Stories — ",
+        "subsource": "academy",
+        "score": 0.743,
+        "raw": 0.646
+      }
+    ]
+  },
+  {
+    "q": "What insurance providers does SMIFS distribute?",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "SMIFS Business Partner PPT",
+        "subsource": "bedrock",
+        "score": 0.7132,
+        "raw": 0.5767
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.6876,
+        "raw": 0.5544
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.6727,
+        "raw": 0.5415
+      }
+    ]
+  },
+  {
+    "q": "Show me the FY26 Q3 revenue dashboard summary.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.4621,
+        "raw": 0.3584
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.4446,
+        "raw": 0.3431
+      },
+      {
+        "title": "Alternative Investment Fund · Target Client Profiling & Lead",
+        "subsource": "academy",
+        "score": 0.4435,
+        "raw": 0.3857
+      }
+    ]
+  },
+  {
+    "q": "Walk me through the AIF sales pitch.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Alternative Investment Fund · Target Client Profiling & Lead",
+        "subsource": "academy",
+        "score": 0.7897,
+        "raw": 0.6867
+      },
+      {
+        "title": "Alternative Investment Fund · Sales Pitch Scripts & Conversa",
+        "subsource": "academy",
+        "score": 0.7519,
+        "raw": 0.6538
+      },
+      {
+        "title": "Alternative Investment Fund · Case Studies & Deal Stories — ",
+        "subsource": "academy",
+        "score": 0.7513,
+        "raw": 0.6533
+      }
+    ]
+  },
+  {
+    "q": "What is the SMIFS house view on PMS?",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Portfolio Management Services · Product Masterclass: PMS Ins",
+        "subsource": "academy",
+        "score": 0.5977,
+        "raw": 0.5198
+      },
+      {
+        "title": "Portfolio Management Services · The PMS Sales Conversation —",
+        "subsource": "academy",
+        "score": 0.5907,
+        "raw": 0.5137
+      },
+      {
+        "title": "SMIFS Corporate PPT",
+        "subsource": "bedrock",
+        "score": 0.5834,
+        "raw": 0.4638
+      }
+    ]
+  },
+  {
+    "q": "Latest SMIFS market view document.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.7568,
+        "raw": 0.6146
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.7505,
+        "raw": 0.6091
+      },
+      {
+        "title": "SMIFS Business Partner PPT",
+        "subsource": "bedrock",
+        "score": 0.7459,
+        "raw": 0.6051
+      }
+    ]
+  },
+  {
+    "q": "Compare bedrock vs document chunk for the same offering.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Yield Enhancement on Core Holdings- Slide 2",
+        "subsource": "bedrock",
+        "score": 0.6258,
+        "raw": 0.5007
+      },
+      {
+        "title": "Structured Products- Slide 2",
+        "subsource": "bedrock",
+        "score": 0.6208,
+        "raw": 0.4964
+      },
+      {
+        "title": "Yield Enhancement on Core Holdings- Slide 1",
+        "subsource": "bedrock",
+        "score": 0.6198,
+        "raw": 0.4954
+      }
+    ]
+  },
+  {
+    "q": "Tell me about the Bharat NCD primary issue.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "PURPLE STYLE LABS | DEBT FUNDING · PSLR KYI Sheet - NCDs.xls",
+        "subsource": "document",
+        "score": 0.5021,
+        "raw": 0.4366
+      },
+      {
+        "title": "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (English)",
+        "subsource": "sales_pitch",
+        "score": 0.4933,
+        "raw": 0.3855
+      },
+      {
+        "title": "Non-Convertible Debentures · Objection Handling & Risk Discu",
+        "subsource": "academy",
+        "score": 0.4895,
+        "raw": 0.4257
+      }
+    ]
+  },
+  {
+    "q": "Who last updated the bedrock fortnightly offering?",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.6252,
+        "raw": 0.5002
+      },
+      {
+        "title": "Market timings- Slide 2",
+        "subsource": "bedrock",
+        "score": 0.498,
+        "raw": 0.3896
+      },
+      {
+        "title": "Yield Enhancement on Core Holdings- Slide 1",
+        "subsource": "bedrock",
+        "score": 0.4789,
+        "raw": 0.3729
+      }
+    ]
+  },
+  {
+    "q": "AIF returns guarantee.",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Alternative Investment Fund · Objection Handling Masterclass",
+        "subsource": "academy",
+        "score": 0.62,
+        "raw": 0.5391
+      },
+      {
+        "title": "Alternative Investment Fund · Objection Handling Masterclass",
+        "subsource": "academy",
+        "score": 0.5993,
+        "raw": 0.5211
+      },
+      {
+        "title": "AIF",
+        "subsource": "growth_revenue",
+        "score": 0.5935,
+        "raw": 0.4987
+      }
+    ]
+  },
+  {
+    "q": "What is my last NAV?",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Navi Mutual Fund",
+        "subsource": "vehicle",
+        "score": 0.5477,
+        "raw": 0.4588
+      },
+      {
+        "title": "Mutual Funds · SIP Selling: The Scalable Revenue Engine — Ru",
+        "subsource": "academy",
+        "score": 0.5185,
+        "raw": 0.4509
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.4939,
+        "raw": 0.386
+      }
+    ]
+  },
+  {
+    "q": "What is an AIF?",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Alternative Investment Fund · Objection Handling Masterclass",
+        "subsource": "academy",
+        "score": 0.7826,
+        "raw": 0.6805
+      },
+      {
+        "title": "Alternative Investment Fund · Sales Pitch Scripts & Conversa",
+        "subsource": "academy",
+        "score": 0.7653,
+        "raw": 0.6655
+      },
+      {
+        "title": "Alternative Investment Fund · Product Masterclass: Know Your",
+        "subsource": "academy",
+        "score": 0.7259,
+        "raw": 0.6312
+      }
+    ]
+  },
+  {
+    "q": "PURPLE STYLE LABS NCD focused vehicle details",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "PURPLE STYLE LABS | DEBT FUNDING",
+        "subsource": "vehicle",
+        "score": 0.7516,
+        "raw": 0.6101
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.5222,
+        "raw": 0.4106
+      },
+      {
+        "title": "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (English)",
+        "subsource": "sales_pitch",
+        "score": 0.5147,
+        "raw": 0.4041
+      }
+    ]
+  },
+  {
+    "q": "Retirement planning bedrock slide v2",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Retirement Planning- Slide 1",
+        "subsource": "bedrock",
+        "score": 0.9117,
+        "raw": 0.7493
+      },
+      {
+        "title": "Retirement Planning- Slide 2",
+        "subsource": "bedrock",
+        "score": 0.9081,
+        "raw": 0.7462
+      },
+      {
+        "title": "Systematic Investment Plan- Slide 1",
+        "subsource": "bedrock",
+        "score": 0.7135,
+        "raw": 0.5769
+      }
+    ]
+  },
+  {
+    "q": "How does ARN transfer work in mutual funds?",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "SMIFS Business Partner PPT",
+        "subsource": "bedrock",
+        "score": 0.6058,
+        "raw": 0.4833
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.5639,
+        "raw": 0.4469
+      },
+      {
+        "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+        "subsource": "bedrock",
+        "score": 0.5576,
+        "raw": 0.4414
+      }
+    ]
+  },
+  {
+    "q": "KYC onboarding process",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "KYC, Compliance, and Onboarding",
+        "subsource": null,
+        "score": 0.6378,
+        "raw": 0.6378
+      },
+      {
+        "title": "KYC, Compliance, and Onboarding",
+        "subsource": null,
+        "score": 0.5904,
+        "raw": 0.5904
+      },
+      {
+        "title": "Mutual Funds · Objections, Competition & Growing Your Book —",
+        "subsource": "academy",
+        "score": 0.5632,
+        "raw": 0.4897
+      }
+    ]
+  },
+  {
+    "q": "SEBI Category II investor disclosure",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "SMIFS Business Partner PPT",
+        "subsource": "bedrock",
+        "score": 0.6898,
+        "raw": 0.5564
+      },
+      {
+        "title": "Alternative Investment Fund · Product Masterclass: Know Your",
+        "subsource": "academy",
+        "score": 0.6377,
+        "raw": 0.5545
+      },
+      {
+        "title": "Portfolio Management Services · Objection Handling for PMS —",
+        "subsource": "academy",
+        "score": 0.6332,
+        "raw": 0.5506
+      }
+    ]
+  },
+  {
+    "q": "tax implications LTCG AIF",
+    "n_hits": 5,
+    "top_3": [
+      {
+        "title": "Alternative Investment Fund · Product Masterclass: Know Your",
+        "subsource": "academy",
+        "score": 0.6876,
+        "raw": 0.5979
+      },
+      {
+        "title": "Alternative Investment Fund · Case Studies & Deal Stories — ",
+        "subsource": "academy",
+        "score": 0.6729,
+        "raw": 0.5851
+      },
+      {
+        "title": "Portfolio Management Services · Product Masterclass: PMS Ins",
+        "subsource": "academy",
+        "score": 0.6671,
+        "raw": 0.5801
+      }
+    ]
+  }
+]

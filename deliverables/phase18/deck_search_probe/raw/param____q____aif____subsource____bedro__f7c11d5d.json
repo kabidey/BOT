@@ -1,0 +1,21 @@
+{
+  "request": {
+    "q": "AIF",
+    "top_k": 5,
+    "subsource": "bedrock"
+  },
+  "response": {
+    "ok": true,
+    "status": 200,
+    "json": {
+      "query": "AIF",
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "sources": [],
+      "topK": 5,
+      "minScore": 0.0,
+      "results": [],
+      "totalIndexed": 0
+    },
+    "elapsed_ms": 384
+  }
+}
