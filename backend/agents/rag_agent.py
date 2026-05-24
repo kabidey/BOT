@@ -230,6 +230,13 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             # Phase 18.1 — explicit relevance field for debug/admin surfaces
             # (the deck path also stores this on the hit dict).
             "relevance": round(h.get("relevance", h["score"]), 4),
+            # Phase 18.2 — true only for deck `documents_full` hits that
+            # survived the audience gates (verified employees). The FE renders
+            # these chips with a muted-grey accent so reps know it's a broad
+            # PDF text scan, not a curated bedrock/vehicle chunk. Set to None
+            # for local hits so the field is omitted by the trailing
+            # None-filter (keeps the local citation envelope clean).
+            "is_full_document_scan": (True if h.get("is_full_document_scan") else None),
         }
         return {k: v for k, v in out.items() if v is not None}
 

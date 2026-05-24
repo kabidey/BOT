@@ -50,7 +50,11 @@ DECK_KEY = os.environ.get("SMIFS_KNOWLEDGE_API_KEY") or ""
 # Env-driven knobs (read once at import; min_score is re-read per call so a
 # threshold tune doesn't require a restart).
 DEFAULT_BACKOFF = int(os.environ.get("DECK_SEARCH_BACKOFF_SECONDS", "3600"))
-DECK_TIMEOUT_S = float(os.environ.get("DECK_SEARCH_TIMEOUT_S", "2.5"))
+# Phase 18.2 — bumped 2.5s → 3.0s. p95 was 3.01s on 24-May post-bulk-load;
+# the previous budget was timing out ~50% of otherwise-successful calls
+# (see /app/deliverables/phase18c/deck_reprobe_delta.md §6). The slow-
+# response WARNING threshold stays at 2.0s so trend visibility isn't lost.
+DECK_TIMEOUT_S = float(os.environ.get("DECK_SEARCH_TIMEOUT_S", "3.0"))
 SLOW_RESPONSE_MS = int(os.environ.get("DECK_SEARCH_SLOW_RESPONSE_MS", "2000"))
 EMPTY_RING_MAX = 10
 CAPPED_CALLS = 50_000
@@ -64,6 +68,14 @@ _EMPLOYEE_ONLY_SUBSOURCES = {"sales_pitch", "growth_insurance", "growth_revenue"
 # Phase 18.1 — sources whitelist pre-filter. Saves a round-trip on chunks
 # we'd just drop in audience gating.
 _VISITOR_CLIENT_SOURCES = ["bedrock", "vehicle", "academy", "sales_pitch", "document"]
+
+# Phase 18.2 — `documents_full` is a NEW deck-only source (added between 18b
+# and 18c probes). 72% of deck hits, 0% join into our local doc_chunks, no
+# audience metadata. Until the deck team confirms the corpus is universally
+# safe-for-all (see DEPLOY_NOTES.md "documents_full relaxation criteria"),
+# we hard-block this source for visitor / client sessions. Verified employees
+# see them unchanged (they're cleared for broader content).
+_DOCUMENTS_FULL_SOURCE = "documents_full"
 
 
 def _current_min_score() -> float:
@@ -90,6 +102,7 @@ _latency_ring: collections.deque = collections.deque(maxlen=LATENCY_RING_MAX)
 _call_counter_today = {
     "date": "", "count": 0, "audience_drops": 0,
     "timeouts": 0, "slow_responses": 0,
+    "documents_full_blocks": 0,    # Phase 18.2
 }
 _current_total_indexed: Optional[int] = None
 
@@ -99,7 +112,8 @@ def _today_iso() -> str:
 
 
 def _bump_counters(*, audience_drops: int = 0,
-                   timeout: bool = False, slow: bool = False) -> None:
+                   timeout: bool = False, slow: bool = False,
+                   documents_full_blocks: int = 0) -> None:
     today = _today_iso()
     if _call_counter_today["date"] != today:
         _call_counter_today["date"] = today
@@ -107,8 +121,10 @@ def _bump_counters(*, audience_drops: int = 0,
         _call_counter_today["audience_drops"] = 0
         _call_counter_today["timeouts"] = 0
         _call_counter_today["slow_responses"] = 0
+        _call_counter_today["documents_full_blocks"] = 0
     _call_counter_today["count"] += 1
     _call_counter_today["audience_drops"] += audience_drops
+    _call_counter_today["documents_full_blocks"] += documents_full_blocks
     if timeout:
         _call_counter_today["timeouts"] += 1
     if slow:
@@ -135,6 +151,7 @@ def status() -> Dict[str, Any]:
         "audience_drops_today": _call_counter_today["audience_drops"],
         "timeouts_today": _call_counter_today["timeouts"],
         "slow_responses_today": _call_counter_today["slow_responses"],
+        "documents_full_blocks_today": _call_counter_today["documents_full_blocks"],
         "p50_latency_ms_last_50": _p50_latency_ms_last_50(),
         "current_totalIndexed_seen": _current_total_indexed,
         "backoff_seconds": DEFAULT_BACKOFF,
@@ -323,7 +340,7 @@ async def deck_search(query: str, *, top_k: int = 8, db=None,
                 "query_hash": query_hash, "top_k": top_k, "locale": locale,
                 "sources_filter": sources_filter}
 
-    # --- Phase 18.1: hard 2.5s timeout. NEVER block the user response. ---
+    # --- Phase 18.1: hard latency budget (Phase 18.2: 2.5s → 3.0s). NEVER block the user. ---
     try:
         # httpx's own 30s timeout is the inner guard; asyncio.wait_for is the
         # hard outer budget enforced even if httpx hangs on connect/TLS.
@@ -428,6 +445,11 @@ async def deck_search(query: str, *, top_k: int = 8, db=None,
             # Phase 18 — flag the engine of origin so the citation chip can
             # render a subtle differentiator (FE consumes `source_engine`).
             "source_engine": "deck_search",
+            # Phase 18.2 — FE renders `documents_full` hits with a muted-grey
+            # accent + tooltip so reps know it's a broad PDF text dump rather
+            # than a curated bedrock/vehicle chunk. Only set true for the
+            # specific deck source.
+            "is_full_document_scan": (deck_source == _DOCUMENTS_FULL_SOURCE),
         })
 
     # --- belt-and-suspenders audience gate post-enrichment ---
@@ -435,16 +457,46 @@ async def deck_search(query: str, *, top_k: int = 8, db=None,
     if dropped:
         await _log_audience_drop_event(db, query, dropped)
 
+    # --- Phase 18.2: defensive `documents_full` guard for non-employees ---
+    # `documents_full` is a deck-only source (added between 18b and 18c
+    # probes). 72% of deck hits but 0% join into doc_chunks, so we have NO
+    # local audience metadata to verify what's in these chunks. Until the
+    # deck team confirms the corpus is universally safe-for-all, block this
+    # source for visitor/client sessions. Verified employees see them
+    # unchanged. See DEPLOY_NOTES.md "documents_full relaxation criteria".
+    documents_full_blocks = 0
+    is_employee_verified = (session_type == "employee" and auth_state == "verified")
+    if not is_employee_verified:
+        kept_after_full_guard: List[Dict[str, Any]] = []
+        for h in kept:
+            if h.get("source_raw") == _DOCUMENTS_FULL_SOURCE:
+                documents_full_blocks += 1
+                await _log_security_event(
+                    db, kind="kb_documents_full_blocked_for_role",
+                    severity="info",
+                    payload={
+                        "session_type": session_type or "anonymous",
+                        "auth_state": auth_state or "anonymous",
+                        "hit_title_redacted": (h.get("doc_title") or "")[:40],
+                        "query_hash": query_hash,
+                    },
+                )
+                continue
+            kept_after_full_guard.append(h)
+        kept = kept_after_full_guard
+
     _last_call_log.append({
         "ts": datetime.now(timezone.utc).isoformat(),
         "status": 200, "elapsed_ms": elapsed_ms, "slow": slow,
         "totalIndexed_seen": total_indexed,
         "results_count_raw": len(raw_results),
         "results_count_post_audience": len(kept),
+        "documents_full_blocks": documents_full_blocks,
         "enrichment_hits": len(enrichment_map),
         "locale": locale,
     })
-    _bump_counters(audience_drops=dropped, slow=slow)
+    _bump_counters(audience_drops=dropped, slow=slow,
+                   documents_full_blocks=documents_full_blocks)
     await _log_telemetry(db, {
         **base_row,
         "status": 200, "elapsed_ms": elapsed_ms, "slow": slow,
@@ -452,6 +504,7 @@ async def deck_search(query: str, *, top_k: int = 8, db=None,
         "results_count_raw": len(raw_results),
         "results_count_post_audience": len(kept),
         "audience_drops": dropped,
+        "documents_full_blocks": documents_full_blocks,
         "enrichment_hits": len(enrichment_map),
     })
 
@@ -472,3 +525,4 @@ def _reset_state() -> None:
     _call_counter_today["audience_drops"] = 0
     _call_counter_today["timeouts"] = 0
     _call_counter_today["slow_responses"] = 0
+    _call_counter_today["documents_full_blocks"] = 0

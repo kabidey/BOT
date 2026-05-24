@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, FileSearch } from "lucide-react";
 
 /** Tiny markdown-ish formatter — bold + bullet lists. The Hub AI replies are mostly
  * plain prose; we keep this minimal to avoid pulling in react-markdown. */
@@ -76,6 +76,7 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
           {citations.map((c, ci) => {
             const key = `${msgIdx}-${ci}`;
             const isOfficial = c.is_official || c.source === "smifs_knowledge";
+            const isFullDocScan = !!c.is_full_document_scan;     // Phase 18.2
             const updatedLabel = formatUpdatedAt(c.updated_at);
             // Phase 16.1 — gate version badge on `version_major >= 2`.
             const versionMajor = typeof c.version_major === "number"
@@ -92,18 +93,25 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
               <button
                 key={ci}
                 type="button"
-                className={`smifs-cite ${activeCitationKey === key ? "smifs-cite--active" : ""} ${isOfficial ? "smifs-cite--official" : ""}`}
+                className={`smifs-cite ${activeCitationKey === key ? "smifs-cite--active" : ""} ${isOfficial ? "smifs-cite--official" : ""} ${isFullDocScan ? "smifs-cite--scan" : ""}`}
                 onClick={() => onCitationClick(msgIdx, ci)}
                 data-testid={`citation-${msgIdx}-${ci}`}
-                title={`${isOfficial ? "SMIFS Official · " : ""}Score ${c.score.toFixed(2)}${updatedLabel ? ` · Updated ${updatedLabel}` : ""}${versionLabel ? ` · ${versionLabel}` : ""} — click to view passage`}
+                title={`${isOfficial ? "SMIFS Official · " : ""}${isFullDocScan ? "Source: broad document scan — may be less focused than curated content. · " : ""}Score ${c.score.toFixed(2)}${updatedLabel ? ` · Updated ${updatedLabel}` : ""}${versionLabel ? ` · ${versionLabel}` : ""} — click to view passage`}
               >
                 {isOfficial && (
                   <span className="smifs-cite-official-dot" aria-hidden data-testid={`citation-official-${msgIdx}-${ci}`} />
                 )}
-                <FileText size={11} strokeWidth={2.25} />
+                {isFullDocScan
+                  ? <FileSearch size={11} strokeWidth={2.25} data-testid={`citation-fulldoc-icon-${msgIdx}-${ci}`} />
+                  : <FileText size={11} strokeWidth={2.25} />}
                 <span className="smifs-cite-doc">{c.doc_title}</span>
                 <span className="smifs-cite-sep">·</span>
                 <span className="smifs-cite-sec">§{c.section}</span>
+                {isFullDocScan && (
+                  <span className="smifs-cite-meta smifs-cite-meta--scan" data-testid={`citation-fulldoc-${msgIdx}-${ci}`}>
+                    PDF scan
+                  </span>
+                )}
                 {updatedLabel && (
                   <span className="smifs-cite-meta" data-testid={`citation-updated-${msgIdx}-${ci}`}>
                     Updated {updatedLabel}

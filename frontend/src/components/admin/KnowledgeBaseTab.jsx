@@ -231,6 +231,10 @@ export default function KnowledgeBaseTab({ api }) {
               <span className="smifs-kb-count-value">{deckStatus.audience_drops_today ?? 0}</span>
               <span className="smifs-kb-count-label">Audience drops</span>
             </div>
+            <div className="smifs-kb-count smifs-kb-count--warn" data-testid="deck-documents-full-blocks">
+              <span className="smifs-kb-count-value">{deckStatus.documents_full_blocks_today ?? 0}</span>
+              <span className="smifs-kb-count-label">documents_full blocks</span>
+            </div>
           </div>
           {Array.isArray(deckStatus.recent_telemetry) && deckStatus.recent_telemetry.length > 0 && (
             <details className="smifs-kb-history" data-testid="deck-telemetry" open>
