@@ -685,7 +685,7 @@ export default function Chat({ embedded = false }) {
   };
 
   return (
-    <div className={`smifs-shell ${embedded ? "smifs-shell--embed" : ""}`} data-testid="smifs-chat-shell">
+    <div className={`smifs-shell ${embedded ? "smifs-shell--embed smifs-embed" : ""}`} data-testid="smifs-chat-shell">
       {!embedded && <div className="smifs-bg-blob smifs-bg-blob--gold" aria-hidden />}
       {!embedded && <div className="smifs-bg-blob smifs-bg-blob--teal" aria-hidden />}
       {!embedded && <div className="smifs-grain" aria-hidden />}

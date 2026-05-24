@@ -483,16 +483,19 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
           <ul className="smifs-sale-form__picker-list" data-testid="vehicle-picker-list">
             {filteredVehicles.length === 0 ? (
               <li className="smifs-sale-form__picker-empty-row">No matches.</li>
-            ) : filteredVehicles.slice(0, 50).map((v) => (
-              <li key={v.vehicle_id}
-                  className="smifs-sale-form__picker-row"
-                  data-testid={`vehicle-picker-option-${v.vehicle_id}`}
-                  onClick={() => onPickVehicle(v)}>
-                {v.is_focused && <Star size={11} className="smifs-sale-form__picker-star" data-testid={`vehicle-focused-${v.vehicle_id}`}/>}
-                <span className="smifs-sale-form__picker-name">{v.vehicle_name}</span>
-                <span className="smifs-sale-form__picker-type">{v.vehicle_type}</span>
-              </li>
-            ))}
+            ) : filteredVehicles.slice(0, 50).map((v) => {
+              const isSelected = selectedVehicle && selectedVehicle.vehicle_id === v.vehicle_id;
+              return (
+                <li key={v.vehicle_id}
+                    className={`smifs-sale-form__picker-row ${isSelected ? "is-selected" : ""}`}
+                    data-testid={`vehicle-picker-option-${v.vehicle_id}`}
+                    onClick={() => onPickVehicle(v)}>
+                  {v.is_focused && <Star size={11} className="smifs-sale-form__picker-star" data-testid={`vehicle-focused-${v.vehicle_id}`}/>}
+                  <span className="smifs-sale-form__picker-name">{v.vehicle_name}</span>
+                  <span className="smifs-sale-form__picker-type">{v.vehicle_type}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
         {errors.vehicle_id && <div className="smifs-sale-form__err">{errors.vehicle_id}</div>}

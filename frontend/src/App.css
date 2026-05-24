@@ -2299,34 +2299,38 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 .smifs-sale-form__picker--empty {
   padding: 12px 14px;
   border-radius: 8px;
-  background: rgba(0,0,0,0.03);
-  border: 1px solid rgba(0,0,0,0.06);
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--line-strong);
   font-size: 13px;
-  color: var(--ink-muted);
+  color: var(--ink);
   display: flex; align-items: center; gap: 8px;
 }
-.smifs-sale-form__picker--empty strong { color: var(--smifs-green, #156c46); }
+.smifs-sale-form__picker--empty strong { color: var(--gold-soft); }
 .smifs-sale-form__picker-input {
   display: flex; align-items: center; gap: 6px;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,0.15);
-  border-radius: 8px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
   padding: 4px 10px;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
 }
 .smifs-sale-form__picker-input:focus-within {
-  border-color: var(--smifs-green, #156c46);
-  box-shadow: 0 0 0 3px rgba(21,108,70,0.12);
+  border-color: var(--smifs-green);
+  background: rgba(0,0,0,0.28);
+  box-shadow: 0 0 0 3px rgba(9,140,98,0.18);
 }
-.smifs-sale-form__picker-input.is-error { border-color: #C03A2B; }
+.smifs-sale-form__picker-input.is-error { border-color: var(--danger); }
 .smifs-sale-form__picker-input input {
   flex: 1;
   border: none;
   outline: none;
   background: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
   font-size: 13.5px;
   padding: 8px 0;
 }
+.smifs-sale-form__picker-input input::placeholder { color: var(--ink-dim); }
 .smifs-sale-form__picker-clear,
 .smifs-sale-form__picker-caret {
   cursor: pointer;
@@ -2337,39 +2341,69 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   border-radius: 4px;
 }
 .smifs-sale-form__picker-clear:hover,
-.smifs-sale-form__picker-caret:hover { background: rgba(0,0,0,0.05); }
+.smifs-sale-form__picker-caret:hover { background: rgba(255,255,255,0.08); color: var(--ink); }
+
+/* Dropdown panel — opaque deep-green surface so option text stays legible
+   against the chat body. Themed scrollbar inherits from the page defaults. */
 .smifs-sale-form__picker-list {
   position: absolute;
   top: calc(100% + 4px);
   left: 0; right: 0;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,0.12);
-  border-radius: 8px;
+  background: var(--smifs-green-darkest);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
   max-height: 280px;
   overflow-y: auto;
   z-index: 50;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
   margin: 0; padding: 4px 0;
   list-style: none;
+  scrollbar-color: var(--smifs-green) transparent;
+  scrollbar-width: thin;
+}
+.smifs-sale-form__picker-list::-webkit-scrollbar { width: 8px; }
+.smifs-sale-form__picker-list::-webkit-scrollbar-track { background: transparent; }
+.smifs-sale-form__picker-list::-webkit-scrollbar-thumb {
+  background: var(--smifs-green); border-radius: 4px;
 }
 .smifs-sale-form__picker-row {
   padding: 8px 12px;
   cursor: pointer;
   display: flex; align-items: center; gap: 8px;
   font-size: 13px;
-  transition: background 100ms ease;
+  color: var(--ink);
+  transition: background 100ms ease, color 100ms ease;
 }
-.smifs-sale-form__picker-row:hover { background: rgba(21,108,70,0.06); }
-.smifs-sale-form__picker-name { flex: 1; }
+.smifs-sale-form__picker-row:hover {
+  background: var(--smifs-green);
+  color: #fff;
+}
+.smifs-sale-form__picker-row.is-selected {
+  background: rgba(9,140,98,0.32);
+  color: var(--gold-soft);
+  font-weight: 600;
+}
+.smifs-sale-form__picker-row.is-selected:hover {
+  background: var(--smifs-green);
+  color: #fff;
+}
+.smifs-sale-form__picker-name { flex: 1; color: inherit; }
 .smifs-sale-form__picker-type {
   font-size: 11px;
   color: var(--ink-muted);
   padding: 1px 6px;
   border-radius: 3px;
-  background: rgba(0,0,0,0.05);
+  background: rgba(255,255,255,0.08);
   letter-spacing: 0.04em;
 }
-.smifs-sale-form__picker-star { color: var(--gold, #C9A86A); }
+.smifs-sale-form__picker-row:hover .smifs-sale-form__picker-type,
+.smifs-sale-form__picker-row.is-selected .smifs-sale-form__picker-type {
+  background: rgba(255,255,255,0.20);
+  color: #fff;
+}
+.smifs-sale-form__picker-star { color: var(--gold); }
+.smifs-sale-form__picker-row:hover .smifs-sale-form__picker-star { color: #fff; }
 .smifs-sale-form__picker-empty-row {
   padding: 10px 12px;
   color: var(--ink-muted);
@@ -2379,22 +2413,97 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   margin-top: 8px;
   padding: 8px 12px;
   border-radius: 6px;
-  background: rgba(21,108,70,0.08);
+  background: rgba(9,140,98,0.20);
+  color: var(--gold-soft);
+  border: 1px solid rgba(9,140,98,0.40);
   font-size: 12.5px;
-  color: var(--smifs-green, #156c46);
 }
 .smifs-sale-form__arn-toggle {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 12px;
   margin: 8px 0 14px;
   border-radius: 8px;
-  background: rgba(21,108,70,0.06);
-  border: 1px solid rgba(21,108,70,0.18);
+  background: rgba(9,140,98,0.14);
+  border: 1px solid rgba(9,140,98,0.32);
   font-size: 13px;
   cursor: pointer;
-  color: var(--smifs-green, #156c46);
+  color: var(--ink);
 }
-.smifs-sale-form__arn-toggle input[type="checkbox"] { accent-color: var(--smifs-green, #156c46); }
+.smifs-sale-form__arn-toggle strong { color: var(--gold-soft); }
+.smifs-sale-form__arn-toggle input[type="checkbox"] { accent-color: var(--smifs-green); }
+
+/* ---- Embed-mode overrides (light canvas) ---- */
+.smifs-embed .smifs-sale-form__picker--loading,
+.smifs-embed .smifs-sale-form__picker--empty {
+  background: var(--smifs-canvas-soft);
+  border-color: var(--smifs-hairline);
+  color: var(--smifs-ink);
+}
+.smifs-embed .smifs-sale-form__picker--empty strong { color: var(--smifs-green-deep); }
+.smifs-embed .smifs-sale-form__picker-input {
+  background: var(--smifs-canvas);
+  border-color: var(--smifs-hairline);
+}
+.smifs-embed .smifs-sale-form__picker-input input { color: var(--smifs-ink); }
+.smifs-embed .smifs-sale-form__picker-input input::placeholder { color: var(--smifs-ink-muted); }
+.smifs-embed .smifs-sale-form__picker-input:focus-within {
+  background: var(--smifs-canvas);
+  box-shadow: 0 0 0 3px rgba(9,140,98,0.18);
+}
+.smifs-embed .smifs-sale-form__picker-clear,
+.smifs-embed .smifs-sale-form__picker-caret { color: var(--smifs-ink-muted); }
+.smifs-embed .smifs-sale-form__picker-clear:hover,
+.smifs-embed .smifs-sale-form__picker-caret:hover {
+  background: rgba(0,0,0,0.05); color: var(--smifs-ink);
+}
+.smifs-embed .smifs-sale-form__picker-list {
+  background: var(--smifs-canvas);
+  color: var(--smifs-ink);
+  border-color: var(--smifs-hairline);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  scrollbar-color: var(--smifs-green) transparent;
+}
+.smifs-embed .smifs-sale-form__picker-list::-webkit-scrollbar-thumb {
+  background: var(--smifs-green);
+}
+.smifs-embed .smifs-sale-form__picker-row { color: var(--smifs-ink); }
+.smifs-embed .smifs-sale-form__picker-row:hover {
+  background: var(--smifs-green);
+  color: #fff;
+}
+.smifs-embed .smifs-sale-form__picker-row.is-selected {
+  background: var(--smifs-green-tint);
+  color: var(--smifs-green-deep);
+}
+.smifs-embed .smifs-sale-form__picker-row.is-selected:hover {
+  background: var(--smifs-green);
+  color: #fff;
+}
+.smifs-embed .smifs-sale-form__picker-type {
+  background: rgba(0,0,0,0.06);
+  color: var(--smifs-ink-muted);
+}
+.smifs-embed .smifs-sale-form__picker-row:hover .smifs-sale-form__picker-type,
+.smifs-embed .smifs-sale-form__picker-row.is-selected:hover .smifs-sale-form__picker-type {
+  background: rgba(255,255,255,0.22); color: #fff;
+}
+.smifs-embed .smifs-sale-form__picker-row.is-selected .smifs-sale-form__picker-type {
+  background: rgba(9,140,98,0.18); color: var(--smifs-green-deep);
+}
+.smifs-embed .smifs-sale-form__picker-star { color: var(--smifs-green-deep); }
+.smifs-embed .smifs-sale-form__picker-row:hover .smifs-sale-form__picker-star { color: #fff; }
+.smifs-embed .smifs-sale-form__picker-empty-row { color: var(--smifs-ink-muted); }
+.smifs-embed .smifs-sale-form__picker-selected {
+  background: var(--smifs-green-tint);
+  border-color: rgba(9,140,98,0.32);
+  color: var(--smifs-green-deep);
+}
+.smifs-embed .smifs-sale-form__arn-toggle {
+  background: var(--smifs-green-tint);
+  border-color: rgba(9,140,98,0.28);
+  color: var(--smifs-ink);
+}
+.smifs-embed .smifs-sale-form__arn-toggle strong { color: var(--smifs-green-deep); }
 .smifs-sale-form__input.is-readonly {
   background: rgba(0,0,0,0.04);
   color: var(--ink-muted);
