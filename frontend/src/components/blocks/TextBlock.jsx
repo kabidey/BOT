@@ -1,9 +1,8 @@
-import { FileText, FileSignature } from "lucide-react";
+import { FileText } from "lucide-react";
 
 /** Tiny markdown-ish formatter — bold + bullet lists. The Hub AI replies are mostly
  * plain prose; we keep this minimal to avoid pulling in react-markdown. */
 function formatLine(text) {
-  // **bold**
   const parts = [];
   let lastIndex = 0;
   const re = /\*\*([^*]+)\*\*/g;
@@ -19,7 +18,6 @@ function formatLine(text) {
 
 function MdParagraphs({ text }) {
   if (!text) return null;
-  // Split on blank lines for paragraphs; collect bullet lines into <ul>
   const blocks = text.split(/\n\s*\n/);
   return (
     <>
@@ -62,15 +60,9 @@ function formatUpdatedAt(iso) {
   }
 }
 
-export default function TextBlock({ block, citations, onCitationClick, msgIdx, activeCitationKey, authState }) {
+export default function TextBlock({ block, citations, onCitationClick, msgIdx, activeCitationKey }) {
   const grounded = block.grounded;
   const stopped = !!block.stopped;
-
-  // Phase 16 — pick the first citation that has a vehicle link to render the
-  // "Open the vehicle factsheet" CTA chip. Gated to verified users only.
-  const vehicleCite = (citations || []).find((c) => c.vehicle_id);
-  const showVehicleCta = !!vehicleCite && authState === "verified";
-
   return (
     <div className="smifs-msg-bubble" data-testid={`text-block-${msgIdx}`}>
       <MdParagraphs text={block.text} />
@@ -86,9 +78,6 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
             const isOfficial = c.is_official || c.source === "smifs_knowledge";
             const updatedLabel = formatUpdatedAt(c.updated_at);
             // Phase 16.1 — gate version badge on `version_major >= 2`.
-            // `version_no` can be a string like "v8.1" or "v1.2"; we use the
-            // backend-parsed `version_major` for the >=2 check, and surface
-            // the raw `version_no` label when present (else "v<major>").
             const versionMajor = typeof c.version_major === "number"
               ? c.version_major
               : (typeof c.version_no === "number"
@@ -129,26 +118,6 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
               </button>
             );
           })}
-        </div>
-      )}
-      {showVehicleCta && (
-        <div className="smifs-cta-row" data-testid={`vehicle-cta-row-${msgIdx}`}>
-          <button
-            type="button"
-            className="smifs-cta-chip"
-            onClick={() => {
-              const idx = citations.findIndex((c) => c.vehicle_id === vehicleCite.vehicle_id);
-              if (idx >= 0) onCitationClick(msgIdx, idx);
-            }}
-            data-testid={`vehicle-cta-${msgIdx}`}
-            title={`Open factsheet for ${vehicleCite.vehicle_name || "this vehicle"}`}
-          >
-            <FileSignature size={11} strokeWidth={2.25} />
-            <span>Open the vehicle factsheet</span>
-            {vehicleCite.vehicle_name && (
-              <span className="smifs-cta-sub">· {vehicleCite.vehicle_name}{vehicleCite.vehicle_type ? ` (${vehicleCite.vehicle_type})` : ""}</span>
-            )}
-          </button>
         </div>
       )}
       {grounded !== undefined && (

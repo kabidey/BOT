@@ -171,6 +171,17 @@ def _project_metadata(api_chunk: Dict[str, Any]) -> Dict[str, Any]:
     """Phase 16 — extract Knowledge API per-chunk metadata we want as first-class
     columns on doc_chunks (vs buried in smifs_metadata).
 
+    Recency-badge fallback chain (Phase 16.2):
+      1. `metadata.updatedAt`    — exposed by `vehicle` (168) and `growth_*` (15) subsources.
+      2. `metadata.createdAt`    — never seen in current payload, reserved if the API adds it.
+      3. `metadata.generatedAt`  — `sales_pitch` (69) carries this (the date the AI pitch was generated).
+      4. otherwise omit — UI then skips the "Updated <date>" badge rather than rendering "Updated unknown".
+
+    Honest coverage NOTE: `document`, `academy`, and `bedrock` subsources (≈87% of the
+    corpus) ship NO recency field at all from the SMIFS Knowledge API. We can't
+    invent one. So in practice ~12–13% of citations carry a recency badge — every
+    citation that has one is real; the rest are simply silent.
+
     - Pulls vehicle linkage, curation flags, version + recency proxies, and the
       growth/insurance vertical labels.
     - For `vehicle` subsource chunks (the parent vehicle row), the API does NOT
@@ -189,6 +200,8 @@ def _project_metadata(api_chunk: Dict[str, Any]) -> Dict[str, Any]:
         # Parent vehicle chunk — backfill self-linkage from sourceId + title.
         vehicle_id = api_chunk.get("sourceId") or api_chunk.get("id")
         vehicle_name = vehicle_name or api_chunk.get("title")
+    # Recency proxy with createdAt + generatedAt fallback (Phase 16.2)
+    recency_iso = meta.get("updatedAt") or meta.get("createdAt") or meta.get("generatedAt")
     out: Dict[str, Any] = {
         "doc_type": sub,
         "vehicle_id": vehicle_id,
@@ -204,7 +217,7 @@ def _project_metadata(api_chunk: Dict[str, Any]) -> Dict[str, Any]:
         "provider": meta.get("provider"),
         "category": meta.get("category"),
         "vertical": meta.get("vertical"),
-        "updated_at_iso": meta.get("updatedAt"),
+        "updated_at_iso": recency_iso,
         "audience": "employee_only" if sub in _EMPLOYEE_ONLY_SUBSOURCES else "all",
     }
     # Phase 16.1 — `version_no` arrives as a string ("v8.1", "v2.2"). Parse the

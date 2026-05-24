@@ -3,6 +3,7 @@ import axios from "axios";
 import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle, Square } from "lucide-react";
 
 import TextBlock from "@/components/blocks/TextBlock";
+import VehicleCtaBlock from "@/components/blocks/VehicleCtaBlock";
 import FormBlock from "@/components/blocks/FormBlock";
 import MarketCardBlock from "@/components/blocks/MarketCardBlock";
 import ClientCardBlock from "@/components/blocks/ClientCardBlock";
@@ -570,6 +571,20 @@ export default function Chat({ embedded = false }) {
         );
       case "form":
         return <FormBlock key={key} block={block} sessionId={sessionId} msgIdx={msgIdx} />;
+      case "vehicle_cta":
+        return (
+          <VehicleCtaBlock
+            key={key}
+            block={block}
+            msgIdx={msgIdx}
+            onClick={(b) => {
+              // Phase 16.2 — pivot to the matching citation popover so the
+              // user lands directly on the vehicle's passage.
+              const idx = (msg.citations || []).findIndex((c) => c.vehicle_id === b.vehicle_id);
+              if (idx >= 0) onCitationClick(msgIdx, idx);
+            }}
+          />
+        );
       case "market_card":
         return <MarketCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "client_card":

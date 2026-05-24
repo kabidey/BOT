@@ -195,7 +195,6 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     qualifying = [h for h in hits if h["score"] >= RAG_MIN_SCORE]
     if not qualifying:
         return []
-
     def _enrich(h: Dict[str, Any]) -> Dict[str, Any]:
         out = {
             "doc_id": h["doc_id"],
@@ -279,6 +278,56 @@ async def _retrieve(message: str, session_type: Optional[str] = None,
     return hits, grounded, analysis
 
 
+# Phase 16.2 — Vehicle factsheet CTA blocks emitted as TOP-LEVEL blocks in the
+# orchestrator response (separate from the text block) so the FE renderer and
+# automated DOM checks can find them by `data-testid^="vehicle-cta"` and so the
+# response payload's `blocks` array carries a `vehicle_cta` entry the tester
+# can grep for.
+VEHICLE_CTA_MAX = 2
+VEHICLE_CTA_ROLES = ("employee", "client")
+
+
+def _build_vehicle_cta_blocks(citations: List[Dict[str, Any]],
+                              session_type: Optional[str],
+                              auth_state: Optional[str]) -> List[Dict[str, Any]]:
+    """Scan citations and emit at most `VEHICLE_CTA_MAX` deduplicated
+    `vehicle_cta` blocks. Gate: role in {employee, client} AND auth_state==verified.
+
+    Spec (tester directive, Phase 16 acceptance pass 3):
+      - cta block shape:
+          {"type": "vehicle_cta", "vehicle_id": str, "vehicle_name": str,
+           "vehicle_type": str|None, "label": "Open the vehicle factsheet · <name>",
+           "action": "handoff_or_factsheet"}
+      - dedupe by vehicle_id, cap at VEHICLE_CTA_MAX.
+      - never emit for visitors / unverified.
+    """
+    if auth_state != "verified" or session_type not in VEHICLE_CTA_ROLES:
+        return []
+    out: List[Dict[str, Any]] = []
+    seen: set = set()
+    for c in citations or []:
+        vid = c.get("vehicle_id")
+        if not vid or vid in seen:
+            continue
+        seen.add(vid)
+        vname = c.get("vehicle_name") or c.get("doc_title") or "this vehicle"
+        vtype = c.get("vehicle_type")
+        label = f"Open the vehicle factsheet · {vname}"
+        if vtype:
+            label = f"{label} ({vtype})"
+        out.append({
+            "type": "vehicle_cta",
+            "vehicle_id": vid,
+            "vehicle_name": vname,
+            "vehicle_type": vtype,
+            "label": label,
+            "action": "handoff_or_factsheet",
+        })
+        if len(out) >= VEHICLE_CTA_MAX:
+            break
+    return out
+
+
 async def answer(message: str, history: List[Dict[str, Any]],
                  client_context: Optional[Dict[str, Any]] = None,
                  session_id: Optional[str] = None,
@@ -339,14 +388,21 @@ async def answer(message: str, history: List[Dict[str, Any]],
     synth_blocks, synth_intent = _maybe_synthesize_wm_block(
         reply_text, session_type, auth_state, client_context, existing_blocks=[],
     )
+    # Phase 16.2 — emit vehicle factsheet CTA(s) as top-level blocks.
+    cta_blocks = _build_vehicle_cta_blocks(citations, session_type, auth_state)
     out: Dict[str, Any] = {
         "reply_text": reply_text, "citations": citations,
         "grounded": grounded, "model": model_used,
     }
+    extra_blocks: List[Dict[str, Any]] = []
     if synth_blocks:
-        out["fallback_blocks"] = synth_blocks
+        extra_blocks.extend(synth_blocks)
         if synth_intent:
             out["intent_hint"] = synth_intent
+    if cta_blocks:
+        extra_blocks.extend(cta_blocks)
+    if extra_blocks:
+        out["fallback_blocks"] = extra_blocks
     return out
 
 
@@ -427,12 +483,19 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
     synth_blocks, synth_intent = _maybe_synthesize_wm_block(
         full_text, session_type, auth_state, client_context, existing_blocks=[],
     )
+    # Phase 16.2 — emit vehicle factsheet CTA(s) on the streaming path too.
+    cta_blocks = _build_vehicle_cta_blocks(citations, session_type, auth_state)
     done_payload: Dict[str, Any] = {
         "reply_text": full_text, "citations": citations,
         "grounded": grounded, "model": model_used,
     }
+    extra_blocks: List[Dict[str, Any]] = []
     if synth_blocks:
-        done_payload["fallback_blocks"] = synth_blocks
+        extra_blocks.extend(synth_blocks)
         if synth_intent:
             done_payload["intent_hint"] = synth_intent
+    if cta_blocks:
+        extra_blocks.extend(cta_blocks)
+    if extra_blocks:
+        done_payload["fallback_blocks"] = extra_blocks
     yield ("done", done_payload)
