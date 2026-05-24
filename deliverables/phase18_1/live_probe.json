@@ -1,0 +1,198 @@
+{
+  "results": {
+    "01_employee_full_access": {
+      "q": "Alchemy Ascent strategy details",
+      "session_type": "employee",
+      "auth_state": "verified",
+      "hits": [],
+      "n": 0
+    },
+    "02_visitor_prefilter": {
+      "q": "Bharat Value Fund Series VI",
+      "session_type": "visitor",
+      "auth_state": "anonymous",
+      "n": 3,
+      "hits": [
+        {
+          "doc_id": "vehicle:5940616d-b7ca-49d4-be88-2bfd1a3706b9:0",
+          "doc_title": "Bharat Value Fund Series VI (Fund Of Fund)",
+          "section": "AIF",
+          "subsource": "vehicle",
+          "source_raw_deck": "vehicle",
+          "score": 0.7278,
+          "relevance": 0.7278,
+          "source_engine": "deck_search",
+          "audience": "all",
+          "vehicle_id": "5940616d-b7ca-49d4-be88-2bfd1a3706b9",
+          "vehicle_name": "Bharat Value Fund Series VI (Fund Of Fund)",
+          "vehicle_type": "AIF",
+          "version_no": null,
+          "is_focused": true,
+          "is_active": true,
+          "updated_at_iso": "2026-05-10T21:25:34.180617+00:00",
+          "text_preview": "Investment Product: Bharat Value Fund Series VI (Fund Of Fund)\nCategory: AIF\nPresently taking investments.\nAI sales pitc"
+        },
+        {
+          "doc_id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:1",
+          "doc_title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "subsource": "bedrock",
+          "source_raw_deck": "bedrock",
+          "score": 0.63,
+          "relevance": 0.63,
+          "source_engine": "deck_search",
+          "audience": "all",
+          "vehicle_id": null,
+          "vehicle_name": null,
+          "vehicle_type": null,
+          "version_no": null,
+          "is_focused": null,
+          "is_active": null,
+          "updated_at_iso": null,
+          "text_preview": "4 products\nl Insurance 37 products\nl Mediclaim 5 products\nFor internal circulation only. Data sourced from SMIFS Deck — "
+        },
+        {
+          "doc_id": "vehicle:0e6e0789-5bf5-48ba-830a-b35662d65987:0",
+          "doc_title": "ICICI Pru Growth Leaders Fund-Series VI",
+          "section": "AIF",
+          "subsource": "vehicle",
+          "source_raw_deck": "vehicle",
+          "score": 0.6141,
+          "relevance": 0.6141,
+          "source_engine": "deck_search",
+          "audience": "all",
+          "vehicle_id": "0e6e0789-5bf5-48ba-830a-b35662d65987",
+          "vehicle_name": "ICICI Pru Growth Leaders Fund-Series VI",
+          "vehicle_type": "AIF",
+          "version_no": null,
+          "is_focused": false,
+          "is_active": true,
+          "updated_at_iso": "2026-03-24T12:06:33.581489+00:00",
+          "text_preview": "Investment Product: ICICI Pru Growth Leaders Fund-Series VI\nCategory: AIF"
+        }
+      ]
+    },
+    "03_client_audience_gate": {
+      "q": "Aditya Birla insurance",
+      "session_type": "client",
+      "auth_state": "verified",
+      "n": 5,
+      "hits": [
+        {
+          "doc_id": "vehicle:5cf65fcd-85ce-4441-969c-b2051a65cedf:0",
+          "doc_title": "Aditya Birla Sun Life Insurance Nishchit Aayush Plan",
+          "section": "Insurance",
+          "subsource": "vehicle",
+          "source_raw_deck": "vehicle",
+          "score": 0.6523,
+          "relevance": 0.6523,
+          "source_engine": "deck_search",
+          "audience": "all",
+          "vehicle_id": "5cf65fcd-85ce-4441-969c-b2051a65cedf",
+          "vehicle_name": "Aditya Birla Sun Life Insurance Nishchit Aayush Plan",
+          "vehicle_type": "Insurance",
+          "version_no": null,
+          "is_focused": false,
+          "is_active": true,
+          "updated_at_iso": "2026-04-23T07:14:51.145908+00:00",
+          "text_preview": "Investment Product: Aditya Birla Sun Life Insurance Nishchit Aayush Plan\nCategory: Insurance"
+        },
+        {
+          "doc_id": "vehicle:538ed32c-8194-4591-b2ca-9c0ae7ce51e9:0",
+          "doc_title": "Aditya Birla Sun Life Insurance Assured Income Plus",
+          "section": "Insurance",
+          "subsource": "vehicle",
+          "source_raw_deck": "vehicle",
+          "score": 0.6474,
+          "relevance": 0.6474,
+          "source_engine": "deck_search",
+          "audience": "all",
+          "vehicle_id": "538ed32c-8194-4591-b2ca-9c0ae7ce51e9",
+          "vehicle_name": "Aditya Birla Sun Life Insurance Assured Income Plus",
+          "vehicle_type": "Insurance",
+          "version_no": null,
+          "is_focused": false,
+          "is_active": true,
+          "updated_at_iso": "2026-04-23T07:45:07.698185+00:00",
+          "text_preview": "Investment Product: Aditya Birla Sun Life Insurance Assured Income Plus\nCategory: Insurance"
+        },
+        {
+          "doc_id": "vehicle:daa64b2c-c1a4-4694-b2a5-ee665c8d755a:0",
+          "doc_title": "Aditya Birla Sun Life Insurance DigiShield Plan",
+          "section": "Insurance",
+          "subsource": "vehicle",
+          "source_raw_deck": "vehicle",
+          "score": 0.6321,
+          "relevance": 0.6321,
+          "source_engine": "deck_search",
+          "audience": "all",
+          "vehicle_id": "daa64b2c-c1a4-4694-b2a5-ee665c8d755a",
+          "vehicle_name": "Aditya Birla Sun Life Insurance DigiShield Plan",
+          "vehicle_type": "Insurance",
+          "version_no": null,
+          "is_focused": false,
+          "is_active": true,
+          "updated_at_iso": "2026-04-23T07:11:07.037014+00:00",
+          "text_preview": "Investment Product: Aditya Birla Sun Life Insurance DigiShield Plan\nCategory: Insurance"
+        }
+      ]
+    },
+    "04_multilingual_tamil": {
+      "q": "AIF க்கான தமிழ் pitch",
+      "session_type": "employee",
+      "auth_state": "verified",
+      "hits": [],
+      "n": 0
+    }
+  },
+  "status_snapshot": {
+    "enabled": true,
+    "suspended": false,
+    "suspended_until": null,
+    "last_10_calls": [
+      {
+        "ts": "2026-05-24T18:15:09.441268+00:00",
+        "status": "timeout",
+        "elapsed_ms": 2560
+      },
+      {
+        "ts": "2026-05-24T18:15:10.336852+00:00",
+        "status": 200,
+        "elapsed_ms": 866,
+        "slow": false,
+        "totalIndexed_seen": 2486,
+        "results_count_raw": 5,
+        "results_count_post_audience": 3,
+        "enrichment_hits": 5,
+        "locale": "en"
+      },
+      {
+        "ts": "2026-05-24T18:15:11.044080+00:00",
+        "status": 200,
+        "elapsed_ms": 704,
+        "slow": false,
+        "totalIndexed_seen": 2486,
+        "results_count_raw": 5,
+        "results_count_post_audience": 5,
+        "enrichment_hits": 5,
+        "locale": "en"
+      },
+      {
+        "ts": "2026-05-24T18:15:13.569526+00:00",
+        "status": "timeout",
+        "elapsed_ms": 2524
+      }
+    ],
+    "total_calls_today": 4,
+    "audience_drops_today": 2,
+    "timeouts_today": 2,
+    "slow_responses_today": 0,
+    "p50_latency_ms_last_50": 2524,
+    "current_totalIndexed_seen": 2486,
+    "backoff_seconds": 3600,
+    "min_score": 0.45,
+    "timeout_s": 2.5,
+    "slow_response_ms": 2000,
+    "dumped_at": "2026-05-24T18:15:13.571824+00:00"
+  }
+}

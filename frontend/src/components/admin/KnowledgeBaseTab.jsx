@@ -9,12 +9,17 @@ export default function KnowledgeBaseTab({ api }) {
   const inputRef = useRef(null);
   // Phase 9 — SMIFS Knowledge API status
   const [kbStatus, setKbStatus] = useState(null);
+  const [deckStatus, setDeckStatus] = useState(null);   // Phase 18 / 18.1
   const [syncing, setSyncing] = useState(false);
 
   const loadStatus = async () => {
     try {
       const { data } = await api.get("/admin/knowledge/status");
       setKbStatus(data);
+    } catch (e) { /* non-fatal */ }
+    try {
+      const { data } = await api.get("/admin/deck_search/status?limit_calls=10");
+      setDeckStatus(data);
     } catch (e) { /* non-fatal */ }
   };
 
@@ -172,6 +177,72 @@ export default function KnowledgeBaseTab({ api }) {
                     <span>fetched {r.fetched} · upserted {r.upserted} · skipped {r.skipped} · removed {r.removed}</span>
                     <span className="smifs-table-cell-sub">{r.duration_ms}ms</span>
                     {(r.errors || []).length > 0 && <span className="smifs-status-pill smifs-status-pill--new">{r.errors.length} error(s)</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
+
+      {/* Phase 18 / 18.1 — Deck Vector Engine fallback status panel */}
+      {deckStatus && (
+        <section className="smifs-kb-api-panel" data-testid="deck-search-panel" style={{ marginTop: 12 }}>
+          <div className="smifs-kb-api-head">
+            <div>
+              <div className="smifs-kb-api-title">
+                <Database size={14} strokeWidth={2.25} />
+                Deck Vector Engine fallback
+                {deckStatus.enabled
+                  ? <span className="smifs-kb-api-badge smifs-kb-api-badge--ok" data-testid="deck-enabled-badge"><ShieldCheck size={10} strokeWidth={2.5} /> enabled: true</span>
+                  : <span className="smifs-kb-api-badge smifs-kb-api-badge--warn" data-testid="deck-enabled-badge"><ShieldAlert size={10} strokeWidth={2.5} /> disabled</span>
+                }
+                {deckStatus.suspended && (
+                  <span className="smifs-kb-api-badge smifs-kb-api-badge--warn" data-testid="deck-suspended-badge">
+                    <ShieldAlert size={10} strokeWidth={2.5} /> Suspended
+                  </span>
+                )}
+              </div>
+              <p className="smifs-kb-api-meta">
+                min_score {deckStatus.min_score} · timeout {deckStatus.timeout_s}s ·
+                slow threshold {deckStatus.slow_response_ms}ms ·
+                deck indexed {deckStatus.current_totalIndexed_seen ?? "—"}
+              </p>
+            </div>
+          </div>
+          <div className="smifs-kb-counts" data-testid="deck-counters">
+            <div className="smifs-kb-count smifs-kb-count--primary" data-testid="deck-calls-today">
+              <span className="smifs-kb-count-value">{deckStatus.total_calls_today ?? 0}</span>
+              <span className="smifs-kb-count-label">Calls today</span>
+            </div>
+            <div className="smifs-kb-count" data-testid="deck-p50">
+              <span className="smifs-kb-count-value">{deckStatus.p50_latency_ms_last_50 ?? "—"}</span>
+              <span className="smifs-kb-count-label">p50 ms (last 50)</span>
+            </div>
+            <div className="smifs-kb-count smifs-kb-count--warn" data-testid="deck-timeouts">
+              <span className="smifs-kb-count-value">{deckStatus.timeouts_today ?? 0}</span>
+              <span className="smifs-kb-count-label">Timeouts today</span>
+            </div>
+            <div className="smifs-kb-count" data-testid="deck-slow">
+              <span className="smifs-kb-count-value">{deckStatus.slow_responses_today ?? 0}</span>
+              <span className="smifs-kb-count-label">Slow responses</span>
+            </div>
+            <div className="smifs-kb-count" data-testid="deck-audience-drops">
+              <span className="smifs-kb-count-value">{deckStatus.audience_drops_today ?? 0}</span>
+              <span className="smifs-kb-count-label">Audience drops</span>
+            </div>
+          </div>
+          {Array.isArray(deckStatus.recent_telemetry) && deckStatus.recent_telemetry.length > 0 && (
+            <details className="smifs-kb-history" data-testid="deck-telemetry" open>
+              <summary>Last {deckStatus.recent_telemetry.length} calls (telemetry collection)</summary>
+              <ul>
+                {deckStatus.recent_telemetry.slice(0, 10).map((row, idx) => (
+                  <li key={idx} style={{ fontFamily: "monospace", fontSize: 11 }}>
+                    {row.created_at?.slice(11, 19)} ·{" "}
+                    <strong>{row.status === 200 ? "200" : String(row.status)}</strong>{" "}
+                    · {row.elapsed_ms}ms · raw={row.results_count_raw ?? 0} · post-audience={row.results_count_post_audience ?? 0}
+                    {row.audience_drops ? ` · drops=${row.audience_drops}` : ""}
+                    {row.slow ? " · slow" : ""}
                   </li>
                 ))}
               </ul>

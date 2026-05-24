@@ -227,6 +227,9 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             # Phase 18 — Workstream A: flag the engine that produced this hit
             # so the FE can render a subtle differentiator (no UI change yet).
             "source_engine": h.get("source_engine") or "local_cosine",
+            # Phase 18.1 — explicit relevance field for debug/admin surfaces
+            # (the deck path also stores this on the hit dict).
+            "relevance": round(h.get("relevance", h["score"]), 4),
         }
         return {k: v for k, v in out.items() if v is not None}
 
@@ -254,7 +257,8 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 async def _retrieve(message: str, session_type: Optional[str] = None,
                     auth_state: Optional[str] = None,
-                    locale: Optional[str] = None) -> Tuple[List[Dict[str, Any]], bool, Dict[str, Any]]:
+                    locale: Optional[str] = None,
+                    db=None) -> Tuple[List[Dict[str, Any]], bool, Dict[str, Any]]:
     """Phase 9 retrieval + Phase 10/16 role gating.
 
     - employee + verified → all sources, all audiences
@@ -284,25 +288,36 @@ async def _retrieve(message: str, session_type: Optional[str] = None,
     )
     grounded = bool(hits) and any(h["score"] >= RAG_MIN_SCORE for h in hits)
 
-    # Phase 18 — Deck Vector Engine fallback (Workstream A). Lazy and
+    # Phase 18 / 18.1 — Deck Vector Engine fallback (Workstream A). Lazy and
     # flag-gated; only fires when local cosine returns no above-threshold
-    # candidate. Imported lazily so test environments without httpx still
-    # import rag_agent cleanly.
+    # candidate AND no semi-relevant candidate either. The "semi-relevant"
+    # guard (Phase 18.1) prevents pointless deck-falls on academy/document
+    # questions where local has a borderline hit and the deck has nothing
+    # comparable (the deck does not index `academy` or `document`).
     if not grounded:
-        try:
-            from . import deck_search as _ds
-            deck_hits = await _ds.deck_search(
-                message, top_k=RAG_TOP_K,
-                session_type=session_type, auth_state=auth_state,
-                locale=(locale or "en"),
-            )
-            if deck_hits:
-                # Sort deck hits last among same-tier candidates by capping
-                # their score at the cosine threshold ceiling.
-                hits = hits + deck_hits
-                grounded = any(h["score"] >= RAG_MIN_SCORE for h in deck_hits)
-        except Exception:  # never block the user turn on deck failure
-            pass
+        # Local threshold guard: if local returned ANY hit in [LOCAL_FLOOR,
+        # RAG_MIN_SCORE), it has SOMETHING semi-relevant — don't fall back to
+        # deck, use the best sub-threshold local hit instead. Only fall through
+        # to deck when local is truly empty (no hit above the hard floor).
+        # NOTE — `RAG_MIN_SCORE` is 0.15; the floor is set 0.05 below it so a
+        # borderline academy/document hit in [0.10, 0.15) suppresses the deck
+        # call (the academy/document corpus is missing from the deck per
+        # `/app/deliverables/phase18b/coverage_parity.md`).
+        LOCAL_FLOOR = 0.10
+        has_semi_relevant_local = any(h["score"] >= LOCAL_FLOOR for h in hits)
+        if not has_semi_relevant_local:
+            try:
+                from . import deck_search as _ds
+                deck_hits = await _ds.deck_search(
+                    message, top_k=RAG_TOP_K, db=db,
+                    session_type=session_type, auth_state=auth_state,
+                    locale=(locale or "en"),
+                )
+                if deck_hits:
+                    hits = hits + deck_hits
+                    grounded = any(h["score"] >= RAG_MIN_SCORE for h in deck_hits)
+            except Exception:  # never block the user turn on deck failure
+                pass
 
     analysis = guardrails.analyse_retrieval(hits)
     return hits, grounded, analysis
@@ -366,7 +381,7 @@ async def answer(message: str, history: List[Dict[str, Any]],
                  db=None,
                  locale: Optional[str] = None) -> Dict[str, Any]:
     """Non-streaming entry point. Returns {reply_text, citations, grounded, model}."""
-    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state, locale=locale)
+    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state, locale=locale, db=db)
     citations = _build_citations(hits) if grounded else []
 
     # Phase 11 — smarter short-circuit: always escalate brand-specific /
@@ -444,7 +459,7 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
                         auth_state: Optional[str] = None,
                         db=None,
                         locale: Optional[str] = None) -> AsyncGenerator[Tuple[str, Any], None]:
-    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state, locale=locale)
+    hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state, locale=locale, db=db)
     citations = _build_citations(hits) if grounded else []
     yield ("citations", citations)
 
