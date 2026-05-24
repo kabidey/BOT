@@ -105,6 +105,12 @@ GROUNDED_INSTR = KNOWLEDGE_PRIORITY_RULES + (
     "Do NOT respond with generic punts like 'please consult an advisor' when the passages clearly contain the answer. "
     "ONLY if the passages genuinely do not contain the requested information, briefly acknowledge the gap "
     "and offer to connect the client with a human advisor."
+    "\n\nPhase 16 — context_chunks may carry tag preambles (e.g. `[Vehicle: Sapphire AIF · AIF]`, "
+    "`[Updated: 2026-03-24]`, `[Version: v8]`, `[Focused · Active]`). When citing a specific vehicle "
+    "or bedrock asset, you MAY weave in the version or update date naturally (e.g. 'per the Mar 2026 "
+    "vehicle update' or 'as of Fortnightly Offering v8'). Prefer vehicles tagged `Focused` and `Active` "
+    "when suggesting the SMIFS house view. Never invent dates or version numbers — only cite what the "
+    "preambles explicitly list."
 )
 
 UNGROUNDED_INSTR = KNOWLEDGE_PRIORITY_RULES + (
@@ -115,17 +121,51 @@ UNGROUNDED_INSTR = KNOWLEDGE_PRIORITY_RULES + (
 
 
 def _hits_to_chunks(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Convert RAG hits (passing the score threshold) to Hub AI `context_chunks` payload."""
-    return [
-        {
+    """Convert RAG hits (passing the score threshold) to Hub AI `context_chunks` payload.
+
+    Phase 16 — when a hit carries projected metadata (vehicle, version, updated
+    timestamp), inject a compact tag preamble into the chunk `text` so the LLM
+    can cite "per the 24 Mar 2026 vehicle update / v8" rather than producing a
+    generic answer.
+    """
+    out: List[Dict[str, Any]] = []
+    for h in hits:
+        if h["score"] < RAG_MIN_SCORE:
+            continue
+        preamble_lines: List[str] = []
+        sub = h.get("subsource")
+        if sub:
+            preamble_lines.append(f"[Type: {sub}]")
+        if h.get("vehicle_name"):
+            vtype = h.get("vehicle_type")
+            preamble_lines.append(
+                f"[Vehicle: {h['vehicle_name']}" + (f" · {vtype}" if vtype else "") + "]"
+            )
+        if h.get("version_no") is not None:
+            preamble_lines.append(f"[Version: v{h['version_no']}]")
+        if h.get("updated_at_iso"):
+            preamble_lines.append(f"[Updated: {h['updated_at_iso'][:10]}]")
+        flags: List[str] = []
+        if h.get("is_focused") is True:
+            flags.append("Focused")
+        if h.get("is_active") is True:
+            flags.append("Active")
+        if flags:
+            preamble_lines.append(f"[{' · '.join(flags)}]")
+        prov = h.get("provider") or h.get("vertical")
+        if prov:
+            preamble_lines.append(f"[Provider: {prov}]")
+        text = h["text"]
+        if preamble_lines:
+            text = "  ".join(preamble_lines) + "\n---\n" + text
+        out.append({
             "id": f"{h['doc_id']}::{h['section']}",
-            "text": h["text"],
+            "text": text,
             "title": h["doc_title"],
             "section": h["section"],
             "source": h.get("source", "seed"),
-        }
-        for h in hits if h["score"] >= RAG_MIN_SCORE
-    ]
+        })
+    return out
 
 
 def _build_messages(message: str, history: List[Dict[str, Any]],
@@ -157,7 +197,7 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return []
 
     def _enrich(h: Dict[str, Any]) -> Dict[str, Any]:
-        return {
+        out = {
             "doc_id": h["doc_id"],
             "doc_title": h["doc_title"],
             "section": h["section"],
@@ -167,7 +207,20 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "source": h.get("source", "seed"),
             "subsource": h.get("subsource"),
             "is_official": h.get("source") == "smifs_knowledge",
+            # Phase 16 — additive citation metadata (backwards-compatible).
+            "doc_type": h.get("doc_type") or h.get("subsource"),
+            "vehicle_id": h.get("vehicle_id"),
+            "vehicle_name": h.get("vehicle_name"),
+            "vehicle_type": h.get("vehicle_type"),
+            "version_no": h.get("version_no"),
+            "updated_at": h.get("updated_at_iso"),
+            "is_focused": h.get("is_focused"),
+            "is_active": h.get("is_active"),
+            "provider": h.get("provider"),
+            "language": h.get("language"),
+            "audience": h.get("audience") or "all",
         }
+        return {k: v for k, v in out.items() if v is not None}
 
     citations: List[Dict[str, Any]] = []
     seen_docs: set = set()
@@ -193,16 +246,20 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 async def _retrieve(message: str, session_type: Optional[str] = None,
                     auth_state: Optional[str] = None) -> Tuple[List[Dict[str, Any]], bool, Dict[str, Any]]:
-    """Phase 9 retrieval + Phase 10 role gating.
+    """Phase 9 retrieval + Phase 10/16 role gating.
 
-    - employee + verified → all sources (smifs_knowledge, seed, upload, archive)
-    - client + verified   → seed ONLY (no smifs_knowledge; product specifics
-                            must come from CLIENT_PROFILE or escalate to RM)
-    - visitor (anonymous) → seed ONLY (generic education only)
+    - employee + verified → all sources, all audiences
+    - client + verified   → seed only (product specifics still come from
+                            CLIENT_PROFILE / escalate to RM). Phase 16 audience
+                            allow-list `["all"]` is also applied so any
+                            employee-only SMIFS chunk that ever leaks into seed
+                            retrieval is dropped.
+    - visitor (anonymous) → seed only (generic education only)
     - mid-verification    → retrieval disabled; return empty
     """
     if auth_state not in (None, "verified", "anonymous"):
         return [], False, guardrails.analyse_retrieval([])
+    restrict_audiences: Optional[List[str]] = None
     if session_type == "employee" and auth_state == "verified":
         restrict: Optional[List[str]] = None
         if guardrails.is_product_topic(message):
@@ -210,7 +267,12 @@ async def _retrieve(message: str, session_type: Optional[str] = None,
     else:
         # Client + visitor: never see SMIFS Knowledge.
         restrict = ["seed"]
-    hits = await rag.search_weighted(message, top_k=RAG_TOP_K, restrict_sources=restrict)
+        # Phase 16 — additionally drop any chunk tagged `audience=employee_only`.
+        restrict_audiences = ["all"]
+    hits = await rag.search_weighted(
+        message, top_k=RAG_TOP_K,
+        restrict_sources=restrict, restrict_audiences=restrict_audiences,
+    )
     grounded = bool(hits) and any(h["score"] >= RAG_MIN_SCORE for h in hits)
     analysis = guardrails.analyse_retrieval(hits)
     return hits, grounded, analysis

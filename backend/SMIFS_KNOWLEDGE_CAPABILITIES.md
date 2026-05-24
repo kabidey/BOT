@@ -168,3 +168,45 @@ Startup behaviour:
 3. Only `vehicle` chunks carry `updatedAt` — no universal change-tracking.
 4. **No `/api/knowledge/{id}` endpoint** — we can't fetch a single chunk after ingest. Not a blocker since we store the full content ourselves.
 5. Corpus is **already chunked** by the API: academy is one chunk per page, vehicles are one tiny metadata chunk, documents are one summary chunk. We do NOT re-chunk.
+
+---
+
+## 10. Phase 16 — richer payload + audience gating (May 2026)
+
+The Knowledge API surface was upgraded in-place (same endpoints, richer metadata, +176 chunks). We ingest the new fields as first-class columns on `doc_chunks` rather than burying them in `smifs_metadata`. See `/app/deliverables/phase16/knowledge_api_delta.md` for the full delta.
+
+### 10.1 Per-chunk projection (`_project_metadata`)
+Top-level columns persisted on every chunk:
+- `doc_type` (canonical subsource: `vehicle | document | sales_pitch | academy | bedrock | growth_insurance | growth_revenue`)
+- `vehicle_id`, `vehicle_name`, `vehicle_type` — links any `document` or `sales_pitch` chunk back to its parent vehicle
+- `is_active`, `is_focused`, `sales_pitch_ready` — curation flags
+- `version_no`, `collateral_no`, `kind` — bedrock asset versioning
+- `language` — sales_pitch language code
+- `provider`, `category`, `vertical` — growth_insurance / growth_revenue tags
+- `updated_at_iso` — used as the recency proxy
+- `audience` — `"all"` or `"employee_only"` (see §10.2)
+
+`metadata.updatedBy` (author email, PII) is stripped during projection.
+
+### 10.2 Audience gating
+Subsources `sales_pitch`, `growth_insurance`, `growth_revenue` are tagged `audience="employee_only"`. The retriever applies `restrict_audiences=["all"]` for any non-employee session so these chunks never reach the LLM or surface as citations.
+
+### 10.3 Ranking proxies (since the API exposes no `confidence`)
+- `bedrock` subsource: **+0.05** (canonical authoritative source)
+- `is_focused=True`: **+0.03** (SMIFS house-view picks)
+- `updated_at_iso` within 90 days: **+0.02** (recency)
+- `is_active=False`: hard exclusion (decommissioned vehicles)
+
+### 10.4 LLM context preamble
+Each `context_chunks[].text` is prefixed with compact tags so the LLM can cite versions and update dates:
+```
+[Type: bedrock]  [Vehicle: Sapphire AIF · AIF]  [Version: v8]  [Updated: 2026-03-24]  [Focused · Active]
+---
+<chunk text>
+```
+
+### 10.5 Citation surface (additive, backwards-compatible)
+The citation JSON now optionally carries: `doc_type`, `vehicle_id`, `vehicle_name`, `vehicle_type`, `version_no`, `updated_at`, `is_focused`, `is_active`, `provider`, `language`, `audience`. Old consumers ignore these fields safely.
+
+### 10.6 One-time `mode=full` backfill
+`phase16_backfill_if_needed(db)` is scheduled at server startup. It re-syncs every chunk with the new projector and only marks `kb_sync_meta.phase16_backfilled=true` on a successful (non-conflicting) run. Recorded in `knowledge_sync_runs` as `triggered_by="phase16_backfill"`.

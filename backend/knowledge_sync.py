@@ -156,6 +156,58 @@ def _doc_title_for(api_chunk: Dict[str, Any]) -> str:
     return t
 
 
+# ---------- Phase 16 — per-chunk metadata projector ----------
+# Subsources whose content is for SMIFS employees only (internal sales scripts,
+# revenue dashboards, insurance distribution matrices). The retrieval layer
+# filters these out for clients and visitors.
+_EMPLOYEE_ONLY_SUBSOURCES = {"sales_pitch", "growth_insurance", "growth_revenue"}
+
+# Fields we deliberately DO NOT persist as top-level columns because they
+# contain author email / internal identity (PII).
+_PII_META_FIELDS = {"updatedBy"}
+
+
+def _project_metadata(api_chunk: Dict[str, Any]) -> Dict[str, Any]:
+    """Phase 16 — extract Knowledge API per-chunk metadata we want as first-class
+    columns on doc_chunks (vs buried in smifs_metadata).
+
+    - Pulls vehicle linkage, curation flags, version + recency proxies, and the
+      growth/insurance vertical labels.
+    - Computes an `audience` tag used by retrieval-time role gating
+      (`sales_pitch` / `growth_*` are employee-only).
+    - Strips PII (updatedBy author email).
+    """
+    sub = api_chunk.get("source") or ""
+    meta = api_chunk.get("metadata") or {}
+    out: Dict[str, Any] = {
+        "doc_type": sub,
+        "vehicle_id": meta.get("vehicleId"),
+        "vehicle_name": meta.get("vehicleName"),
+        "vehicle_type": meta.get("vehicleType"),
+        "is_active": meta.get("isActive"),
+        "is_focused": meta.get("isFocused"),
+        "sales_pitch_ready": meta.get("salesPitchReady"),
+        "version_no": meta.get("versionNo"),
+        "collateral_no": meta.get("collateralNo"),
+        "kind": meta.get("kind"),
+        "language": meta.get("language"),
+        "provider": meta.get("provider"),
+        "category": meta.get("category"),
+        "vertical": meta.get("vertical"),
+        "updated_at_iso": meta.get("updatedAt"),
+        "audience": "employee_only" if sub in _EMPLOYEE_ONLY_SUBSOURCES else "all",
+    }
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _scrubbed_smifs_metadata(api_chunk: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop PII keys (e.g. updatedBy) before persisting raw metadata blob."""
+    meta = dict(api_chunk.get("metadata") or {})
+    for pk in _PII_META_FIELDS:
+        meta.pop(pk, None)
+    return meta
+
+
 async def sync(db, *, mode: str = "delta", dry_run: bool = False) -> Dict[str, Any]:
     """Sync SMIFS Knowledge into doc_chunks.
 
@@ -229,10 +281,14 @@ async def sync(db, *, mode: str = "delta", dry_run: bool = False) -> Dict[str, A
             await db.doc_chunks.delete_many({"source": KB_SOURCE})
 
         ids_seen = set()
+        new_fields_counts: Dict[str, int] = {}
         for ch, vec in zip(to_embed, vecs):
             api_id = ch.get("id")
             ids_seen.add(api_id)
             text = ch.get("content") or ""
+            projection = _project_metadata(ch)
+            for k in projection:
+                new_fields_counts[k] = new_fields_counts.get(k, 0) + 1
             doc = {
                 "_id": _kb_chunk_id(api_id),
                 "smifs_id": api_id,
@@ -243,10 +299,11 @@ async def sync(db, *, mode: str = "delta", dry_run: bool = False) -> Dict[str, A
                 "section": _section_for(ch),
                 "text": text,
                 "embedding": vec.tolist(),
-                "smifs_metadata": ch.get("metadata") or {},
+                "smifs_metadata": _scrubbed_smifs_metadata(ch),
                 "content_hash": _content_hash(text),
                 "updated_at": now,
                 "source_updated_at": (ch.get("metadata") or {}).get("updatedAt"),
+                **projection,
             }
             operations.append(UpdateOne({"_id": doc["_id"]}, {"$set": doc}, upsert=True))
 
@@ -256,6 +313,7 @@ async def sync(db, *, mode: str = "delta", dry_run: bool = False) -> Dict[str, A
             for i in range(0, len(operations), BATCH):
                 await db.doc_chunks.bulk_write(operations[i:i + BATCH], ordered=False)
         out["upserted"] = len(to_embed)
+        out["new_fields_seen"] = new_fields_counts
 
     # Remove stale chunks (disappeared from upstream)
     if mode == "delta":
@@ -391,12 +449,14 @@ async def run_sync(db, *, mode: str = "delta", dry_run: bool = False,
             "mode": result.get("mode"),
             "dry_run": result.get("dry_run"),
             "trigger": trigger,
+            "triggered_by": trigger,
             "fetched": result.get("fetched", 0),
             "upserted": result.get("upserted", 0),
             "skipped": result.get("skipped", 0),
             "removed": result.get("removed", 0),
             "errors": result.get("errors", []),
             "duration_ms": duration_ms,
+            "new_fields_seen": result.get("new_fields_seen") or {},
         })
     except Exception:
         logger.exception("knowledge_sync_runs record failed (non-fatal)")
@@ -447,3 +507,48 @@ async def startup_sync_if_empty(db) -> None:
         logger.info("SMIFS KB startup sync: %s", {k: result.get(k) for k in ("fetched", "upserted", "skipped", "errors")})
     except Exception as e:
         logger.exception("SMIFS KB startup sync failed: %s", e)
+
+
+async def phase16_backfill_if_needed(db) -> None:
+    """Phase 16 — one-time `mode='full'` backfill so all already-indexed chunks
+    pick up the new per-subsource metadata projection (vehicle_id, version_no,
+    is_focused/active, audience, …).
+
+    Gated on the `phase16_backfilled` flag in `kb_sync_meta` so we never run
+    this more than once per environment.
+    """
+    if not configured():
+        return
+    meta = await db.kb_sync_meta.find_one({"_id": KB_SOURCE}, {"_id": 0}) or {}
+    if meta.get("phase16_backfilled"):
+        logger.info("Phase 16 backfill already complete — skipping")
+        return
+    # Skip backfill if the index is empty — `startup_sync_if_empty` will
+    # handle initial population and the projector runs on every chunk anyway.
+    n = await db.doc_chunks.count_documents({"source": KB_SOURCE})
+    if n == 0:
+        logger.info("Phase 16 backfill skipped — index empty (initial sync will project metadata)")
+        return
+    logger.info("Phase 16 backfill — running mode=full with trigger=phase16_backfill (%d chunks)", n)
+    try:
+        result = await run_sync(db, mode="full", trigger="phase16_backfill")
+        # Only mark the flag on a successful, non-conflicting run that actually
+        # upserted chunks. A conflict (stale mutex from a previous interrupted
+        # run) returns upserted=0 — retry on next startup.
+        if result.get("conflict") or result.get("errors") or (result.get("upserted", 0) == 0 and result.get("fetched", 0) > 0):
+            logger.warning("Phase 16 backfill did NOT mark flag (conflict/error/zero upsert): %s",
+                           {k: result.get(k) for k in ("conflict", "errors", "upserted", "fetched")})
+            return
+        await db.kb_sync_meta.update_one(
+            {"_id": KB_SOURCE},
+            {"$set": {
+                "phase16_backfilled": True,
+                "phase16_backfilled_at": datetime.now(timezone.utc).isoformat(),
+                "phase16_new_fields_seen": result.get("new_fields_seen") or {},
+            }},
+            upsert=True,
+        )
+        logger.info("Phase 16 backfill complete: upserted=%d new_fields_seen=%s",
+                    result.get("upserted", 0), result.get("new_fields_seen") or {})
+    except Exception:
+        logger.exception("Phase 16 backfill failed (non-fatal — will retry on next startup)")

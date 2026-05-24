@@ -90,3 +90,15 @@ auth flow.
 - P2: Admin Insights widget for `security_events` (injection attempts over time)
 - P2: Surface low-confidence router intents in admin Insights tab
 - P2: Per-employee compensation / HR queries (would need careful scope review)
+
+---
+## Phase 16 — Knowledge API upgrade (May 24, 2026)
+- Step 1 (delta probe) shipped earlier — see `/app/deliverables/phase16/knowledge_api_delta.md`.
+- Steps 2–5 shipped today:
+  - **knowledge_sync.py**: `_project_metadata()` projector + PII scrub (`updatedBy`). Persists 16 new top-level fields on `doc_chunks` (vehicle_id/name/type, is_focused/active, sales_pitch_ready, version_no, kind, language, provider, category, vertical, updated_at_iso, audience). `phase16_backfill_if_needed()` runs one-time `mode=full` at startup; flag-gated.
+  - **rag.py**: `_load_index_from_db` carries the new fields. `search_weighted()` accepts `restrict_audiences`, hard-drops `is_active=False`, boosts bedrock (+0.05), focused (+0.03), recency (+0.02 within 90d).
+  - **agents/rag_agent.py**: client/visitor retrieval gets `restrict_audiences=["all"]` so `sales_pitch`/`growth_*` never leak. LLM chunk preamble (`[Type] [Vehicle] [Version] [Updated]`) injected. Citations carry new metadata additively.
+  - **TextBlock.jsx + Chat.jsx popover**: chip shows `Updated DD MMM YYYY` + `v<n>`; CTA chip "Open the vehicle factsheet · <name>" gated on `authState === 'verified'` AND `vehicle_id` present. Popover meta line shows vehicle/version/updated.
+  - **knowledge_gaps.py + KnowledgeGapsTab.jsx**: new `by_role` counter strip showing hallu/WM/unique per client/employee/visitor.
+- **Deliverable**: `/app/deliverables/phase16/kb_matrix.md` — 23-row regression matrix.
+- **Verified live**: Phase 16 backfill ran successfully → 1977 chunks upserted, 84 audience=employee_only (sales_pitch + growth_*). Retrieval gating + bedrock boost verified in-process.

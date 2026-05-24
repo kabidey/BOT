@@ -1837,6 +1837,60 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   background: rgba(201,168,106,0.12);
 }
 
+/* ====== Phase 16 — citation metadata + vehicle CTA ====== */
+.smifs-cite-meta {
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.05);
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.smifs-cite-meta--version {
+  color: var(--smifs-green, #156c46);
+  background: rgba(21,108,70,0.08);
+  border-color: rgba(21,108,70,0.18);
+  font-weight: 600;
+}
+.smifs-cta-row {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 10px;
+}
+.smifs-cta-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(21,108,70,0.35);
+  background: linear-gradient(180deg, rgba(21,108,70,0.10), rgba(21,108,70,0.04));
+  color: var(--smifs-green, #156c46);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+.smifs-cta-chip:hover {
+  background: linear-gradient(180deg, rgba(21,108,70,0.16), rgba(21,108,70,0.08));
+  border-color: rgba(21,108,70,0.55);
+  transform: translateY(-1px);
+}
+.smifs-cta-chip:active { transform: translateY(0); }
+.smifs-cta-sub {
+  color: var(--ink-muted);
+  font-weight: 400;
+  font-size: 11px;
+}
+.smifs-popover-meta {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  margin-top: 4px;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
 
 /* ====== Phase 10 — Role Gate ====== */
 .smifs-role-gate {

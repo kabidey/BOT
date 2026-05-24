@@ -831,6 +831,13 @@ async def startup_event():
             asyncio.create_task(knowledge_sync.startup_sync_if_empty(db))
         except Exception:
             logger.exception("SMIFS KB auto-sync scheduling failed (non-fatal).")
+        # Phase 16 — one-time mode=full backfill so previously indexed chunks
+        # pick up new per-subsource metadata (audience, vehicle_id, version_no, …).
+        try:
+            import knowledge_sync
+            asyncio.create_task(knowledge_sync.phase16_backfill_if_needed(db))
+        except Exception:
+            logger.exception("Phase 16 backfill scheduling failed (non-fatal).")
         # Phase 11 — recurring delta-sync scheduler
         try:
             import knowledge_sync

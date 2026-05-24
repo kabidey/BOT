@@ -189,10 +189,33 @@ async def compute_gaps(db, *, range_str: str = "7d", role: str = "all",
 
     totals["unique_questions"] = len(rows)
     totals["resolved_questions"] = sum(1 for r in rows if r["resolved"])
+
+    # Phase 16 — per-role counter breakdown (shown even when role filter is
+    # "all", so admins can see gap volume per client/employee/visitor at a glance).
+    by_role: Dict[str, Dict[str, int]] = {
+        "client":   {"hallucination_events": 0, "wm_fallbacks": 0, "unique_questions": 0},
+        "employee": {"hallucination_events": 0, "wm_fallbacks": 0, "unique_questions": 0},
+        "visitor":  {"hallucination_events": 0, "wm_fallbacks": 0, "unique_questions": 0},
+    }
+    for e in hal_events:
+        t = types_map.get(e.get("session_id"))
+        if t in by_role:
+            by_role[t]["hallucination_events"] += 1
+    for p in wm_pairs:
+        t = types_map.get(p.get("session_id"))
+        if t in by_role:
+            by_role[t]["wm_fallbacks"] += 1
+    # Unique-question counts per role
+    for r in rows:
+        for role_tag in (r.get("roles") or []):
+            if role_tag in by_role:
+                by_role[role_tag]["unique_questions"] += 1
+
     return {
         "range": range_str,
         "role": role,
         "totals": totals,
+        "by_role": by_role,
         "top_questions": rows[:limit],
         "by_asset_class": by_asset,
         "generated_at": datetime.now(timezone.utc).isoformat(),

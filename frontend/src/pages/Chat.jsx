@@ -565,6 +565,7 @@ export default function Chat({ embedded = false }) {
             onCitationClick={onCitationClick}
             msgIdx={msgIdx}
             activeCitationKey={activeCitation ? `${activeCitation.msgIdx}-${activeCitation.citIdx}` : null}
+            authState={authState}
           />
         );
       case "form":
@@ -934,6 +935,24 @@ export default function Chat({ embedded = false }) {
                   <p className="smifs-popover-eyebrow">Knowledge base passage</p>
                   <h3 className="smifs-popover-title">{c.doc_title}</h3>
                   <p className="smifs-popover-section">§{c.section} · relevance {c.score.toFixed(2)}</p>
+                  {(c.vehicle_name || c.updated_at || c.version_no != null || c.doc_type) && (
+                    <p className="smifs-popover-meta" data-testid="citation-popover-meta">
+                      {c.vehicle_name && (
+                        <span data-testid="popover-vehicle">
+                          {c.vehicle_name}{c.vehicle_type ? ` · ${c.vehicle_type}` : ""}
+                        </span>
+                      )}
+                      {c.updated_at && (
+                        <span data-testid="popover-updated"> · Updated {(c.updated_at || "").slice(0, 10)}</span>
+                      )}
+                      {c.version_no != null && (
+                        <span data-testid="popover-version"> · v{c.version_no}</span>
+                      )}
+                      {c.doc_type && !c.vehicle_name && (
+                        <span data-testid="popover-doctype"> · {c.doc_type}</span>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"

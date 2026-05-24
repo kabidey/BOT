@@ -148,6 +148,36 @@ export default function KnowledgeGapsTab({ api }) {
         </div>
       </div>
 
+      {/* Phase 16 — per-role counter strip (visible regardless of the filter
+          above so content team can see the role split at a glance). */}
+      {data?.by_role && (
+        <section className="smifs-admin-card" data-testid="gaps-by-role">
+          <header>
+            <h3 className="smifs-admin-h3"><Filter size={14} strokeWidth={2.25} /> Gap volume by role</h3>
+          </header>
+          <ul className="smifs-bars">
+            {["client", "employee", "visitor"].map((r) => {
+              const v = data.by_role[r] || { hallucination_events: 0, wm_fallbacks: 0, unique_questions: 0 };
+              const total = (v.hallucination_events || 0) + (v.wm_fallbacks || 0);
+              return (
+                <li key={r} className="smifs-bar-row" data-testid={`gap-role-${r}`}>
+                  <span className="smifs-bar-label" style={{ textTransform: "capitalize" }}>{r}</span>
+                  <div className="smifs-bar-track">
+                    <div
+                      className="smifs-bar-fill"
+                      style={{ width: `${Math.max(4, Math.min(100, total * 6))}%` }}
+                    />
+                  </div>
+                  <span className="smifs-bar-count" data-testid={`gap-role-count-${r}`}>
+                    {v.hallucination_events || 0} hallu · {v.wm_fallbacks || 0} WM · {v.unique_questions || 0} unique
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* By asset class */}
       <section className="smifs-admin-card" data-testid="gaps-by-asset">
         <header>

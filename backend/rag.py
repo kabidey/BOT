@@ -245,6 +245,12 @@ async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, 
     cursor = db.doc_chunks.find({}, {
         "embedding": 1, "doc_id": 1, "doc_title": 1, "section": 1, "text": 1,
         "source": 1, "subsource": 1, "smifs_metadata": 1, "smifs_id": 1,
+        # Phase 16 — projected metadata
+        "doc_type": 1, "vehicle_id": 1, "vehicle_name": 1, "vehicle_type": 1,
+        "is_active": 1, "is_focused": 1, "sales_pitch_ready": 1,
+        "version_no": 1, "collateral_no": 1, "kind": 1, "language": 1,
+        "provider": 1, "category": 1, "vertical": 1,
+        "updated_at_iso": 1, "audience": 1,
     })
     rows = await cursor.to_list(length=5000)
     if not rows:
@@ -257,6 +263,23 @@ async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, 
         "subsource": r.get("subsource"),
         "smifs_metadata": r.get("smifs_metadata") or {},
         "smifs_id": r.get("smifs_id"),
+        # Phase 16 — projected metadata (may be missing on legacy chunks)
+        "doc_type": r.get("doc_type"),
+        "vehicle_id": r.get("vehicle_id"),
+        "vehicle_name": r.get("vehicle_name"),
+        "vehicle_type": r.get("vehicle_type"),
+        "is_active": r.get("is_active"),
+        "is_focused": r.get("is_focused"),
+        "sales_pitch_ready": r.get("sales_pitch_ready"),
+        "version_no": r.get("version_no"),
+        "collateral_no": r.get("collateral_no"),
+        "kind": r.get("kind"),
+        "language": r.get("language"),
+        "provider": r.get("provider"),
+        "category": r.get("category"),
+        "vertical": r.get("vertical"),
+        "updated_at_iso": r.get("updated_at_iso"),
+        "audience": r.get("audience") or "all",
     } for r in rows]
     return _normalize(vecs), meta
 
@@ -398,15 +421,51 @@ SOURCE_WEIGHTS: Dict[str, float] = {
     "session_archive": 0.80,
 }
 
+# Phase 16 — proxy-based ranking boosts (additive on cosine, applied after
+# source weighting). Bedrock is the canonical authoritative subsource, focused
+# vehicles are house-view picks, and recent updates get a small bonus.
+PHASE16_BEDROCK_BOOST = 0.05
+PHASE16_FOCUSED_BOOST = 0.03
+PHASE16_RECENCY_BOOST = 0.02
+PHASE16_RECENCY_WINDOW_DAYS = 90
+
+
+def _phase16_proxy_bonus(m: Dict[str, Any]) -> float:
+    """Bedrock canonical + focused house-views + recency proxy."""
+    bonus = 0.0
+    sub = m.get("subsource")
+    if sub == "bedrock":
+        bonus += PHASE16_BEDROCK_BOOST
+    if m.get("is_focused") is True:
+        bonus += PHASE16_FOCUSED_BOOST
+    iso = m.get("updated_at_iso") or ""
+    if iso:
+        try:
+            ts = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            age_days = (datetime.now(timezone.utc) - ts).days
+            if 0 <= age_days <= PHASE16_RECENCY_WINDOW_DAYS:
+                bonus += PHASE16_RECENCY_BOOST
+        except Exception:
+            pass
+    return bonus
+
 
 async def search_weighted(query: str, top_k: int = 8,
-                          restrict_sources: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-    """Phase 9 primary retrieval.
+                          restrict_sources: Optional[List[str]] = None,
+                          restrict_audiences: Optional[List[str]] = None,
+                          ) -> List[Dict[str, Any]]:
+    """Phase 9 + Phase 16 retrieval.
 
     1. Cosine over the full in-memory index (cheap).
     2. Multiply each score by SOURCE_WEIGHTS[source] (SMIFS official wins ties).
-    3. If `restrict_sources` is given, drop everything else (hard gate).
-    4. Return top_k with both `score` (post-weight) and `raw_score` (cosine).
+    3. Apply Phase 16 proxy bonuses (bedrock canonical, focused house-views,
+       recency window).
+    4. Hard gates:
+       - drop chunks where `is_active is False` (decommissioned vehicles).
+       - if `restrict_sources` is given, drop everything else.
+       - if `restrict_audiences` is given, drop chunks whose `audience`
+         is not in the allow-list (Phase 16 employee-only gating).
+    5. Return top_k with both `score` (post-weight) and `raw_score` (cosine).
     """
     if _index_matrix is None or not _index_meta:
         return []
@@ -417,9 +476,14 @@ async def search_weighted(query: str, top_k: int = 8,
     weighted = raw.copy()
     for i, m in enumerate(_index_meta):
         w = SOURCE_WEIGHTS.get(m.get("source") or "seed", 1.0)
-        weighted[i] = raw[i] * w
-        if restrict_sources and (m.get("source") not in restrict_sources):
-            weighted[i] = -1.0  # exclude
+        weighted[i] = raw[i] * w + _phase16_proxy_bonus(m)
+        # Phase 16 hard gates
+        if m.get("is_active") is False:
+            weighted[i] = -1.0
+        elif restrict_sources and (m.get("source") not in restrict_sources):
+            weighted[i] = -1.0
+        elif restrict_audiences and ((m.get("audience") or "all") not in restrict_audiences):
+            weighted[i] = -1.0
 
     order = np.argsort(-weighted)
     out: List[Dict[str, Any]] = []
