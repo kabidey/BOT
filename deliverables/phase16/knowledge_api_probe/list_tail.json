@@ -1,0 +1,30 @@
+{
+  "stats": {
+    "vehicles": 168,
+    "documents": 212,
+    "academy": 1278,
+    "bedrock": 235,
+    "growth_insurance": 12,
+    "growth_revenue": 3,
+    "sales_pitch": 69,
+    "totalChunks": 1977
+  },
+  "chunks": [
+    {
+      "id": "bedrock:88cb1a06-ed1a-4e1e-86e6-9a0153581045:18",
+      "source": "bedrock",
+      "sourceId": "88cb1a06-ed1a-4e1e-86e6-9a0153581045",
+      "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 1",
+      "section": "product",
+      "content": "ilal Oswal offers hedged equity multifactor strategies, leveraging quant-based and index-based approaches,\nemphasizing quality, longevity, and growth. Globally, factor investing is mainstream, with significant asse...\nALTERNATIVE INVESTMENT FUNDS\nMotilal Oswal India Excellence Fund – Mid To Mega – Series III\n(cid:127) 1 reference document on file\n(cid:127) Motilal Oswal's Mid to Mega Series III, under the India Excellence Fund, focuses on companies transitioning\nfrom mid-cap (ranks 101-300) to mega-cap status (top 100). This transition occurs in companies demonstrating...\nALTERNATIVE INVESTMENT FUNDS\nMotilal Oswal India Excellence Fund – Mid To Mega – Series IV\n(cid:127) 1 reference document on file\n(cid:127) Motilal Oswal Financial Services Group, a listed entity with a $7.4 Bn market cap, presents its Mid to Mega\nSeries IV, managed by Motilal Oswal Asset Management Company (MOAMC).",
+      "metadata": {
+        "section": "product",
+        "fileType": "pdf",
+        "fileName": "SMIFS_Fortnightly_Offerings_2026_05_12.pdf",
+        "ordinal": 18,
+        "kind": "body"
+      }
+    }
+  ],
+  "totalAvailable": 1977
+}

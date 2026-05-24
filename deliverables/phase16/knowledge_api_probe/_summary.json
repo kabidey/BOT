@@ -1,0 +1,219 @@
+[
+  {
+    "label": "stats",
+    "path": "/api/knowledge/stats",
+    "params": null,
+    "status": 200,
+    "content_type": "application/json",
+    "bytes": 402,
+    "json_parsed": true
+  },
+  {
+    "label": "list_limit3",
+    "path": "/api/knowledge",
+    "params": {
+      "limit": 3
+    },
+    "status": 200,
+    "content_type": "application/json",
+    "bytes": 1514,
+    "json_parsed": true
+  },
+  {
+    "label": "list_first1",
+    "path": "/api/knowledge",
+    "params": {
+      "limit": 1,
+      "offset": 0
+    },
+    "status": 200,
+    "content_type": "application/json",
+    "bytes": 628,
+    "json_parsed": true
+  },
+  {
+    "label": "list_mid",
+    "path": "/api/knowledge",
+    "params": {
+      "limit": 1,
+      "offset": 500
+    },
+    "status": 200,
+    "content_type": "application/json",
+    "bytes": 1145,
+    "json_parsed": true
+  },
+  {
+    "label": "list_tail",
+    "path": "/api/knowledge",
+    "params": {
+      "limit": 1,
+      "offset": 1800
+    },
+    "status": 200,
+    "content_type": "application/json",
+    "bytes": 1441,
+    "json_parsed": true
+  },
+  {
+    "label": "search_ncd",
+    "path": "/api/knowledge/search",
+    "params": {
+      "q": "NCD"
+    },
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "search_aif",
+    "path": "/api/knowledge/search",
+    "params": {
+      "q": "AIF Cat III"
+    },
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "search_pms",
+    "path": "/api/knowledge/search",
+    "params": {
+      "q": "PMS minimum corpus"
+    },
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "categories",
+    "path": "/api/knowledge/categories",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "tags",
+    "path": "/api/knowledge/tags",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "topics",
+    "path": "/api/knowledge/topics",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "sources",
+    "path": "/api/knowledge/sources",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "doc_types",
+    "path": "/api/knowledge/doc_types",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "products",
+    "path": "/api/knowledge/products",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "effective_dates",
+    "path": "/api/knowledge/effective_dates",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "related_aif",
+    "path": "/api/knowledge/related",
+    "params": {
+      "q": "AIF"
+    },
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "faq",
+    "path": "/api/knowledge/faq",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "version",
+    "path": "/api/knowledge/version",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "health",
+    "path": "/api/knowledge/health",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "openapi",
+    "path": "/api/openapi.json",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  },
+  {
+    "label": "openapi_root",
+    "path": "/openapi.json",
+    "params": null,
+    "status": 200,
+    "content_type": "text/html",
+    "bytes": 4733,
+    "json_parsed": false
+  },
+  {
+    "label": "docs_api",
+    "path": "/api/docs",
+    "params": null,
+    "status": 404,
+    "content_type": "application/json",
+    "bytes": 22,
+    "json_parsed": true
+  }
+]

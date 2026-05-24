@@ -1,0 +1,20 @@
+{
+  "vehicles": 168,
+  "vehiclesActive": 166,
+  "vehiclesFocused": 2,
+  "documents": 231,
+  "documentsWithSummary": 212,
+  "academyCourses": 11,
+  "academyChapters": 40,
+  "academyPages": 473,
+  "bedrockItems": 81,
+  "bedrockExtractable": 3,
+  "bedrockBrandEquity": 78,
+  "bedrockCached": 12,
+  "growthInsuranceProviders": 12,
+  "growthInsuranceRows": 122,
+  "growthRevenueVerticals": 3,
+  "growthRevenueRows": 60,
+  "salesPitchVehicles": 2,
+  "salesPitchLanguageTotal": 26
+}

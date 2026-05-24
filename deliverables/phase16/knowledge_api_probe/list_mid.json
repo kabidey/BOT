@@ -1,0 +1,32 @@
+{
+  "stats": {
+    "vehicles": 168,
+    "documents": 212,
+    "academy": 1278,
+    "bedrock": 235,
+    "growth_insurance": 12,
+    "growth_revenue": 3,
+    "sales_pitch": 69,
+    "totalChunks": 1977
+  },
+  "chunks": [
+    {
+      "id": "academy:aif-3:7:0",
+      "source": "academy",
+      "sourceId": "aif-3:7",
+      "title": "Sales Pitch Scripts & Conversation Frameworks — Adapting Your Pitch for Different Client Types",
+      "section": "Alternative Investment Fund",
+      "content": "One size does not fit all. Here is how to adapt your AIF pitch for different client types:\n\nThe Business Owner:\nLanguage they understand: Growth, equity, scaling, risk-reward, exits.\nPitch angle: \"This fund invests the same way you built your business — by taking equity stakes in growing companies. The fund manager's job is what you do daily: identify great businesses, invest, and help them scale. You're essentially backing a professional version of your own entrepreneurial instinct.\"",
+      "metadata": {
+        "courseId": "AIF",
+        "courseTitle": "Alternative Investment Fund",
+        "chapterId": "aif-3",
+        "chapterTitle": "Sales Pitch Scripts & Conversation Frameworks",
+        "pageTitle": "Adapting Your Pitch for Different Client Types",
+        "pageIndex": 7,
+        "ordinal": 0
+      }
+    }
+  ],
+  "totalAvailable": 1977
+}
