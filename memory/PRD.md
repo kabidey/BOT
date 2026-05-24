@@ -160,3 +160,19 @@ auth flow.
 - Hybrid local+deck merge ranker (deck hits currently appended after local
   candidates).
 - Translation of the role-gate / static welcome card prose.
+
+## Phase 19 — Live Office 365 SMTP relay + hierarchy-aware CC routing (2026-05-24, DONE)
+
+**What shipped**
+- `email_relay.send_sale_notification` now derives TO/CC dynamically:
+  TO = submitting employee; CC = OrgLens manager chain (≤10 levels, 1h cache) + fixed Sales-Ops list (`CC_OPS_FIXED`).
+- Four `email_status` values: `sent`, `draft_only`, `smtp_auth_disabled`, `failed_with_fallback`.
+  All failure modes write an HTML draft to `/app/deliverables/phase14/email_drafts/`.
+- New admin endpoints `/api/admin/email_relay/status` and `/api/admin/email_relay/resolve_chain/{employee_id}` (token-gated).
+- Admin UI: drawer renders the full TO/CC chain; KnowledgeBase tab gets an Email Relay Status card.
+- Security events: `email_relay_hierarchy_unresolved`, `email_relay_send_failed`, `email_relay_basic_auth_disabled`.
+- Password never logged; raw exception text is scrubbed before persistence.
+
+**Live-send checkpoint**
+- `SALE-2026-0018` (submitter `SMWM-25031054`): delivered to 1 TO + 7 CC via `smtp.office365.com` (`reason=sent`).
+- Wrong-password regression: `reason=smtp_auth_disabled`, fallback draft written, security event row inserted.

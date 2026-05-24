@@ -199,3 +199,66 @@ Run: `cd /app/backend && python -m pytest tests/test_phase18_*.py -v`
   "p50_latency_ms_last_50": 2718
 }
 ```
+
+---
+
+## Phase 19 — Live Office 365 SMTP relay + hierarchy-aware CC routing
+
+**What changed**
+- `backend/email_relay.py` rewritten. Recipient routing is now derived dynamically:
+  - **TO** = submitting employee (raw email from OrgLens `/employee/by-code/<id>`).
+  - **CC** = full reporting chain (`reports_to_employee_id` walked upward,
+    capped at **10 levels**, cached in-process for **1 hour** per `employee_id`)
+    plus the fixed Sales-Ops CC list from `CC_OPS_FIXED`.
+- Four `email_status` values now persisted on `sales_entries`:
+  `sent`, `draft_only`, `smtp_auth_disabled`, `failed_with_fallback`.
+- New `sales_entries.email_routing` document holds the structured TO/CC chain
+  per send. Legacy `email_recipients` (flat list) remains populated for back-compat.
+
+**New env vars** (write into `backend/.env`)
+```
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_STARTTLS=true
+SMTP_USER=wealth.guidance@smifs.com
+SMTP_PASSWORD=<secret>           # NEVER logged
+FROM_EMAIL=wealth.guidance@smifs.com
+FROM_NAME=SMIFS Wealth Guidance
+CC_OPS_FIXED=ho.operations@smifs.com,insurance.bpo@smifs.com,fundaccounting@smifs.com,bi@smifs.com
+```
+
+**New admin endpoints** (gated by `X-Admin-Token`)
+- `GET /api/admin/email_relay/status` — SMTP config + cache snapshot + 7-day
+  counters of `email_relay_*` security events + last 10 sales sends.
+- `GET /api/admin/email_relay/resolve_chain/{employee_id}?force=1` — preview
+  the resolved TO/CC chain before a live send. `force=1` bypasses cache.
+
+**Security events emitted**
+- `email_relay_hierarchy_unresolved` — OrgLens walk returned an error / missing hop.
+- `email_relay_basic_auth_disabled` — O365 refused Basic Auth (`535 5.7.139` /
+  `SMTPAuthenticationError`). Email falls back to local HTML draft.
+- `email_relay_send_failed` — any other SMTP / network error. Same fallback.
+
+**Live-send checkpoint (Phase 19 acceptance)**
+- Sale `SALE-2026-0018` (submitter `SMWM-25031054`, Aaditya R. Jaiswal):
+  ```
+  TO  aaditya.jaiswal@smifs.com
+  CC  awanish.chandra@smifs.com   (L1, Executive Director)
+      aswin.tripathi@smifs.com    (L2, Managing Director)
+      rahul@smifs.com             (L3, Director & CEO)
+      ho.operations@smifs.com
+      insurance.bpo@smifs.com
+      fundaccounting@smifs.com
+      bi@smifs.com
+  Status: sent · 1 TO + 7 CC · host=smtp.office365.com
+  ```
+- Wrong-password regression: `reason=smtp_auth_disabled`, fallback draft
+  written to `/app/deliverables/phase14/email_drafts/SALE-2026-0018.html`,
+  `security_events` row inserted (kind `email_relay_basic_auth_disabled`).
+
+**Password hygiene**
+- `SMTP_PASSWORD` is read directly from `os.environ` into `aiosmtplib.send`.
+  Our log lines never include it. A defensive `_mask_password_in()` scrub is
+  applied to any exception text before it's persisted to `security_events`.
+- Verified: zero occurrences of the password in `/var/log/supervisor/backend.*.log`
+  or anywhere in `/app/**` outside `backend/.env`.

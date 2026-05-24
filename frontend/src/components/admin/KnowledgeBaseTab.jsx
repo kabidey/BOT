@@ -10,6 +10,7 @@ export default function KnowledgeBaseTab({ api }) {
   // Phase 9 — SMIFS Knowledge API status
   const [kbStatus, setKbStatus] = useState(null);
   const [deckStatus, setDeckStatus] = useState(null);   // Phase 18 / 18.1
+  const [relayStatus, setRelayStatus] = useState(null); // Phase 19
   const [syncing, setSyncing] = useState(false);
 
   const loadStatus = async () => {
@@ -20,6 +21,10 @@ export default function KnowledgeBaseTab({ api }) {
     try {
       const { data } = await api.get("/admin/deck_search/status?limit_calls=10");
       setDeckStatus(data);
+    } catch (e) { /* non-fatal */ }
+    try {
+      const { data } = await api.get("/admin/email_relay/status");
+      setRelayStatus(data);
     } catch (e) { /* non-fatal */ }
   };
 
@@ -247,6 +252,71 @@ export default function KnowledgeBaseTab({ api }) {
                     · {row.elapsed_ms}ms · raw={row.results_count_raw ?? 0} · post-audience={row.results_count_post_audience ?? 0}
                     {row.audience_drops ? ` · drops=${row.audience_drops}` : ""}
                     {row.slow ? " · slow" : ""}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
+
+      {relayStatus && (
+        <section className="smifs-kb-api-panel" data-testid="email-relay-panel" style={{ marginTop: 12 }}>
+          <header className="smifs-kb-api-head">
+            <div>
+              <h3 className="smifs-kb-api-title">
+                Office 365 Email Relay (Phase 19)
+                <span className={relayStatus.configured ? "smifs-kb-api-pill smifs-kb-api-pill--ok" : "smifs-kb-api-pill smifs-kb-api-pill--warn"}
+                      data-testid="email-relay-status-pill">
+                  {relayStatus.configured ? "Configured" : "Not configured"}
+                </span>
+                {relayStatus.password_set
+                  ? <span className="smifs-kb-api-pill smifs-kb-api-pill--ok" data-testid="email-relay-password-pill"><ShieldCheck size={11}/> Password set</span>
+                  : <span className="smifs-kb-api-pill smifs-kb-api-pill--warn" data-testid="email-relay-password-pill"><ShieldAlert size={11}/> Password missing</span>}
+              </h3>
+              <p className="smifs-kb-api-sub" data-testid="email-relay-host">
+                {relayStatus.host || "—"}:{relayStatus.port || "—"} · STARTTLS {relayStatus.starttls ? "on" : "off"} ·
+                user <code>{relayStatus.user || "—"}</code> · from <code>{relayStatus.from_email || "—"}</code>
+              </p>
+            </div>
+          </header>
+
+          <div className="smifs-kb-api-counters" data-testid="email-relay-counters">
+            <div className="smifs-kb-count">
+              <span className="smifs-kb-count-label">Cache size</span>
+              <span className="smifs-kb-count-value">{relayStatus.chain_cache?.size ?? 0}</span>
+            </div>
+            <div className="smifs-kb-count">
+              <span className="smifs-kb-count-label">Hierarchy unresolved (7d)</span>
+              <span className="smifs-kb-count-value">{relayStatus.events_7d?.email_relay_hierarchy_unresolved ?? 0}</span>
+            </div>
+            <div className="smifs-kb-count">
+              <span className="smifs-kb-count-label">Send failed (7d)</span>
+              <span className="smifs-kb-count-value">{relayStatus.events_7d?.email_relay_send_failed ?? 0}</span>
+            </div>
+            <div className="smifs-kb-count">
+              <span className="smifs-kb-count-label">Auth disabled (7d)</span>
+              <span className="smifs-kb-count-value">{relayStatus.events_7d?.email_relay_basic_auth_disabled ?? 0}</span>
+            </div>
+          </div>
+
+          <div className="smifs-kb-api-sub" style={{ marginTop: 8 }}>
+            <b>Fixed Ops CC:</b>{" "}
+            {(relayStatus.ops_cc_fixed || []).map((e) => (
+              <code key={e} style={{ marginRight: 6 }} data-testid={`email-relay-ops-${e}`}>{e}</code>
+            ))}
+            {(relayStatus.ops_cc_fixed || []).length === 0 && <span className="smifs-admin-dim">none</span>}
+          </div>
+
+          {Array.isArray(relayStatus.recent_attempts) && relayStatus.recent_attempts.length > 0 && (
+            <details className="smifs-kb-api-details" style={{ marginTop: 8 }} data-testid="email-relay-recent">
+              <summary>Last {relayStatus.recent_attempts.length} send attempts (process memory)</summary>
+              <ul>
+                {relayStatus.recent_attempts.slice(0, 10).map((row, idx) => (
+                  <li key={idx}>
+                    <code>{row.submission_id}</code> · {row.ended_at?.slice(11, 19)} ·
+                    status <b>{row.reason}</b> · TO {row.to?.length ?? 0} · CC {row.cc_count ?? 0} · chain {row.chain_levels ?? 0}
+                    {row.exc ? ` · exc=${row.exc}` : ""}
                   </li>
                 ))}
               </ul>

@@ -563,19 +563,74 @@ def build_admin_router(db) -> APIRouter:
         if not row:
             raise HTTPException(status_code=404, detail="Sale not found")
         import email_relay as _er
-        result = await _er.send_sale_notification(row)
+        result = await _er.send_sale_notification(row, db=db)
         await db.sales_entries.update_one(
             {"submission_id": submission_id},
             {"$set": {
                 "email_sent": bool(result.get("ok")),
                 "email_status": result.get("reason"),
                 "email_recipients": result.get("recipients") or [],
+                "email_routing": result.get("routing") or {},
                 "email_sent_at": (datetime.now(timezone.utc).isoformat()
                                    if result.get("ok") else row.get("email_sent_at")),
             }},
         )
         return {"ok": result.get("ok"), "reason": result.get("reason"),
-                "recipients": result.get("recipients")}
+                "recipients": result.get("recipients"),
+                "routing": result.get("routing")}
+
+    # ---------------- Phase 19 — Email relay observability ----------------
+    @router.get("/email_relay/status")
+    async def email_relay_status():
+        """Live status of the Office 365 SMTP relay + hierarchy cache.
+
+        Surfaces configuration (with the password redacted), the in-process
+        cache snapshot, and the last ~25 send attempts. For long-window
+        history correlate with `/api/admin/security_events?kind=email_relay_*`.
+        """
+        import email_relay as _er
+        snap = _er.relay_status()
+        # Counters of Phase 19 security events for the last 7 days.
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        since_iso = (_dt.now(_tz.utc) - _td(days=7)).isoformat()
+        kinds = ("email_relay_hierarchy_unresolved",
+                 "email_relay_send_failed",
+                 "email_relay_basic_auth_disabled")
+        events_7d: Dict[str, int] = {}
+        for k in kinds:
+            try:
+                events_7d[k] = await db.security_events.count_documents(
+                    {"kind": k, "created_at": {"$gte": since_iso}},
+                )
+            except Exception:
+                events_7d[k] = -1
+        snap["events_7d"] = events_7d
+        # Latest sends from `sales_entries` to power the admin row.
+        try:
+            cur = db.sales_entries.find(
+                {"email_status": {"$ne": None}},
+                {"_id": 0, "submission_id": 1, "email_status": 1,
+                 "email_sent_at": 1, "email_sent": 1,
+                 "email_recipients": 1, "created_at": 1},
+            ).sort("created_at", -1).limit(10)
+            snap["latest_sales_emails"] = await cur.to_list(length=10)
+        except Exception:
+            snap["latest_sales_emails"] = []
+        return snap
+
+    @router.get("/email_relay/resolve_chain/{employee_id}")
+    async def email_relay_resolve_chain(employee_id: str, force: int = 0):
+        """Token-gated chain walker — used by ops to validate that a given
+        employee's CC chain is what we expect *before* a live send.
+
+        Pass `?force=1` to bypass the 1-hour cache (useful when an OrgLens
+        update has just shipped).
+        """
+        import email_relay as _er
+        payload = await _er.resolve_recipient_chain(
+            employee_id=employee_id, db=db, force_refresh=bool(force),
+        )
+        return payload
 
     # ---------------- Phase 13 — errors + security_events read surface ----------------
     @router.get("/errors")

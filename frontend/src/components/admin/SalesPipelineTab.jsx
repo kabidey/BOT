@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { TrendingUp, DollarSign, Calendar, MailCheck, MailX, X, RefreshCw } from "lucide-react";
+import { TrendingUp, DollarSign, Calendar, MailCheck, MailX, MailWarning, X, RefreshCw } from "lucide-react";
 
 const PRODUCT_LABEL = {
   mutual_fund: "Mutual Fund", aif: "AIF", pms: "PMS",
@@ -7,6 +7,30 @@ const PRODUCT_LABEL = {
   ncd_primary: "NCD Primary Issue",
 };
 const STATUS_OPTIONS = ["submitted", "logged", "funded", "reconciled", "cancelled"];
+
+// Phase 19 — visual taxonomy for the four send statuses + legacy reasons.
+const EMAIL_STATUS_META = {
+  sent:                 { tone: "ok",   icon: MailCheck,   label: "Sent" },
+  draft_only:           { tone: "skip", icon: MailX,       label: "Draft only" },
+  smtp_auth_disabled:   { tone: "warn", icon: MailWarning, label: "SMTP auth disabled" },
+  failed_with_fallback: { tone: "warn", icon: MailWarning, label: "Failed · fallback to draft" },
+  // legacy
+  smtp_not_configured:  { tone: "skip", icon: MailX,       label: "SMTP not configured" },
+  no_recipient:         { tone: "skip", icon: MailX,       label: "No recipient" },
+};
+
+function emailStatusBadge(status, sent) {
+  const meta = EMAIL_STATUS_META[status]
+    || (sent
+        ? EMAIL_STATUS_META.sent
+        : { tone: "skip", icon: MailX, label: status || "—" });
+  const Icon = meta.icon;
+  return (
+    <span className={`smifs-admin-pill smifs-admin-pill--${meta.tone}`} data-testid={`email-status-${status || "unknown"}`}>
+      <Icon size={11} /> {meta.label}
+    </span>
+  );
+}
 
 function fmtINR(n) {
   if (!n) return "—";
@@ -88,8 +112,15 @@ export default function SalesPipelineTab({ api }) {
     setResendBusy(true);
     try {
       const { data } = await adminApi.post(`/admin/sales/${drawerData.submission_id}/resend_email`, {});
-      alert(data.ok ? `Sent to ${data.recipients.join(", ")}` : `Skipped: ${data.reason}`);
+      const routing = data.routing || {};
+      const summary = data.ok
+        ? `Sent → TO: ${(routing.to || []).join(", ")}\nCC (${(routing.cc || []).length}): ${(routing.cc || []).join(", ")}`
+        : `Status: ${data.reason}${(routing.to || []).length ? `\nWould-be TO: ${routing.to.join(", ")}` : ""}`;
+      alert(summary);
       load();
+      // refresh the drawer so the routing card updates immediately
+      const { data: detail } = await adminApi.get(`/admin/sales/${drawerData.submission_id}`);
+      setDrawerData(detail);
     } catch (e) {
       alert(e?.response?.data?.detail || "Resend failed.");
     } finally { setResendBusy(false); }
@@ -199,9 +230,9 @@ export default function SalesPipelineTab({ api }) {
                 <td>{fmtINR(r.amount_inr)}</td>
                 <td>{fmtDate(r.expected_login_date)}</td>
                 <td><span className={`smifs-admin-status smifs-admin-status--${r.status}`}>{r.status}</span></td>
-                <td>{r.email_sent
-                  ? <span className="smifs-admin-pill smifs-admin-pill--ok"><MailCheck size={11} /> sent</span>
-                  : <span className="smifs-admin-pill smifs-admin-pill--skip"><MailX size={11} /> {r.email_status || "—"}</span>}</td>
+                <td data-testid={`sales-email-cell-${r.submission_id}`}>
+                  {emailStatusBadge(r.email_status, r.email_sent)}
+                </td>
                 <td className="smifs-admin-dim">{(r.created_at || "").slice(0, 19).replace("T", " ")}</td>
               </tr>
             );
@@ -284,10 +315,86 @@ export default function SalesPipelineTab({ api }) {
                     {resendBusy ? "Sending…" : "Resend email"}
                   </button>
                 </div>
-                <div className="smifs-admin-dim" style={{ marginTop: 12 }}>
-                  Email status: <b>{drawerData.email_status || "—"}</b>
-                  {drawerData.email_sent_at && <> · sent at {drawerData.email_sent_at.slice(0, 19).replace("T", " ")}</>}
+
+                <div className="smifs-admin-section">Email routing</div>
+                <div className="smifs-admin-drawer-email-status" data-testid="sales-drawer-email-status">
+                  {emailStatusBadge(drawerData.email_status, drawerData.email_sent)}
+                  {drawerData.email_sent_at && (
+                    <span className="smifs-admin-dim" style={{ marginLeft: 8 }}>
+                      sent at {drawerData.email_sent_at.slice(0, 19).replace("T", " ")}
+                    </span>
+                  )}
                 </div>
+                {(() => {
+                  const routing = drawerData.email_routing || {};
+                  const toList = routing.to || [];
+                  const chain = routing.chain || [];
+                  const opsCc = routing.ops_cc || [];
+                  const allCc = routing.cc || [];
+                  // Fallback for legacy rows that don't carry the structured payload yet.
+                  const legacy = !routing.to && Array.isArray(drawerData.email_recipients);
+                  return (
+                    <div className="smifs-admin-detail-grid" style={{ marginTop: 8 }} data-testid="sales-drawer-routing">
+                      <div>
+                        <b>TO</b>
+                        <ul className="smifs-admin-recipient-list" data-testid="sales-drawer-to-list">
+                          {(legacy ? drawerData.email_recipients.slice(0, 1) : toList).map((e) => (
+                            <li key={e} data-testid={`sales-drawer-to-${e}`}><code>{e}</code></li>
+                          ))}
+                          {(legacy ? drawerData.email_recipients.length === 0 : toList.length === 0) && (
+                            <li className="smifs-admin-dim">—</li>
+                          )}
+                        </ul>
+                      </div>
+                      <div>
+                        <b>CC — Manager chain</b>
+                        {legacy ? (
+                          <div className="smifs-admin-dim">(legacy — re-send to populate)</div>
+                        ) : (
+                          <ol className="smifs-admin-recipient-list" data-testid="sales-drawer-chain">
+                            {chain.length === 0 && <li className="smifs-admin-dim">none resolved</li>}
+                            {chain.map((c) => (
+                              <li key={c.employee_id} data-testid={`sales-drawer-chain-l${c.level}`}>
+                                <span className="smifs-admin-dim">L{c.level}</span> · <b>{c.name}</b>
+                                <span className="smifs-admin-dim"> · {c.designation || ""}</span>
+                                <br/><code>{c.email}</code>
+                              </li>
+                            ))}
+                          </ol>
+                        )}
+                        {routing.max_hops_reached && (
+                          <div className="smifs-admin-alert" style={{ marginTop: 6 }}>
+                            Chain capped at 10 levels — additional managers above were not added.
+                          </div>
+                        )}
+                        {Array.isArray(routing.errors) && routing.errors.length > 0 && (
+                          <div className="smifs-admin-dim" style={{ marginTop: 6 }}>
+                            chain notes: {routing.errors.join(", ")}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <b>CC — Fixed Ops</b>
+                        <ul className="smifs-admin-recipient-list" data-testid="sales-drawer-ops-cc">
+                          {(legacy ? drawerData.email_recipients.slice(1) : opsCc).map((e) => (
+                            <li key={e} data-testid={`sales-drawer-ops-${e}`}><code>{e}</code></li>
+                          ))}
+                          {(legacy ? drawerData.email_recipients.length <= 1 : opsCc.length === 0) && (
+                            <li className="smifs-admin-dim">none</li>
+                          )}
+                        </ul>
+                      </div>
+                      {!legacy && (
+                        <div className="smifs-admin-dim" style={{ gridColumn: "1 / -1" }}>
+                          Total CC: <b>{allCc.length}</b> · cache hit: <b>{routing.cache_hit ? "yes" : "no"}</b>
+                          {routing.resolved_at && (
+                            <> · resolved at {routing.resolved_at.slice(11, 19)}</>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

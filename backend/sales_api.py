@@ -432,10 +432,13 @@ def build_router(db) -> APIRouter:
         # Fire-and-forget email; never block the response on SMTP success.
         async def _send_and_update():
             result = await email_relay.send_sale_notification(
-                {**entry, "_id": None}  # drop ObjectId/_id from the payload we hand to template
+                {**entry, "_id": None}, db=db,  # drop ObjectId; pass db for security_events
             )
-            updates: Dict[str, Any] = {"email_recipients": result.get("recipients") or [],
-                                       "email_status": result.get("reason")}
+            updates: Dict[str, Any] = {
+                "email_recipients": result.get("recipients") or [],
+                "email_routing": result.get("routing") or {},
+                "email_status": result.get("reason"),
+            }
             if result.get("ok"):
                 updates.update({"email_sent": True, "email_sent_at": _now_iso()})
             try:
