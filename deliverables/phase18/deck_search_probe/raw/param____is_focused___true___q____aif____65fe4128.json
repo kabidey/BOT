@@ -9,13 +9,101 @@
     "status": 200,
     "json": {
       "query": "AIF",
-      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
       "sources": [],
       "topK": 5,
       "minScore": 0.0,
-      "results": [],
-      "totalIndexed": 0
+      "results": [
+        {
+          "id": "growth_revenue:aif:0",
+          "score": 0.5645,
+          "source": "growth_revenue",
+          "sourceId": "aif",
+          "title": "AIF",
+          "section": "Growth · Revenue Sharing · AIF",
+          "content": "Revenue Sharing · AIF\n\nVertical: AIF\n\n[Table] AIF Strategies\nAIF Strategy | RM Credit\nNIDI | 0.05\nTRITON AIF SERIES II | 0.07\nCARNELIAN BHARAT AMRITKAL FUND | 0.025\nSUNDARAM ALT -REAL ESTATE PER GEN FUNDS SERIES 5 | 0.03\nSUNDARAM PERFORMING CREDIT OPPORTUNITY FUND | 0.05\nALCHEMY LONG TERM VENTURES FUND SERIES 3 | 0.06\nADITYA BIRLA REAL ESTATE CREDIT OPPORTUNITIES FUND – SERIES II | 0.043\nAIF – A1 (EMKAY EMERGING STARS FUND, SERIOUS  ) | 0.07\nSUNDARAM ALTERNATES-CATEGORY II PCOF | 0.05\nBHARAT VALUE FUND SERIES VI | 0.06",
+          "metadata": {
+            "vertical": "aif",
+            "label": "AIF",
+            "tableCount": 1,
+            "rowCount": 10,
+            "updatedAt": "2026-05-16T08:48:33.685669+00:00",
+            "updatedBy": "nandini.biswas@smifs.com"
+          }
+        },
+        {
+          "id": "bedrock:b4d11a33-5320-4373-9b3d-cb780c727ed0:meta",
+          "score": 0.5423,
+          "source": "bedrock",
+          "sourceId": "b4d11a33-5320-4373-9b3d-cb780c727ed0",
+          "title": "Category III AIFs- Slide 1",
+          "section": "brand",
+          "content": "Bedrock Item: Category III AIFs- Slide 1\nSection: brand\nVersion No: v12.1\nCollateral No: SMIFS-BR-023",
+          "metadata": {
+            "section": "brand",
+            "fileType": "jpeg",
+            "isVideo": false,
+            "fileName": "Mar 23, 2026 - Investment Insights - Category III AIFs - 1.jpg.jpeg",
+            "kind": "metadata",
+            "versionNo": "v12.1",
+            "collateralNo": "SMIFS-BR-023"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:8",
+          "score": 0.4751,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "file\n(cid:127) The ASK Absolute Return Fund, a Category III AIF, launched on January 31, 2024, employs a long-short,\nmulti-strategy investment style. Minimum investment is n1 crore with monthly redemptions after a 5-day notice.\nAs o...\n(cid:127) ASK Absolute Return Fund, an AIF Category III fund from ASK Group (INR 84,000 crores AUM), aims for\nabsolute returns with lower volatility than Indian equity indices. The experienced investment team of 19 years\nfocus...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 3",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 8,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "vehicle:bc420a6c-76fa-4063-b5e1-ee1f52870dc8:0",
+          "score": 0.4579,
+          "source": "vehicle",
+          "sourceId": "bc420a6c-76fa-4063-b5e1-ee1f52870dc8",
+          "title": "ASK Core Fund",
+          "section": "AIF",
+          "content": "Investment Product: ASK Core Fund\nCategory: AIF",
+          "metadata": {
+            "vehicleType": "AIF",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-03-24T11:52:15.881606+00:00"
+          }
+        },
+        {
+          "id": "bedrock:61adff15-94c3-4119-befa-89ff33cd8d54:16",
+          "score": 0.448,
+          "source": "bedrock",
+          "sourceId": "61adff15-94c3-4119-befa-89ff33cd8d54",
+          "title": "SMIFS Corporate PPT",
+          "section": "corporate",
+          "content": "ourse.\nSEBI Reg: INZ000220635 | CDSL & NSDL: IN-DP-414-2019 | AMFI: ARN-3080 | PMS: INP000004623 | helpdesk@smifs.com Download ARTH App www.smifs.com\n\nAIF / PMS Strategic Collaboration\n MotilalOswalAsset Management Company\n Reliance AMC\n ICICI Prudential Asset Management Co. Ltd.\n IDFC\n Incred\n Negen\n I-wealth\n Carnelian AMC\n SundaramAlternate Assets Ltd.\n Ambit Investment Advisors Pvt Ltd.\n ASK Investment Managers\n Renaissance Invest\n Alchemy Capital Management Pvt.Ltd.\n Citrus Advisors\n Nippon Life India AIF Management Limited\n Aditya Birla Sun Life AMC Limited\n Invesco Asset Management (India) Private Limited\n UTI Alternatives\nSEBI Reg: INZ000220635 | CDSL & NSDL: IN-DP-414-2019 | AMFI: ARN-3080 | PMS: INP000004623 | helpdesk@smifs.com Download ARTH App www.smifs.com",
+          "metadata": {
+            "section": "corporate",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Corporate_8th May_2026_Geeta_Mumbai.pdf",
+            "ordinal": 16,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 486
     },
-    "elapsed_ms": 291
+    "elapsed_ms": 909
   }
 }

@@ -8,13 +8,101 @@
     "status": 200,
     "json": {
       "query": "ARN transfer process for mutual funds",
-      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
       "sources": [],
       "topK": 5,
       "minScore": 0.0,
-      "results": [],
-      "totalIndexed": 0
+      "results": [
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:61",
+          "score": 0.5041,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "r investment philosophy centered on\nfundamental, bottom-up research aiming for alpha generation through undervalued stocks with high growth\npotential. Th...\nMUTUAL FUNDS\nAditya Birla Sun Life Mutual Fund\n(cid:127) 1 reference document on file\n(cid:127) The Aditya Birla Sun Life Mutual Fund Factsheet provides an overview of various schemes across equity,\nhybrid, debt, and index categories. It includes equity funds like Large Cap, Flexi Cap, and Midcap Fund,\nalongside...\nMUTUAL FUNDS\nAngel-One Mutual Fund\n(cid:127) 1 reference document on file\n(cid:127) The Angel One Factsheet from February 2026 details several ETFs, Index Funds, and Funds of Funds. Key\nofferings include the Nifty Total Market ETF (AUM: n42.75 cr, TER: 0.28%), Nifty 50 ETF (AUM: n16.63 cr, TER:\n0.09%...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 17",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 61,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "vehicle:cc132c0e-5ec3-43b1-af36-fcba46958b5d:0",
+          "score": 0.4992,
+          "source": "vehicle",
+          "sourceId": "cc132c0e-5ec3-43b1-af36-fcba46958b5d",
+          "title": "Abakkus Mutual Fund",
+          "section": "MF",
+          "content": "Investment Product: Abakkus Mutual Fund\nCategory: MF",
+          "metadata": {
+            "vehicleType": "MF",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-04-08T05:52:00.588080+00:00"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:86",
+          "score": 0.491,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "terms like NAV, YTM, SIP, and AUM to help\ninvestors u...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 24\n\nSMIFS DECK FORTNIGHTLY OFFERINGS · May 2026 · Edition 2\nMUTUAL FUNDS\nUNIFI Mutual Fund\n(cid:127) 1 reference document on file\n(cid:127) The Unifi Dynamic Asset Allocation Fund fact sheet for March 2026 outlines an open-ended fund aiming for\nincome and capital appreciation through diversified investments in debt, money market, equity, and related\ninstr...\nMUTUAL FUNDS\nUnion Mutual Fund\n(cid:127) 1 reference document on file\n(cid:127) The Union Flexi Cap Fund factsheet (March 2026) reveals portfolio allocations across various asset classes. A\nsignificant portion (67.48%) is invested in equity, followed by sovereign holdings (20.33%).",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 86,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "vehicle:2b9547f5-4a0a-4e09-a9a0-2a254a285f03:0",
+          "score": 0.4866,
+          "source": "vehicle",
+          "sourceId": "2b9547f5-4a0a-4e09-a9a0-2a254a285f03",
+          "title": "Trust Mutual Fund",
+          "section": "MF",
+          "content": "Investment Product: Trust Mutual Fund\nCategory: MF",
+          "metadata": {
+            "vehicleType": "MF",
+            "customTypeName": null,
+            "isFocused": false,
+            "isActive": true,
+            "documentCount": 0,
+            "salesPitchReady": false,
+            "salesPitchLanguages": [],
+            "updatedAt": "2026-04-10T05:56:27.857718+00:00"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:60",
+          "score": 0.4825,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "nities Portfolio\n(cid:127) 5 reference documents on file\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 16\n\nSMIFS DECK FORTNIGHTLY OFFERINGS · May 2026 · Edition 2\nFORTNIGHTLY · MUTUAL FUNDS\nMutual Funds.\nMUTUAL FUNDS\nMUTUAL FUNDS\n360 ONE Mutual Fund\n(cid:127) 1 reference document on file\n(cid:127) The 360ONE Mutual Fund Factsheet for March 2026 highlights Indian equity market performance in February\n2026. The Nifty 50 and BSE Sensex indices saw monthly losses. However, broader market indices\noutperformed. Power...\nMUTUAL FUNDS\nAbakkus Mutual Fund\n(cid:127) 1 reference document on file\n(cid:127) The Abakkus Mutual Fund Factsheet for March 2026 highlights their investment philosophy centered on\nfundamental, bottom-up research aiming for alpha generation through undervalued stocks with high growth\npotential.",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 60,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 486
     },
-    "elapsed_ms": 141
+    "elapsed_ms": 3233
   }
 }

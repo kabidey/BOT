@@ -8,13 +8,111 @@
     "status": 200,
     "json": {
       "query": "এআইএফ বিনিয়োগ সুযোগ",
-      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
       "sources": [],
       "topK": 5,
       "minScore": 0.0,
-      "results": [],
-      "totalIndexed": 0
+      "results": [
+        {
+          "id": "sales_pitch:5940616d-b7ca-49d4-be88-2bfd1a3706b9:bn:1",
+          "score": 0.3439,
+          "source": "sales_pitch",
+          "sourceId": "5940616d-b7ca-49d4-be88-2bfd1a3706b9:bn",
+          "title": "Bharat Value Fund Series VI (Fund Of Fund) — Sales Pitch (Bengali)",
+          "section": "Sales Pitch · AIF",
+          "content": "- Series VI লক্ষ্য: ₹১,৫০০ কোটি (১,০০০ কোটি + ৫০০ কোটি গ্রিনশু), ৫.৫ বছরের মেয়াদ।\n- পোর্টফোলিও: ৭০-৮০% আনলিস্টেড প্রি-আইপিও ইক্যুইটি + ২০-৩০% লিস্টেড অ্যাঙ্কর (SEBI ক্যাপ ৪৯.৯%)।\n\nWhy Now — The Window:\n- ভারতের IPO বাজার খোলা: ৪0 বছরে ১১৯টি IPO, বর্তমান পাইপলাইনে Series I থেকে ২টি DRHP।\n- প্রি-আইপিও ভ্যালুয়েশন ব্যবধান কমছে: লিস্টেড শেয়ারের ১৫-২৫% প্রিমিয়াম। এখন সুযোগ।\n\nClient Motivators:\n- প্রজন্মগত সম্পদ সৃষ্টি: Series I বিনিয়োগকারীরা ২৪ মাসে ২.৮x রিটার্ন পেয়েছেন – দীর্ঘমেয়াদী উন্নতির সুযোগ।\n- ভবিষ্যতের পাবলিক উইনারদের কাছে অভ্যন্তরীণ প্রবেশাধিকার: বোর্ড সিট, M&A - আপনিও সহ-স্থপতি।\n\nObjection Handling:\nQ: ৫.৫ বছরের লক-ইন কি খুব বেশি? তার আগে অর্থের প্রয়োজন হলে কী হবে?\nA: ৩০% পর্যন্ত লিস্টেড এক্সপোজার মধ্যবর্তী লিকুইডিটি দেয়। Series I, ২ বছরে ৫টি এগজিট দিয়েছে, যা ফান্ডের মেয়াদের অনেক আগে।\nQ: ২% ম্যানেজমেন্ট ফি + ২০% ক্যারি মিউচুয়াল ফান্ডের চেয়ে অনেক বেশি মনে হচ্ছে।\nA: Series I, ২ বছরে ২.৮x (১৮০% গ্রস) রিটার্ন দিয়েছে। ফি বাদ দিয়েও ২.২x নেট। আপনি আলফা জেনারেশনের জন্য পেমেন্ট করছেন।\n\nConviction: যদি ভারতের আগামী দশক মিড-মার্কেট চ্যাম্পিয়নদের হয়, তবে তাদের লিস্টেড হওয়ার জন্য অপেক্ষা করলে আইপিও-র আগে আমরা যে আলফা তৈরি করি, তা হারাবেন।",
+          "metadata": {
+            "vehicleId": "5940616d-b7ca-49d4-be88-2bfd1a3706b9",
+            "vehicleName": "Bharat Value Fund Series VI (Fund Of Fund)",
+            "vehicleType": "AIF",
+            "language": "bn",
+            "languageLabel": "Bengali",
+            "languageNative": "বাংলা",
+            "isFocused": true,
+            "generatedAt": "2026-05-10T21:30:39.310864+00:00",
+            "model": "claude-sonnet-4-5-20250929",
+            "ordinal": 1
+          }
+        },
+        {
+          "id": "sales_pitch:cc602b11-9fc2-4bbd-b6af-df529f3bf719:as:1",
+          "score": 0.3145,
+          "source": "sales_pitch",
+          "sourceId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719:as",
+          "title": "PURPLE STYLE LABS | DEBT FUNDING — Sales Pitch (Assamese)",
+          "section": "Sales Pitch · NCD",
+          "content": "ৰী ₹508 কোটি, FY29 লক্ষ্য ₹1,600 কোটি।\n- Binny Bansal, Bajaj Holdings, Utpal Sheth আদিৰ পৰা ₹254 কোটিৰ ইকুইটি সমৰ্থন।\n- ভাৰতৰ বিলাসী বজাৰ $85-90 বিলিয়ন (2030) লৈ 3.5X বৃদ্ধি পাব।\n\nWhy Now — The Window:\n- বিলাসী বজাৰৰ উত্থান: ভাৰত বিশ্বৰ 3য় বৃহত্তম ব্যক্তিগত জেট বজাৰ, 163M USD কোটিপতি (2026)।\n- IPO ৰ পৰা নিৰ্গমণৰ স্পষ্টতা – 12-18 মাহৰ তালিকাভুক্তিকৰণ, ঋণধাৰীৰ বাবে সুবিধাজনক।\n\nClient Motivators:\n- নিশ্চিত আয়ৰ সৈতে ইকুইটিৰ দৰে উত্থানৰ সুযোগ; একচ্ছত্ৰীয়া প্ৰি-IPO ইউনিকৰ্ণত ঋণ।\n- Binny Bansal, Bajaj Holdings, Utpal Sheth এ বিনিয়োগ কৰা কোম্পানীত আগতীয়া প্ৰৱেশ।\n\nObjection Handling:\nQ: বৃদ্ধিৰ স্তৰত থকা কোম্পানীত ঋণ কিয়, ইকুইটি ভাল নহয়নে?\nA: নিশ্চিত আয় আৰু IPO পুনৰ-ৰেটিং জৰিয়তে ইকুইটিৰ দৰে লাভৰ সম্ভাৱনা সহ সুৰক্ষিত ঋণ।\nQ: বিলাসী খণ্ডটো ঐচ্ছিক – যদি অৰ্থনীতি দুৰ্বল হয়?\nA: UHNI খণ্ডৰ ব্যয় অ-ঐচ্ছিক; PSL ৰ AOV আৰু উচ্চ পুনৰাবৃত্তি হাৰে ইয়াক স্থিতিশীলতা প্ৰমাণ কৰে।\n\nConviction: ভাৰতৰ বিলাসী বজাৰৰ ঢৌ আহিছে – PSL এ একচ্ছত্ৰীয়া পথ, IPO ঘড়ী চলিছে, NCD ৰ খিৰিকী 7 মে'ত বন্ধ হ'ব; অপেক্ষা কৰিলে পিছ পৰি থাকিব।",
+          "metadata": {
+            "vehicleId": "cc602b11-9fc2-4bbd-b6af-df529f3bf719",
+            "vehicleName": "PURPLE STYLE LABS | DEBT FUNDING",
+            "vehicleType": "NCD",
+            "language": "as",
+            "languageLabel": "Assamese",
+            "languageNative": "অসমীয়া",
+            "isFocused": true,
+            "generatedAt": "2026-05-10T21:32:36.194666+00:00",
+            "model": "claude-sonnet-4-5-20250929",
+            "ordinal": 1
+          }
+        },
+        {
+          "id": "sales_pitch:5940616d-b7ca-49d4-be88-2bfd1a3706b9:as:1",
+          "score": 0.3088,
+          "source": "sales_pitch",
+          "sourceId": "5940616d-b7ca-49d4-be88-2bfd1a3706b9:as",
+          "title": "Bharat Value Fund Series VI (Fund Of Fund) — Sales Pitch (Assamese)",
+          "section": "Sales Pitch · AIF",
+          "content": "es II এ 3 মাহত 1.5x MOIC; Series III এ 8 মাহত 1.6x MOIC, Haldiram চুক্তি অন্তৰ্ভুক্ত।\n- Series VI লক্ষ্য: 1,500 কোটি টকা, 5.5 বছৰৰ ম্যাদ, 2% মেনেজমেন্ট ফী, 20% ক্যারিড ইন্টাৰেষ্ট।\n\nWhy Now — The Window:\n- ভাৰতৰ IPO বজাৰ মুকলি: মধ্যম বজাৰৰ বিকাশৰ বাবে জনতাৰ আগ্ৰহ উচ্চতম।\n- Pre-IPO মূল্যাঙ্কনৰ পাৰ্থক্য হ্ৰাস পাইছে: Listed কোম্পানীত 15-25% প্ৰিমিয়াম লাভৰ সুযোগ।\n\nClient Motivators:\n- বংশগত সম্পত্তি বৃদ্ধি: 24 মাহত 2.8x MOIC; দীৰ্ঘম্যাদী বিনিয়োগৰ বাবে সুন্দৰ সুযোগ।\n- কাইলৈৰ বিজয়ীসকললৈ ভিতৰুৱা প্ৰৱেশ: ব'ৰ্ডৰ সদস্য, M&A, IPO-ৰ সহ-স্থপতি।\n\nObjection Handling:\nQ: 5.5 বছৰৰ লক-ইন দীঘলীয়া — যদি মোক তৰলতা লাগে?\nA: 30% Listed এক্সপোজুৰে তৰলতা দিয়ে। Series I এ 2 বছৰৰ ভিতৰত 5 টা নিষ্ক্ৰমণ দিছিল, পুঁজিৰ ম্যাদৰ আগতেই।\nQ: 2% মেনেজমেন্ট ফী + 20% ক্যারি মিউচুৱেল ফাণ্ডতকৈ বেছি নেকি?\nA: Series I এ 2 বছৰত 2.8x ঘূৰাই দিলে। ফী পাছতো বিনিয়োগকাৰীয়ে 2.2x লাভ কৰিলে। আপুনি Alpha সৃষ্টিৰ বাবে পৰিশোধ কৰে।\n\nConviction: যদি আপুনি ভাবে যে ভাৰতৰ পৰৱৰ্তী দশক IPO-লৈ যোৱা কোম্পানীবোৰৰ, তেন্তে তালিকাভুক্ত হোৱালৈ অপেক্ষা কৰিলে আমি সৃষ্টি কৰা Alpha হেৰুৱাব।",
+          "metadata": {
+            "vehicleId": "5940616d-b7ca-49d4-be88-2bfd1a3706b9",
+            "vehicleName": "Bharat Value Fund Series VI (Fund Of Fund)",
+            "vehicleType": "AIF",
+            "language": "as",
+            "languageLabel": "Assamese",
+            "languageNative": "অসমীয়া",
+            "isFocused": true,
+            "generatedAt": "2026-05-10T21:30:39.310864+00:00",
+            "model": "claude-sonnet-4-5-20250929",
+            "ordinal": 1
+          }
+        },
+        {
+          "id": "growth_revenue:aif:0",
+          "score": 0.2811,
+          "source": "growth_revenue",
+          "sourceId": "aif",
+          "title": "AIF",
+          "section": "Growth · Revenue Sharing · AIF",
+          "content": "Revenue Sharing · AIF\n\nVertical: AIF\n\n[Table] AIF Strategies\nAIF Strategy | RM Credit\nNIDI | 0.05\nTRITON AIF SERIES II | 0.07\nCARNELIAN BHARAT AMRITKAL FUND | 0.025\nSUNDARAM ALT -REAL ESTATE PER GEN FUNDS SERIES 5 | 0.03\nSUNDARAM PERFORMING CREDIT OPPORTUNITY FUND | 0.05\nALCHEMY LONG TERM VENTURES FUND SERIES 3 | 0.06\nADITYA BIRLA REAL ESTATE CREDIT OPPORTUNITIES FUND – SERIES II | 0.043\nAIF – A1 (EMKAY EMERGING STARS FUND, SERIOUS  ) | 0.07\nSUNDARAM ALTERNATES-CATEGORY II PCOF | 0.05\nBHARAT VALUE FUND SERIES VI | 0.06",
+          "metadata": {
+            "vertical": "aif",
+            "label": "AIF",
+            "tableCount": 1,
+            "rowCount": 10,
+            "updatedAt": "2026-05-16T08:48:33.685669+00:00",
+            "updatedBy": "nandini.biswas@smifs.com"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:25",
+          "score": 0.2802,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "manages n6 Lakh Cr AUM as of December 31, 2025. It's part of\nAditya Birla Group, with interests in commodities, manufacturing, and financial services. The company offers\ndiv...\nPORTFOLIO MANAGEMENT SERVICES\nAditya Birla Select Sector Portfolio\n(cid:127) 1 reference document on file\n(cid:127) Aditya Birla Sun Life AMC (ABSLAMC), a joint venture between Aditya Birla Group and Sun Life Financial,\nmanages n 6 Lakh Cr AUM as of December 31, 2025. Founded in 1994, it offers asset management, alternate\ninvestmen...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 8",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 25,
+            "kind": "body"
+          }
+        }
+      ],
+      "totalIndexed": 486
     },
-    "elapsed_ms": 145
+    "elapsed_ms": 589
   }
 }

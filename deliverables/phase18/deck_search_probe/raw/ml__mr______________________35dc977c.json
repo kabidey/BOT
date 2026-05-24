@@ -8,13 +8,103 @@
     "status": 200,
     "json": {
       "query": "गुंतवणुकीच्या संधी",
-      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "model": "text-embedding-3-small",
+      "provider": "openai",
       "sources": [],
       "topK": 5,
       "minScore": 0.0,
-      "results": [],
-      "totalIndexed": 0
+      "results": [
+        {
+          "id": "growth_insurance:b092a55c-1878-418a-b4dc-0a4b400b2e52:0",
+          "score": 0.2894,
+          "source": "growth_insurance",
+          "sourceId": "b092a55c-1878-418a-b4dc-0a4b400b2e52",
+          "title": "ICICI Pru",
+          "section": "Growth · Insurance · Life",
+          "content": "Insurance Provider: ICICI Pru\n\nCategory: Life\n\nNotes & disclaimers:\n- Base Commission (Policies without online benefits)\n\n[Table] Untitled\nCategory | Product | PPT | PT | Commercials\nTraditional & Term | ALL | 5 & 6 | ALL | 30\nTraditional & Term | ALL | 7 & 8 | ALL | 38\nTraditional & Term | ALL | 9 & 10 | ALL | 45\nTraditional & Term | ALL | 11 & 12 | ALL | 55\nULIP | ALL | ALL | ALL | 14\nTULIP | ALL | 7,8 & 9 | ALL | 40\nTULIP | ALL | >=10 | ALL | 50",
+          "metadata": {
+            "vertical": "insurance",
+            "provider": "ICICI Pru",
+            "category": "Life",
+            "tableCount": 1,
+            "rowCount": 7,
+            "updatedAt": "2026-05-06T09:13:57.384736+00:00",
+            "updatedBy": "debashree.chakraborty@smifs.com"
+          }
+        },
+        {
+          "id": "growth_insurance:ac9a1277-38c2-4491-b765-7c6f15434794:0",
+          "score": 0.2872,
+          "source": "growth_insurance",
+          "sourceId": "ac9a1277-38c2-4491-b765-7c6f15434794",
+          "title": "Bandhan",
+          "section": "Growth · Insurance · Life",
+          "content": "Insurance Provider: Bandhan\n\nCategory: Life\n\n[Table] Untitled\nCategory | Product Name | PPT | PT | Commercials\nTraditional | ALL | 5 & 6 | ALL | 30\nTraditional | ALL | 7 & 8 | ALL | 38\nTraditional | ALL | 9 & 10 | ALL | 45\nTraditional | ALL | 11 & 12 | ALL | 55\nTerm | ALL | ALL | ALL | 40",
+          "metadata": {
+            "vertical": "insurance",
+            "provider": "Bandhan",
+            "category": "Life",
+            "tableCount": 1,
+            "rowCount": 5,
+            "updatedAt": "2026-05-06T08:53:51.150757+00:00",
+            "updatedBy": "debashree.chakraborty@smifs.com"
+          }
+        },
+        {
+          "id": "growth_insurance:24e58fa3-7e3e-4b93-9577-db574f28431b:0",
+          "score": 0.2783,
+          "source": "growth_insurance",
+          "sourceId": "24e58fa3-7e3e-4b93-9577-db574f28431b",
+          "title": "BAJAJ",
+          "section": "Growth · Insurance · Life",
+          "content": "Insurance Provider: BAJAJ\n\nCategory: Life\n\n[Table] Untitled\nCategory | PRODUCT | PPT | PT | Commercial\nTraditional & Term | All (except Non PAR Insta) | 5 & 6 | ALL | 30\nTraditional & Term | All (except Non PAR Insta) | 7 & 8 | ALL | 38\nTraditional & Term | All (except Non PAR Insta) | 9 & 10 | ALL | 45\nTraditional & Term | All (except Non PAR Insta) | 11 & 12 | ALL | 55\nULIP | SMART_WEALTH_GOAL | ALL | ALL | 20\nULIP | SMART_Pension | ALL | ALL | 20\nTULIP | ALL | ALL | ALL | 40",
+          "metadata": {
+            "vertical": "insurance",
+            "provider": "BAJAJ",
+            "category": "Life",
+            "tableCount": 1,
+            "rowCount": 7,
+            "updatedAt": "2026-05-20T00:57:30.658443+00:00",
+            "updatedBy": "debashree.chakraborty@smifs.com"
+          }
+        },
+        {
+          "id": "bedrock:c73d85f1-ed2d-43ee-baf3-1b17afe99ff0:94",
+          "score": 0.2635,
+          "source": "bedrock",
+          "sourceId": "c73d85f1-ed2d-43ee-baf3-1b17afe99ff0",
+          "title": "SMIFS Fortnightly Offerings — May 2026 · Edition 2",
+          "section": "product",
+          "content": "on file\n(cid:127) The ABSLI DigiShield Plan is a non-linked, non-participating, individual term plan offering financial security for\nyour loved ones. It features 10 plan options, including level cover, increasing cover, and return of p...\nINSURANCE\nAditya Birla Sun Life Insurance Nishchit Aayush Plan\n(cid:127) 1 reference document on file\n(cid:127) ABSLI Nishchit Aayush Plan is a non-linked, non-participating, individual savings life insurance plan. It offers\nlife insurance coverage, guaranteed regular income, and lump sum benefits. Policyholders can choose betw...\nFor internal circulation only. Data sourced from SMIFS Deck — Investment Repository. Page 28",
+          "metadata": {
+            "section": "product",
+            "fileType": "pdf",
+            "fileName": "SMIFS_Fortnightly_Offerings_2026_05_24.pdf",
+            "ordinal": 94,
+            "kind": "body"
+          }
+        },
+        {
+          "id": "growth_insurance:dafddf52-b527-447a-acfe-1f3ca815956e:0",
+          "score": 0.2618,
+          "source": "growth_insurance",
+          "sourceId": "dafddf52-b527-447a-acfe-1f3ca815956e",
+          "title": "Aditya Birla",
+          "section": "Growth · Insurance · Life",
+          "content": "Insurance Provider: Aditya Birla\n\nCategory: Life\n\n[Table] Untitled\nCategory | Product Name | PPT | PT | Commercial\nProtection | ALL | 5 & 6 | All | 30\nProtection | ALL | 7 & 8 | All | 38\nProtection | ALL | 9 & 10 | All | 45\nProtection | ALL | 11 & 12 | All | 50\nTraditional | ALL | 5 & 6 | All | 30\nTraditional | ALL | 7 & 8 | All | 38\nTraditional | ALL | 9 & 10 | All | 45\nTraditional | ALL | 11 & 12 | All | 55",
+          "metadata": {
+            "vertical": "insurance",
+            "provider": "Aditya Birla",
+            "category": "Life",
+            "tableCount": 1,
+            "rowCount": 8,
+            "updatedAt": "2026-05-06T08:14:20.844649+00:00",
+            "updatedBy": "debashree.chakraborty@smifs.com"
+          }
+        }
+      ],
+      "totalIndexed": 486
     },
-    "elapsed_ms": 250
+    "elapsed_ms": 4134
   }
 }
