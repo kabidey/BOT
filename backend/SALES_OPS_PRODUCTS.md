@@ -162,3 +162,69 @@ requests can't bind off-bucket vehicles.
 - Legacy `sales_entries` rows (pre-Phase 17) have no `vehicle_id` / `subtype`. These continue to list
   with an em-dash in the Vehicle column. We do **not** mass-migrate; the constraint is enforced
   on new submissions only.
+
+---
+
+## Phase 17.1 — Audit cleanups (May 2026)
+
+### Per-product **deck-locked identity fields**
+
+This table documents, for each of the 6 product types, which form field(s)
+auto-fill from the picked vehicle's `vehicle_name` and become read-only.
+Anything not in this list remains user-editable (frequency, tenure, amounts,
+folio numbers, etc.) because the deck doesn't constrain it.
+
+| product_type   | Deck-locked identity field(s)        | Source on the deck row | Notes |
+|----------------|--------------------------------------|------------------------|-------|
+| `mutual_fund`  | `amc_name` + `scheme_name`           | `vehicle_name`         | Pre-17.1 the AMC was a static `AMC_OPTIONS` dropdown. **Retired** — deck is the source of truth. Both fields are mirrored from `vehicle_name`. |
+| `aif`          | `aif_name`                           | `vehicle_name`         | — |
+| `pms`          | `pms_provider` + `strategy_name`     | `vehicle_name`         | Same string mirrored into both fields (the catalog row doesn't expose a separate provider / strategy split). |
+| `fd`           | `issuer_name`                        | `vehicle_name`         | — |
+| `insurance`    | `carrier`                            | `vehicle_name`         | Covers both `Insurance` and `Mediclaim` vehicle types (both bucket to `insurance`). |
+| `ncd_primary`  | `issuer_name`                        | `vehicle_name`         | `series_option`, `tranche_code`, etc. remain user-editable — deck doesn't expose them. |
+
+When a new product is added, append a row here AND update the
+`VEHICLE_AUTOFILL_BY_PRODUCT` map in `frontend/src/components/blocks/SaleFormBlock.jsx`.
+
+### Bucket-key naming consistency
+
+Canonical product slugs used **everywhere** (BE response keys, FE consumer
+code, admin filter values, `sales_entries.product`, `POST /api/sales`
+`form_type` enum):
+
+```
+mutual_fund | aif | pms | fd | insurance | ncd_primary
+```
+
+The earlier conversational brief used `fixed_deposit`; the code never did.
+`fd` wins for backward compatibility (existing `sales_entries` rows, existing
+FE bindings, admin filter dropdowns).
+
+| Aspect            | Canonical value | Rejected alternative |
+|-------------------|-----------------|----------------------|
+| Fixed-deposit slug | `fd`           | `fixed_deposit`      |
+| Mutual-fund slug   | `mutual_fund`  | `mf`                 |
+| NCD primary slug   | `ncd_primary`  | `ncd`                |
+
+Human labels for UI (`PRODUCT_LABEL` in both backend `email_relay.py` and
+frontend `SaleFormBlock.jsx`) stay descriptive: "Fixed Deposit", "Mutual
+Fund", "NCD Primary Issue".
+
+### Focused-by-bucket diagnostic
+
+`GET /api/sales/catalog` now returns `focused_by_bucket` and `total_focused`
+alongside `totals`, so the admin / picker can surface "no house-view picks in
+this bucket" instead of a silent absence of stars. On the current deck:
+
+```jsonc
+{
+  "totals":            {"mutual_fund": 48, "aif": 31, "pms": 42, "fd": 4, "insurance": 42, "ncd_primary": 1},
+  "focused_by_bucket": {"mutual_fund":  0, "aif":  1, "pms":  0, "fd": 0, "insurance":  0, "ncd_primary": 1},
+  "total_focused": 2
+}
+```
+
+**MF focused count = 0 is a real deck-content gap**, not a renderer bug. The
+upstream SMIFS Knowledge API currently flags 2 vehicles as `isFocused` in
+the entire 168-vehicle corpus (1 AIF + 1 NCD). Worth flagging to Sales-Ops /
+the Knowledge API owners.

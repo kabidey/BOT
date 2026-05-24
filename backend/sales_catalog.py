@@ -114,11 +114,20 @@ async def _fresh_catalog(db) -> Dict[str, Any]:
         await _log_unmapped(db, u["vehicle_type"], u["vehicle_id"], u["vehicle_name"])
 
     totals = {p: len(v) for p, v in by_product.items()}
+    # Phase 17.1 — `focused_by_bucket` so the picker (and admin) can render
+    # "no house-view picks in <product> this period" instead of silently
+    # showing zero stars and leaving employees wondering whether it's a UI
+    # bug or a real deck reality. Same shape as `totals`.
+    focused_by_bucket = {
+        p: sum(1 for v in rows if v["is_focused"]) for p, rows in by_product.items()
+    }
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "buckets": by_product,
         "totals": totals,
+        "focused_by_bucket": focused_by_bucket,
         "total_vehicles": sum(totals.values()),
+        "total_focused": sum(focused_by_bucket.values()),
         "unmapped_count": len(unmapped),
     }
 

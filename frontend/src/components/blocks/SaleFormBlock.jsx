@@ -28,12 +28,15 @@ const COMMON = [
   { key: "remarks",              label: "Remarks (optional)", type: "textarea" },
 ];
 
-const AMC_OPTIONS = ["HDFC AMC","ICICI Prudential","SBI","Axis","Nippon","Mirae","Kotak","Aditya Birla SL","UTI","DSP","Other"];
+// Phase 17.1 — AMC_OPTIONS retired. The MF `amc_name` field is now a
+// vehicle-locked text input (auto-filled + read-only on vehicle pick); the
+// deck is the source of truth and the previous static dropdown could not
+// represent every AMC the deck exposes.
 
 const PRODUCT_FIELDS = {
   mutual_fund: [
-    { key: "amc_name",            label: "AMC", type: "select", required: true, options: AMC_OPTIONS },
-    { key: "scheme_name",         label: "Scheme name", type: "text", required: true },
+    { key: "amc_name",            label: "AMC", type: "text", required: true, lockedByVehicle: true },
+    { key: "scheme_name",         label: "Scheme name", type: "text", required: true, lockedByVehicle: true },
     { key: "scheme_type",         label: "Scheme type", type: "radio", required: true,
       options: ["SIP", "Lump sum", "SWP", "STP"] },
     { key: "frequency",           label: "Frequency", type: "select",
@@ -43,7 +46,7 @@ const PRODUCT_FIELDS = {
     { key: "arn_distributor_code",label: "ARN / Distributor code",  type: "text" },
   ],
   aif: [
-    { key: "aif_name",                label: "AIF name", type: "text", required: true },
+    { key: "aif_name",                label: "AIF name", type: "text", required: true, lockedByVehicle: true },
     { key: "category",                label: "Category", type: "radio", required: true,
       options: ["Cat I", "Cat II", "Cat III"] },
     { key: "commitment_amount_inr",   label: "Commitment amount (₹)", type: "number", required: true, min: 0 },
@@ -52,8 +55,8 @@ const PRODUCT_FIELDS = {
     { key: "fund_manager",            label: "Fund manager", type: "text", required: true },
   ],
   pms: [
-    { key: "pms_provider",        label: "PMS provider", type: "text", required: true },
-    { key: "strategy_name",       label: "Strategy name", type: "text", required: true },
+    { key: "pms_provider",        label: "PMS provider", type: "text", required: true, lockedByVehicle: true },
+    { key: "strategy_name",       label: "Strategy name", type: "text", required: true, lockedByVehicle: true },
     { key: "corpus_inr",          label: "Corpus (₹)", type: "number", required: true, min: 5000000 },
     { key: "fee_structure",       label: "Fee structure", type: "radio", required: true,
       options: ["Fixed only", "Variable only", "Hybrid"] },
@@ -63,7 +66,7 @@ const PRODUCT_FIELDS = {
       showIf: (v) => v.fee_structure === "Variable only" || v.fee_structure === "Hybrid" },
   ],
   fd: [
-    { key: "issuer_name",      label: "Issuer (bank / NBFC)", type: "text", required: true },
+    { key: "issuer_name",      label: "Issuer (bank / NBFC)", type: "text", required: true, lockedByVehicle: true },
     { key: "issuer_type",      label: "Issuer type", type: "radio", required: true,
       options: ["Bank", "NBFC", "Corporate FD"] },
     { key: "tenure_months",    label: "Tenure (months)", type: "number", required: true, min: 1, max: 120 },
@@ -74,7 +77,7 @@ const PRODUCT_FIELDS = {
       options: ["Cumulative", "Non-cumulative"] },
   ],
   insurance: [
-    { key: "carrier",          label: "Carrier", type: "text", required: true, placeholder: "LIC, HDFC Life, …" },
+    { key: "carrier",          label: "Carrier", type: "text", required: true, lockedByVehicle: true, placeholder: "LIC, HDFC Life, …" },
     { key: "product_type",     label: "Product type", type: "radio", required: true,
       options: ["Term", "ULIP", "Endowment", "Money-back", "Health", "Annuity"] },
     { key: "policy_term_years",label: "Policy term (years)", type: "number", required: true, min: 1, max: 50 },
@@ -83,8 +86,8 @@ const PRODUCT_FIELDS = {
     { key: "sum_assured_inr",  label: "Sum assured (₹)", type: "number", required: true, min: 0 },
   ],
   ncd_primary: [
-    { key: "issuer_name",            label: "Issuer / Issue name", type: "text", required: true,
-      placeholder: "e.g. Muthoot Finance NCD Tranche IV" },
+    { key: "issuer_name",            label: "Issuer / Issue name", type: "text", required: true, lockedByVehicle: true,
+      placeholder: "auto-filled from picked vehicle" },
     { key: "series_option",          label: "Series / Option", type: "text", required: true,
       placeholder: "e.g. Series III — 5Y Quarterly" },
     { key: "application_amount_inr", label: "Application amount (₹)", type: "number",
@@ -114,13 +117,17 @@ function todayPlus(days) {
 }
 
 // Phase 17 — auto-fill mapping: when a deck vehicle is picked, the
-// product-specific identity field gets pre-populated with `vehicle_name` and
-// then LOCKED (read-only) so a free-text override path can't reintroduce
+// product-specific identity field(s) get pre-populated with `vehicle_name`
+// and then LOCKED (read-only) so a free-text override path can't reintroduce
 // off-deck submissions. See `backend/sales_api.create_sale` cross-type check.
+// Phase 17.1 — every "scheme/issuer/AMC/provider/carrier"-style identity field
+// that the deck row encompasses is in this list. The same `vehicle_name`
+// string is mirrored into each field; the deck doesn't expose a separate
+// provider/scheme split (vehicle_name IS the identity).
 const VEHICLE_AUTOFILL_BY_PRODUCT = {
-  mutual_fund: ["scheme_name"],
+  mutual_fund: ["amc_name", "scheme_name"],
   aif:         ["aif_name"],
-  pms:         ["strategy_name"],
+  pms:         ["pms_provider", "strategy_name"],
   fd:          ["issuer_name"],
   insurance:   ["carrier"],
   ncd_primary: ["issuer_name"],
@@ -217,17 +224,11 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
     setSelectedVehicle(v);
     setPickerOpen(false);
     setPickerQuery(v.vehicle_name);
-    // Push auto-fill values
+    // Push auto-fill values into every locked identity field for this product.
     const autofillKeys = VEHICLE_AUTOFILL_BY_PRODUCT[product] || [];
     setValues((s) => {
       const next = { ...s, vehicle_id: v.vehicle_id, vehicle_name: v.vehicle_name };
       for (const k of autofillKeys) next[k] = v.vehicle_name;
-      // ARN auto-fill (amc + scheme both default to vehicle_name; user can override AMC
-      // only by re-picking a vehicle since the field is read-only).
-      if (product === "mutual_fund") {
-        next.amc_name = v.vehicle_name;
-        next.scheme_name = v.vehicle_name;
-      }
       return next;
     });
     setErrors((s) => ({ ...s, vehicle_id: null }));
@@ -240,7 +241,6 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
       const next = { ...s, vehicle_id: undefined, vehicle_name: undefined };
       const autofillKeys = VEHICLE_AUTOFILL_BY_PRODUCT[product] || [];
       for (const k of autofillKeys) next[k] = "";
-      if (product === "mutual_fund") { next.amc_name = ""; next.scheme_name = ""; }
       return next;
     });
   };
