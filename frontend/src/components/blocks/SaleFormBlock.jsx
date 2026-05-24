@@ -13,6 +13,7 @@ const PRODUCT_LABEL = {
   pms: "PMS",
   fd: "Fixed Deposit",
   insurance: "Insurance",
+  ncd_primary: "NCD Primary Issue",
 };
 
 const COMMON = [
@@ -80,6 +81,29 @@ const PRODUCT_FIELDS = {
       options: ["Single","Annual","Half-yearly","Quarterly","Monthly"] },
     { key: "sum_assured_inr",  label: "Sum assured (₹)", type: "number", required: true, min: 0 },
   ],
+  ncd_primary: [
+    { key: "issuer_name",            label: "Issuer / Issue name", type: "text", required: true,
+      placeholder: "e.g. Muthoot Finance NCD Tranche IV" },
+    { key: "series_option",          label: "Series / Option", type: "text", required: true,
+      placeholder: "e.g. Series III — 5Y Quarterly" },
+    { key: "application_amount_inr", label: "Application amount (₹)", type: "number",
+      required: true, min: 10000, step: 1000,
+      helper: "Multiple of ₹1,000 — NCDs are issued in ₹1,000 face-value lots." },
+    { key: "number_of_ncds",         label: "Number of NCDs", type: "computed",
+      from: "application_amount_inr",
+      compute: (v) => (v && Number(v) > 0 && Number(v) % 1000 === 0)
+        ? String(Math.floor(Number(v) / 1000)) : "—",
+      helper: "Auto-computed (application amount ÷ ₹1,000)." },
+    { key: "coupon_rate_pct",        label: "Coupon rate (% p.a.)", type: "number",
+      required: true, min: 1, max: 20, step: 0.01 },
+    { key: "tenure_years",           label: "Tenure (years)", type: "number",
+      required: true, min: 1, max: 15 },
+    { key: "interest_frequency",     label: "Interest payment frequency", type: "select",
+      required: true,
+      options: ["Monthly","Quarterly","Annual","Cumulative"] },
+    { key: "asba_upi_reference",     label: "ASBA / UPI reference", type: "text",
+      placeholder: "(optional)" },
+  ],
 };
 
 function todayPlus(days) {
@@ -101,7 +125,16 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
   const [submitErr, setSubmitErr] = useState("");
 
   const set = (k, v) => {
-    setValues((s) => ({ ...s, [k]: v }));
+    setValues((s) => {
+      const next = { ...s, [k]: v };
+      // Phase 15 — NCD: keep the common amount_inr in sync with the
+      // product-specific application_amount_inr so validate() passes the
+      // common-block min ₹1,000 check off a single user input.
+      if (product === "ncd_primary" && k === "application_amount_inr") {
+        next.amount_inr = v;
+      }
+      return next;
+    });
     setErrors((s) => ({ ...s, [k]: null }));
   };
 
@@ -149,6 +182,15 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
         client_pan: values.client_pan.toUpperCase().replace(/[\s-]/g, ""),
         client_phone: ("" + values.client_phone).replace(/\D/g, "").slice(-10),
       };
+      // Phase 15 — NCD primary issue: the product-specific
+      // `application_amount_inr` IS the common `amount_inr`. Mirror it so
+      // the user only types the amount once. Also persist the computed
+      // number of NCDs into the payload (server re-computes it anyway).
+      if (product === "ncd_primary" && cleaned.application_amount_inr) {
+        const n = Number(cleaned.application_amount_inr);
+        cleaned.amount_inr = n;
+        cleaned.number_of_ncds = (n > 0 && n % 1000 === 0) ? Math.floor(n / 1000) : undefined;
+      }
       const { data: resp } = await axios.post(`${API}/sales`, {
         form_type: product,
         session_id: sessionId,
@@ -203,6 +245,16 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
           ))}
         </div>
       );
+    } else if (f.type === "computed") {
+      // Read-only computed field — derives its value from another input.
+      const src = values[f.from];
+      const computed = f.compute ? f.compute(src) : (src ?? "");
+      control = (
+        <input type="text" readOnly value={computed}
+               id={id} data-testid={id}
+               className="smifs-sale-form__input is-readonly"
+               disabled={disabled || submitting} />
+      );
     } else {
       control = <input type={f.type || "text"} step={f.step} min={f.min} max={f.max} {...common} />;
     }
@@ -212,6 +264,7 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
           {f.label}{f.required ? " *" : ""}
         </label>
         {control}
+        {f.helper && !err && <div className="smifs-sale-form__helper">{f.helper}</div>}
         {err && <div className="smifs-sale-form__err">{err}</div>}
       </div>
     );

@@ -31,7 +31,7 @@ import email_relay
 logger = logging.getLogger(__name__)
 
 
-PRODUCTS = {"mutual_fund", "aif", "pms", "fd", "insurance"}
+PRODUCTS = {"mutual_fund", "aif", "pms", "fd", "insurance", "ncd_primary"}
 PAN_RE = re.compile(r"^[A-Z]{5}\d{4}[A-Z]$")
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 PHONE_DIGITS_RE = re.compile(r"\D+")
@@ -89,6 +89,27 @@ _PRODUCT_SCHEMA: Dict[str, Dict[str, Any]] = {
             "policy_term_years": (1, 50),
             "sum_assured_inr": (0, None),
         },
+    },
+    "ncd_primary": {
+        # Public-issue NCD application. Amount must be a multiple of ₹1,000
+        # because NCDs are issued in ₹1,000 face-value lots.
+        "req": ["issuer_name", "series_option", "application_amount_inr",
+                "coupon_rate_pct", "tenure_years", "interest_frequency"],
+        "optional": ["asba_upi_reference"],
+        "enums": {
+            "interest_frequency": {"Monthly", "Quarterly", "Annual", "Cumulative"},
+        },
+        "numeric": {
+            "application_amount_inr": (10_000, None),
+            "coupon_rate_pct": (1, 20),
+            "tenure_years": (1, 15),
+        },
+        # Custom rule: amount must be divisible by 1000.
+        "custom": [
+            ("application_amount_inr",
+             lambda v: float(v) % 1000 == 0,
+             "Application amount must be a multiple of ₹1,000 (NCD face value).")
+        ],
     },
 }
 
@@ -204,6 +225,23 @@ def _validate_product(product: str, fields: Dict[str, Any]) -> Tuple[Dict[str, A
     if product == "mutual_fund" and out.get("scheme_type") in {"SIP", "SWP", "STP"}:
         if not fields.get("frequency"):
             errors.append(_bad("frequency", "Required when scheme_type is SIP/SWP/STP."))
+    # Phase 15 — generic custom rules (used by NCD primary issue for the
+    # "amount must be a multiple of ₹1,000" check).
+    for fname, predicate, msg in schema.get("custom", []):
+        if fname in out:
+            try:
+                if not predicate(out[fname]):
+                    errors.append(_bad(fname, msg))
+            except Exception:
+                # Numeric coercion failed — the numeric block above will have
+                # already reported it.
+                pass
+    # NCD: surface read-only number_of_ncds for downstream listings.
+    if product == "ncd_primary" and "application_amount_inr" in out:
+        try:
+            out["number_of_ncds"] = int(float(out["application_amount_inr"]) / 1000)
+        except Exception:
+            pass
     return out, errors
 
 

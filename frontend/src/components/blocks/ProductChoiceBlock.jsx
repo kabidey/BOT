@@ -1,19 +1,21 @@
 import { useState } from "react";
-import { TrendingUp, Briefcase, BarChart3, Landmark, Shield } from "lucide-react";
+import { TrendingUp, Briefcase, BarChart3, Landmark, Shield, FileText } from "lucide-react";
 
 /**
- * Phase 14 — Five-product picker (Mutual Fund / AIF / PMS / FD / Insurance).
+ * Phase 14 — Product picker (now 6 products as of Phase 15 — NCD Primary Issue).
  *
  * Props:
- *   data: { products?: [{id, label, icon}] }
+ *   data: { products?: [{id, label, subtitle, icon}] }
  *   onPick(product): sends the choice up to chat shell.
  */
 const DEFAULT_PRODUCTS = [
-  { id: "mutual_fund", label: "Mutual Fund", icon: TrendingUp },
-  { id: "aif",         label: "AIF",         icon: Briefcase  },
-  { id: "pms",         label: "PMS",         icon: BarChart3  },
-  { id: "fd",          label: "Fixed Deposit", icon: Landmark  },
-  { id: "insurance",   label: "Insurance",   icon: Shield     },
+  { id: "mutual_fund", label: "Mutual Fund",        icon: TrendingUp },
+  { id: "aif",         label: "AIF",                icon: Briefcase  },
+  { id: "pms",         label: "PMS",                icon: BarChart3  },
+  { id: "fd",          label: "Fixed Deposit",      icon: Landmark   },
+  { id: "insurance",   label: "Insurance",          icon: Shield     },
+  { id: "ncd_primary", label: "NCD Primary Issue",  icon: FileText,
+    subtitle: "Public issue NCD application" },
 ];
 
 export default function ProductChoiceBlock({ data, onPick, disabled }) {
@@ -37,6 +39,7 @@ export default function ProductChoiceBlock({ data, onPick, disabled }) {
             >
               <Icon size={20} />
               <span>{p.label}</span>
+              {p.subtitle && <span className="smifs-product-choice__sub">{p.subtitle}</span>}
             </button>
           );
         })}

@@ -2209,3 +2209,29 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 .smifs-embed .smifs-role-choice__title,
 .smifs-embed .smifs-product-choice__title,
 .smifs-embed .smifs-sale-conf__row { color: var(--smifs-ink); }
+
+/* Phase 15 — NCD product tile subtitle */
+.smifs-product-choice__sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-muted);
+  margin-top: 4px;
+  text-align: center;
+  letter-spacing: 0.2px;
+}
+.smifs-product-choice__btn.is-picked .smifs-product-choice__sub { color: rgba(255,255,255,0.85); }
+
+/* NCD read-only computed field (Number of NCDs) */
+.smifs-sale-form__input.is-readonly {
+  background: rgba(9, 140, 98, 0.10);
+  border-style: dashed;
+  color: var(--gold);
+  font-family: JetBrains Mono, monospace;
+  font-weight: 600;
+}
+.smifs-sale-form__helper {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}

@@ -36,6 +36,7 @@ _PRODUCT_LABEL = {
     "pms": "PMS",
     "fd": "Fixed Deposit",
     "insurance": "Insurance",
+    "ncd_primary": "NCD Primary Issue",
 }
 _PRODUCT_ENV = {
     "mutual_fund": "TO_EMAIL_MUTUAL_FUND",
@@ -43,6 +44,7 @@ _PRODUCT_ENV = {
     "pms": "TO_EMAIL_PMS",
     "fd": "TO_EMAIL_FD",
     "insurance": "TO_EMAIL_INSURANCE",
+    "ncd_primary": "TO_EMAIL_NCD_PRIMARY",
 }
 
 
@@ -174,6 +176,15 @@ async def send_sale_notification(entry: Dict[str, Any]) -> Dict[str, Any]:
         f"sale logged · {_fmt_inr(entry.get('amount_inr'))} · "
         f"by {(entry.get('employee') or {}).get('name') or 'unknown'}"
     )
+    # Phase 15 — NCD primary issue gets a Sales-Ops-styled subject so the
+    # mailbox rules can route NCD applications to the bond-desk inbox.
+    if product == "ncd_primary":
+        client_name = (entry.get("client") or {}).get("client_name") or "unknown"
+        amount = (entry.get("product_details") or {}).get("application_amount_inr") or entry.get("amount_inr")
+        subject = (
+            f"[SMIFS Sales-Ops] NCD Primary Issue — {client_name} — "
+            f"{_fmt_inr(amount)}"
+        )
     html = _render_html(entry)
 
     # Late-import aiosmtplib so the module loads even when the dep is missing.

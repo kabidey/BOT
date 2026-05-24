@@ -4,6 +4,7 @@ import { TrendingUp, DollarSign, Calendar, MailCheck, MailX, X, RefreshCw } from
 const PRODUCT_LABEL = {
   mutual_fund: "Mutual Fund", aif: "AIF", pms: "PMS",
   fd: "Fixed Deposit", insurance: "Insurance",
+  ncd_primary: "NCD Primary Issue",
 };
 const STATUS_OPTIONS = ["submitted", "logged", "funded", "reconciled", "cancelled"];
 

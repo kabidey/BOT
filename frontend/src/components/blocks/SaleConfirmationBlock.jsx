@@ -10,6 +10,7 @@ import { CheckCircle2, Plus, MessageCircle } from "lucide-react";
 const PROD_LABEL = {
   mutual_fund: "Mutual Fund", aif: "AIF", pms: "PMS",
   fd: "Fixed Deposit", insurance: "Insurance",
+  ncd_primary: "NCD Primary Issue",
 };
 
 function fmtINR(n) {
