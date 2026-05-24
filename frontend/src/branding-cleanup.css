@@ -1,0 +1,27 @@
+/*
+ * Phase 15 — Branding cleanup
+ * Defensive CSS suppression for any platform-injected third-party badge.
+ * Paired with the MutationObserver in public/index.html — together they
+ * cover the case where the host platform inserts a fixed-position promo
+ * anchor / iframe AFTER our HTML is served.
+ */
+a[href*="emergent" i],
+a[href*="lovable" i],
+[id*="made-with" i],
+[class*="made-with" i],
+[id*="emergent-badge" i],
+[class*="emergent-badge" i],
+[id*="platform-badge" i],
+[class*="platform-badge" i],
+div[data-emergent],
+iframe[src*="emergent" i],
+img[alt*="emergent" i],
+img[src*="emergent" i] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+}

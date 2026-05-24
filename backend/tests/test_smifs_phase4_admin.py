@@ -19,7 +19,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://wealth-chat-4.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001").rstrip("/")
 ADMIN_TOKEN = "smifs-admin-2026"
 ADMIN_HEADERS = {"X-Admin-Token": ADMIN_TOKEN}
 
