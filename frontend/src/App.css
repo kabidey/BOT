@@ -71,6 +71,7 @@ body {
 .smifs-shell {
   position: relative;
   min-height: 100vh;
+  min-height: 100svh;
   width: 100%;
   background: radial-gradient(1200px 700px at 85% -10%, #0e624a 0%, transparent 55%),
               radial-gradient(900px 600px at -10% 110%, #032a1d 0%, transparent 60%),
@@ -470,6 +471,7 @@ body {
   position: fixed;
   top: 0; right: 0;
   height: 100vh;
+  height: 100dvh;
   width: min(440px, 92vw);
   background: linear-gradient(180deg, var(--navy-800) 0%, var(--navy-900) 100%);
   border-left: 1px solid var(--line-strong);
@@ -614,26 +616,42 @@ body {
 @keyframes smifs-caret-blink {
   0%, 49% { opacity: 0.85; }
   50%, 100% { opacity: 0; }
+}
 
 /* ---------------- Phase 5 — embeddable widget mode (/embed) ---------------- */
+/* Phase 23 — Device-aware responsive embed.
+ *   - `dvh` honours mobile-Safari URL-bar auto-hide.
+ *   - `env(safe-area-inset-*)` keeps content clear of the notch & home indicator.
+ *   - Fluid base font-size (clamp) inherits to all children.
+ *   - `--smifs-kb-h` is set from Chat.jsx via the visualViewport API so the
+ *     sticky composer floats above the soft keyboard on mobile.
+ */
 .smifs-embed-body {
   background: transparent !important;
   margin: 0;
+  /* Prevent overscroll bleed into the partner page on iOS. */
+  overscroll-behavior: contain;
 }
 .smifs-embed-body .App {
   background: transparent;
 }
 .smifs-shell--embed {
   height: 100vh;
+  height: 100dvh;
   min-height: 0;
   padding: 0;
   background: var(--smifs-bg-paper, #FFFFFF);
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 18px 50px rgba(11, 27, 43, 0.18);
+  /* Fluid base font: 14px on narrow phones → 16px on wider screens. */
+  font-size: clamp(14px, 0.875rem + 0.25vw, 16px);
+  --smifs-kb-h: 0px;
+  /* Safe-area padding handled per-section below so backgrounds still span edge-to-edge. */
 }
 .smifs-shell--embed .smifs-header {
   padding: 14px 18px;
+  padding-top: max(14px, env(safe-area-inset-top, 14px));
   background: var(--smifs-header-bg, var(--smifs-bg-primary));
   color: var(--smifs-header-text, #FFFFFF);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -641,9 +659,74 @@ body {
 .smifs-shell--embed .smifs-title { font-size: 1.05rem; }
 .smifs-shell--embed .smifs-subtitle { font-size: 0.7rem; opacity: 0.7; }
 .smifs-shell--embed .smifs-main { padding: 0; }
-.smifs-shell--embed .smifs-thread { padding: 16px; }
+.smifs-shell--embed .smifs-thread {
+  padding: 16px;
+  /* Mobile inertial scroll + bleed protection. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 .smifs-shell--embed .smifs-bg-blob,
 .smifs-shell--embed .smifs-grain { display: none; }
+
+/* Sticky composer above keyboard. The runtime `--smifs-kb-h` is pushed in
+ * by the visualViewport listener; when no keyboard is open it's 0px and the
+ * layout matches Phase 22 behaviour exactly. */
+.smifs-shell--embed .smifs-composer-wrap,
+.smifs-shell--embed .smifs-composer {
+  position: sticky;
+  bottom: 0;
+  background: var(--smifs-bg-paper, #FFFFFF);
+}
+.smifs-shell--embed .smifs-composer-wrap {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--smifs-kb-h, 0px));
+}
+
+/* Touch-target floor of 44px on coarse pointers (iOS HIG / Material Design). */
+@media (pointer: coarse) {
+  .smifs-shell--embed .smifs-send,
+  .smifs-shell--embed .smifs-link,
+  .smifs-shell--embed .smifs-new-conv,
+  .smifs-shell--embed button {
+    min-height: 44px;
+  }
+  .smifs-shell--embed .smifs-send { min-width: 44px; }
+  .smifs-shell--embed .smifs-input { font-size: 16px; /* avoid iOS zoom */ }
+}
+
+/* Narrow-width overrides (≤480px — phones in portrait). */
+@media (max-width: 480px) {
+  .smifs-shell--embed .smifs-mono { width: 32px; height: 32px; font-size: 18px; }
+  .smifs-shell--embed .smifs-title { font-size: 0.98rem; }
+  .smifs-shell--embed .smifs-subtitle { font-size: 0.62rem; letter-spacing: 0.12em; }
+  .smifs-shell--embed .smifs-thread { padding: 12px; }
+  /* Vehicle CTA chips wrap to two lines instead of mid-name truncation. */
+  .smifs-shell--embed .smifs-vehicle-cta__name {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+/* Mobile-portrait full-screen variant (when widget.js renders edge-to-edge):
+ * drop the inner card shadow & rounded corners since the iframe itself has none. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .smifs-shell--embed {
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+/* Respect prefers-reduced-motion on the entire embed surface. */
+@media (prefers-reduced-motion: reduce) {
+  .smifs-shell--embed *,
+  .smifs-shell--embed *::before,
+  .smifs-shell--embed *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
 .smifs-embed-close {
   background: rgba(255, 255, 255, 0.08);
   color: var(--smifs-header-text, #FFFFFF);
@@ -662,7 +745,6 @@ body {
 }
 .smifs-embed-close:hover { background: rgba(255, 255, 255, 0.18); }
 
-}
 .smifs-msg--streaming .smifs-msg-meta { opacity: 0.85; }
 
 

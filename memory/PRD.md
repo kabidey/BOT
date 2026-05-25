@@ -264,3 +264,20 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 - Verified live: Playwright Network capture against the preview frontend shows `POST /api/agent/turn/stream` now carries all three headers. Curl proof: a blocked synthetic FP returns the `intent: "SOFT_ERROR"` envelope on the SSE `event: result` frame even with NO `X-Client-Fingerprint` header when the session_id is reused (Layer 2 session-fallback fires). Silent-block payload byte-identical regardless of resolution source.
 - 27/27 unit + integration tests still pass; no regression to the 4 already-verified invariants (silent shape, admin bypass, trust recovery, admin block).
 - Doc: `SECURITY_FINGERPRINTING.md` Phase 22.1 section appended.
+
+### Phase 23 — Device-aware responsive embed (2026-05-25 LATE)
+- Rewrote `frontend/public/widget.js` with 4 responsive breakpoints + lazy iframe + backdrop blur + reduced-motion contract:
+  * Mobile portrait (≤640px) → 100dvw × 100dvh full-screen slide-up sheet, partner page scroll-locked, bubble hidden.
+  * Mobile landscape (≤950px landscape) → compact 80dvh × min(520,96vw) bottom-sheet.
+  * Tablet (641-1024px) → floating min(420,90vw) × 85dvh panel right-side, 18px rounded.
+  * Desktop (>1024px) → floating 420×720 panel (unchanged).
+  * Narrow ≤360px (Galaxy Fold cover) → smaller 52px bubble.
+- `iframe.src` is unset until the user clicks the launcher (lazy-load) — partner Lighthouse scores stay clean.
+- Backdrop sibling element fades in at 180ms; iframe slide+scale 220ms `cubic-bezier(.22,1,.36,1)`; vertical slide-up 240ms on mobile.
+- `prefers-reduced-motion: reduce` suppresses ALL transitions/animations including the pulse halo on the bubble.
+- `App.css` updates: `min-height: 100vh → 100svh` on shell; `height: 100vh → 100dvh` on `.smifs-shell--embed` + `.smifs-popover`; `env(safe-area-inset-top)` on embed header; `env(safe-area-inset-bottom)` + new `--smifs-kb-h` CSS var on sticky composer-wrap; fluid `font-size: clamp(14px, 0.875rem + 0.25vw, 16px)` on embed; `(pointer: coarse)` → 44px min touch-target on send/links/buttons + 16px input to disable iOS zoom; `(max-width: 480px)` shrinks header avatar 44→32px and lets vehicle-CTA names wrap to 2 lines.
+- Fixed pre-existing bug: orphan `}` was incorrectly closing `@keyframes smifs-caret-blink` — restructured.
+- `Chat.jsx`: new `visualViewport` listener writes `--smifs-kb-h` (in px) onto `.smifs-shell--embed` so the sticky composer floats above the soft keyboard; textarea `onFocus` now also scrolls thread to bottom for mobile keyboard visibility.
+- `index.html`: viewport meta now includes `viewport-fit=cover`; added `color-scheme: light dark` so OS-level dark mode doesn't force-invert the light embed surface.
+- Verified live across 4 viewports via Playwright: iPhone portrait wrap=375×812@(0,0) edge-to-edge, iPhone landscape 520×245@(284,122) compact, iPad portrait 420×720@(324,284) floating, Desktop 420×720@(996,80) unchanged. Main `/` dark shell renders correctly on both desktop and mobile — no regression.
+- `DEPLOY_NOTES.md` — Phase 23 section appended (full breakpoint contract + supported viewport floor of 320px).

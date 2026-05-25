@@ -424,3 +424,58 @@ admin UI's Sales Pipeline drawer shows the "SMTP auth disabled" badge in red.
 - Three additions vs V2: HARD RULE in synthesis prompt; response_builder hard gates (clamp + shape) with one reprompt + programmatic table fallback; composer probe (gpt-4o vs claude-sonnet-4-5) — kept gpt-4o (sonnet tied, didn't beat by ≥3 PASS).
 - New telemetry: `security_events.kind="composition_format_failure"` rows logged whenever the programmatic table fallback is used. Watch this in prod after cutover to inform per-question prompt tuning.
 - Env knob added: `PHASE_20_SYNTHESIS_MODEL` (defaults to `gpt-4o`). Lets us swap composer model without code redeploy if Hub AI roll out a new strong model.
+
+## Phase 23 — Device-aware responsive embed (2026-05-25 EVE)
+
+### Responsive contract for `widget.js` partner embeds
+
+| Viewport                                  | Layout                                    | Notes                                                  |
+| ----------------------------------------- | ----------------------------------------- | ------------------------------------------------------ |
+| Mobile portrait (≤ 640px, portrait)       | Full-screen sheet 100dvw × 100dvh, slide-up | Backdrop blur over partner page; bubble auto-hides; partner-page scroll locked. |
+| Mobile landscape (≤ 950px, landscape)     | Compact bottom-sheet, 80dvh × ~520px       | Partner page still visible above; slide-up.            |
+| Tablet (641–1024px)                       | Floating panel min(420px, 90vw) × 85dvh    | Slide-from-right + scale; safe-area bottom respected.  |
+| Desktop (> 1024px)                        | Floating panel 420 × 720, max calc(100dvh-130px) | Identical to pre-Phase-23 desktop behaviour.        |
+| Narrow (≤ 360px, Galaxy Fold, etc.)        | Same as mobile portrait, smaller bubble    | Bubble shrinks 60 → 52px.                              |
+
+### Supported viewport floor
+**≥ 320px width.** Tested presets: iPhone 12 / 13 / 14 (390×844), iPhone SE (375×667), iPhone X landscape (812×375), Pixel 5 (393×851), Galaxy Fold cover (280×653 — degrades gracefully but bubble fits), iPad portrait (768×1024), iPad landscape (1024×768), Desktop 1440×900.
+
+### Safe-area & keyboard handling
+* `env(safe-area-inset-top)` on the header (notch); `env(safe-area-inset-bottom)` on the composer (home indicator); `viewport-fit=cover` on `<meta name="viewport">`.
+* `visualViewport` listener in `Chat.jsx` writes a runtime CSS var `--smifs-kb-h` (in px) on the `.smifs-shell--embed` element. The sticky `.smifs-composer-wrap` consumes it as `padding-bottom`, so the input always floats above the soft keyboard.
+* Composer position changed `fixed` → `sticky` on embed mode.
+
+### Adaptive typography & touch targets
+* Fluid base font in embed: `clamp(14px, 0.875rem + 0.25vw, 16px)`. Inherits to children.
+* `(pointer: coarse)` queries force `min-height: 44px` on send button, links, "new conversation" CTA, and any embed button. `.smifs-input` also gets `font-size: 16px` to disable iOS auto-zoom.
+* `(max-width: 480px)` overrides: avatar 44 → 32px, title 1.05 → 0.98rem, vehicle-CTA names wrap to 2 lines instead of mid-name truncation.
+
+### Motion contract
+* Desktop / tablet: slide-from-bottom-right + scale, 220ms `cubic-bezier(.22, 1, .36, 1)`.
+* Mobile portrait: slide-up `translateY(100%) → 0`, 240ms.
+* Mobile landscape: same slide-up but only to 80dvh.
+* Backdrop fade: 180ms ease.
+* `prefers-reduced-motion: reduce` → all animations + transitions reduced to 0.001ms (effectively instant). Pulse halo on bubble also suppressed.
+
+### Performance
+* `iframe.src` is unset on page load — the chat surface is only fetched on the **first click** of the launcher bubble. Partner Lighthouse scores stay clean (verified — bubble + loader script weigh ~3KB gzipped together; no chat-surface assets pulled until activation).
+* `iframe` element carries `loading="lazy"` for safety.
+* Pre-existing pulse animation on the bubble is CSS-only.
+
+### Theme integration
+* `color-scheme: light dark` meta added so iOS / Android OS-level dark-mode preference doesn't force-invert the embed surface (which is intentionally light).
+* The dark main `/` shell and the light `/embed` surface coexist correctly — verified that the partner page's `prefers-color-scheme: dark` does NOT bleed into the iframe.
+
+### Backwards compatibility
+* No script tag change required for partner sites. `<script src="…/widget.js">` works exactly as before.
+* `/api/widget/config` envelope unchanged.
+
+### Files touched
+* `frontend/public/widget.js` (rewritten — responsive breakpoints, backdrop, lazy iframe, prefers-reduced-motion).
+* `frontend/public/index.html` (viewport `viewport-fit=cover` + `color-scheme` meta).
+* `frontend/src/App.css` (dvh/svh, safe-area-inset, fluid font, sticky composer, touch-targets, motion suppression; fixed pre-existing orphan `}` in the keyframes block).
+* `frontend/src/pages/Chat.jsx` (`visualViewport` listener writes `--smifs-kb-h`; textarea `onFocus` scrolls thread to bottom).
+
+### Regression posture
+Phase 16-22 chat surface logic (locale picker, vehicle CTA, sales-ops, fraud-fingerprint headers, silent-block) all unchanged — Phase 23 is pure CSS + iframe sizing + listener wiring.
+

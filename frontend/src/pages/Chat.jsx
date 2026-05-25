@@ -258,6 +258,31 @@ export default function Chat({ embedded = false }) {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages, streaming, statusLabel]);
 
+  // Phase 23 — Visual viewport / keyboard awareness on mobile embed.
+  // When the soft keyboard appears, `visualViewport.height` shrinks. We push
+  // the delta into a CSS variable on the shell so the sticky composer floats
+  // above the keyboard, then scroll the latest message into view.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const updateKb = () => {
+      const shell = document.querySelector(".smifs-shell--embed") || document.documentElement;
+      const overlap = Math.max(0, window.innerHeight - vv.height - (vv.offsetTop || 0));
+      shell.style.setProperty("--smifs-kb-h", `${Math.round(overlap)}px`);
+      // Keep the latest message visible when the keyboard opens.
+      if (overlap > 0 && listRef.current) {
+        listRef.current.scrollTop = listRef.current.scrollHeight;
+      }
+    };
+    vv.addEventListener("resize", updateKb);
+    vv.addEventListener("scroll", updateKb);
+    updateKb();
+    return () => {
+      vv.removeEventListener("resize", updateKb);
+      vv.removeEventListener("scroll", updateKb);
+    };
+  }, []);
+
   // Escape closes popover
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") setActiveCitation(null); };
@@ -1010,7 +1035,17 @@ export default function Chat({ embedded = false }) {
                   value={input}
                   onChange={(e) => { setInput(e.target.value); if (idleState !== "expired") resetIdleTimers(); }}
                   onKeyDown={onKey}
-                  onFocus={() => { if (idleState !== "expired") resetIdleTimers(); }}
+                  onFocus={() => {
+                    if (idleState !== "expired") resetIdleTimers();
+                    /* Phase 23 — on mobile, scrolling the thread to the
+                     * bottom on focus keeps the latest assistant message
+                     * visible above the soft keyboard. */
+                    if (listRef.current) {
+                      requestAnimationFrame(() => {
+                        if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+                      });
+                    }
+                  }}
                   placeholder={locked ? "Session paused — click Resume to continue" : (sensitive ? "Enter your PAN (e.g. ABCDE1234F)" : "Ask your wealth advisor…")}
                   rows={1}
                   className="smifs-input"
