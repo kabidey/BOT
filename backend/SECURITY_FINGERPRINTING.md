@@ -131,3 +131,69 @@ covers:
 * Admin unblock + trust resets the score path.
 * Time decay: client bindings older than 14 days contribute < 25 % of their
   original weight.
+
+## Phase 22.1 — Streaming-endpoint bypass hotfix (2026-05-25)
+
+### The bug
+
+A live preview sweep proved that `POST /api/agent/turn/stream` was bypassing
+the silent-block control entirely: the FE called it through native `fetch()`
++ `ReadableStream`, which inherits **none** of axios's default headers.
+A device that had been blocked could still stream a normal chat reply.
+
+### The two-layer fix
+
+**Layer 1 — Frontend.** All `fetch()` call sites that hit `/api/*` now
+explicitly inject the three FP headers via the new `getFingerprintHeaders()`
+helper in `lib/fingerprint.js`. Affected:
+* `Chat.jsx` → `POST /api/agent/turn/stream`
+* `EscalationBlock.jsx` → `POST /api/handoff`
+
+Any future `fetch()` call site MUST do the same. Standard pattern:
+
+```js
+import { getFingerprintHeaders } from "@/lib/fingerprint";
+await fetch(url, {
+  method: "POST",
+  headers: { "Content-Type": "application/json", ...getFingerprintHeaders() },
+  body: JSON.stringify(payload),
+});
+```
+
+**Layer 2 — Backend fallback chain.** The middleware now resolves the
+fingerprint through a three-step chain so a missed header never disables
+enforcement:
+
+1. `X-Client-Fingerprint` request header (preferred — full confidence).
+2. `sessions.fingerprint_hash` looked up by session_id. The middleware
+   stamps the explicit-header FP onto the session row on every authenticated
+   request, so subsequent streaming POSTs without the header still resolve.
+3. `ip_ua:<sha256(ip|ua)[:32]>` composite hash — lowest confidence
+   (changes with UA rev or NAT IP), but keeps the control alive.
+
+The silent-block response is byte-identical regardless of which step
+resolved the FP — attackers cannot probe which layer is firing.
+
+### Layer 3 — Telemetry
+
+Every resolution emits a `fingerprint_resolution_source` security event
+(`header` events are 1-in-50 sampled, all `session` and `ip_ua` events are
+fully sampled — those should be rare in healthy traffic). The Fraud Watch
+tab surfaces a `resolution_source_24h` counter:
+
+* **header**: explicit FP header (healthy)
+* **session-fallback**: header missing but resolved via `sessions.fingerprint_hash`
+* **ip+ua fallback**: neither header nor session — degraded confidence
+
+Healthy steady-state is ~100% `header` (with the 50x display un-discount
+applied). Any non-zero `session` or `ip_ua` count surfaces in amber/red and
+signals that an FE call site is leaking past the helper.
+
+### Verification
+
+* `POST /api/agent/turn/stream` Network panel now shows `X-Client-Fingerprint`,
+  `X-Client-Tz`, `X-Client-Screen` headers.
+* Blocking a synthetic FP and streaming a chat returns the SOFT_ERROR
+  envelope on the stream's `event: result` frame.
+
+   (changes with UA rev or NAT IP), but keeps the control a

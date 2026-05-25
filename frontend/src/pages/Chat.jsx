@@ -24,6 +24,7 @@ import ProductChoiceBlock from "@/components/blocks/ProductChoiceBlock";
 import SaleFormBlock from "@/components/blocks/SaleFormBlock";
 import SaleConfirmationBlock from "@/components/blocks/SaleConfirmationBlock";
 import LocaleChoiceBlock, { LOCALE_OPTIONS } from "@/components/blocks/LocaleChoiceBlock";
+import { getFingerprintHeaders } from "@/lib/fingerprint";
 
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
 const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
@@ -316,7 +317,10 @@ export default function Chat({ embedded = false }) {
     try {
       const resp = await fetch(`${API}/agent/turn/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getFingerprintHeaders(),
+        },
         body: JSON.stringify({ session_id: sessionId, message: text }),
         signal: controller.signal,
       });

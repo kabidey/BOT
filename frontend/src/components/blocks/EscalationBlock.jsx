@@ -25,7 +25,10 @@ export default function EscalationBlock({ block, msgIdx, onRequestCallback, sess
     try {
       const res = await fetch(`${API}/handoff`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getFingerprintHeaders(),
+        },
         body: JSON.stringify({
           session_id: sessionId,
           handoff_type: kind,

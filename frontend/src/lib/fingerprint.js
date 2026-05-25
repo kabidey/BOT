@@ -133,3 +133,21 @@ async function refreshInBackground() {
 export function getCachedFingerprint() {
   return readCachedVisitorId();
 }
+
+/**
+ * Return the three Phase 22 headers for use with `fetch()` calls that
+ * bypass the axios interceptor (SSE streaming, file uploads, etc.). Safe to
+ * call from anywhere — if the fingerprint hasn't resolved yet the
+ * `X-Client-Fingerprint` key is omitted (the backend's session-level
+ * fallback will pick it up).
+ */
+export function getFingerprintHeaders() {
+  const out = {};
+  const fp = readCachedVisitorId();
+  if (fp) out["X-Client-Fingerprint"] = fp;
+  const tz = resolveTimezone();
+  const screen = resolveScreenSignature();
+  if (tz) out["X-Client-Tz"] = tz;
+  if (screen) out["X-Client-Screen"] = screen;
+  return out;
+}

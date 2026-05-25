@@ -114,6 +114,8 @@ export default function FraudWatchTab({ api }) {
     { label: "Silent blocks (24h)", value: summary?.silent_blocks_served_today ?? "—" },
   ]), [summary]);
 
+  const resolution = summary?.resolution_source_24h || null;
+
   return (
     <div className="smifs-admin-pane" data-testid="fraud-watch-tab">
       <header className="smifs-admin-pane-head">
@@ -151,6 +153,19 @@ export default function FraudWatchTab({ api }) {
           <span>Half-life {summary.thresholds.half_life_days}d</span>
           <span>Rapid window {summary.thresholds.rapid_window_min}m</span>
           <span>Lifetime cap (no RM) {summary.thresholds.lifetime_client_limit_no_rm}</span>
+        </div>
+      ) : null}
+
+      {resolution ? (
+        <div className="smifs-admin-meta" data-testid="fp-resolution-sources" style={{ marginTop: 4 }}>
+          <span style={{ opacity: 0.7 }}>FP source (24h)</span>
+          <span><strong>header</strong>: {resolution.header}</span>
+          <span style={{ color: resolution.session > 0 ? "#e0a44a" : undefined }}>
+            <strong>session-fallback</strong>: {resolution.session}
+          </span>
+          <span style={{ color: resolution.ip_ua > 0 ? "#ec4f63" : undefined }}>
+            <strong>ip+ua fallback</strong>: {resolution.ip_ua}
+          </span>
         </div>
       ) : null}
 

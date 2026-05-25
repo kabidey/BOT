@@ -552,12 +552,31 @@ async def counters_summary(db) -> Dict[str, Any]:
         "kind": "fingerprint_silent_block_served",
         "created_at": {"$gte": midnight},
     })
+    # Phase 22.1 — resolution-source distribution (24h). 100 % from
+    # `header` is the healthy state; any `session` or `ip_ua` count > 0
+    # means an FE call site is missing the header injection.
+    resolution_24h = {"header": 0, "session": 0, "ip_ua": 0}
+    try:
+        pipe = [
+            {"$match": {"kind": "fingerprint_resolution_source",
+                         "created_at": {"$gte": midnight}}},
+            {"$group": {"_id": "$source", "n": {"$sum": 1}}},
+        ]
+        async for row in db.security_events.aggregate(pipe):
+            key = row.get("_id") or "unknown"
+            if key in resolution_24h:
+                resolution_24h[key] = int(row.get("n") or 0)
+        # Header events are 1-in-50 sampled; un-discount for display.
+        resolution_24h["header"] *= 50
+    except Exception:
+        pass
     return {
         "total_fingerprints": total,
         "blocked": blocked,
         "trusted": trusted,
         "flagged": flagged,
         "silent_blocks_served_today": served_today,
+        "resolution_source_24h": resolution_24h,
         "thresholds": {
             "block_score": BLOCK_SCORE(),
             "flag_score": FLAG_SCORE(),
