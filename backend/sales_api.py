@@ -32,7 +32,7 @@ import sales_catalog
 logger = logging.getLogger(__name__)
 
 
-PRODUCTS = {"mutual_fund", "aif", "pms", "fd", "insurance", "ncd_primary"}
+PRODUCTS = {"mutual_fund", "aif", "pms", "fd", "insurance", "ncd_primary", "sif"}
 PAN_RE = re.compile(r"^[A-Z]{5}\d{4}[A-Z]$")
 EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 PHONE_DIGITS_RE = re.compile(r"\D+")
@@ -40,34 +40,43 @@ ARN_RE = re.compile(r"^ARN-[A-Za-z0-9]{4,7}$|^[A-Za-z0-9]{4,7}$")
 
 # Per-product field schema. `req` = required, `optional` = optional,
 # `radio`/`select` define the allowed values for client+server validation.
+#
+# Phase 21 — Field-cleanup pass + SIF + extended ARN/APRN. Removed fields:
+#   mutual_fund: folio_number, arn_distributor_code
+#   aif:         category, drawdown_schedule, fund_manager
+#   pms:         fee_structure, fixed_fee_pct, performance_fee_pct
+#   fd:          interest_rate_pct
+#   insurance:   product_type ENUM removed (still required, now free-text)
+#   ncd_primary: coupon_rate_pct, tenure_years
+# Insurance gained `premium_paying_term_years` + `premium_amount_inr`.
+# Old sales rows retain dropped keys in `product_details` — admin drawer
+# surfaces them under a "Legacy fields" collapsible (response_builder side).
 _PRODUCT_SCHEMA: Dict[str, Dict[str, Any]] = {
     "mutual_fund": {
         "req": ["amc_name", "scheme_name", "scheme_type"],
-        "optional": ["frequency", "folio_number", "arn_distributor_code"],
+        "optional": ["frequency"],
         "enums": {
             "scheme_type": {"SIP", "Lump sum", "SWP", "STP"},
             "frequency": {"Monthly", "Quarterly", "Annually"},
         },
     },
     "aif": {
-        "req": ["aif_name", "category", "commitment_amount_inr", "drawdown_schedule", "fund_manager"],
+        "req": ["aif_name", "commitment_amount_inr"],
         "optional": [],
-        "enums": {"category": {"Cat I", "Cat II", "Cat III"}},
+        "enums": {},
         "numeric": {"commitment_amount_inr": (0, None)},
     },
     "pms": {
-        "req": ["pms_provider", "strategy_name", "corpus_inr", "fee_structure"],
-        "optional": ["fixed_fee_pct", "performance_fee_pct"],
-        "enums": {"fee_structure": {"Fixed only", "Variable only", "Hybrid"}},
+        "req": ["pms_provider", "strategy_name", "corpus_inr"],
+        "optional": [],
+        "enums": {},
         "numeric": {
             "corpus_inr": (5_000_000, None),
-            "fixed_fee_pct": (0, 10),
-            "performance_fee_pct": (0, 50),
         },
     },
     "fd": {
         "req": ["issuer_name", "issuer_type", "tenure_months",
-                "interest_rate_pct", "payout_frequency", "fd_type"],
+                "payout_frequency", "fd_type"],
         "optional": [],
         "enums": {
             "issuer_type": {"Bank", "NBFC", "Corporate FD"},
@@ -76,35 +85,35 @@ _PRODUCT_SCHEMA: Dict[str, Dict[str, Any]] = {
         },
         "numeric": {
             "tenure_months": (1, 120),
-            "interest_rate_pct": (0, 15),
         },
     },
     "insurance": {
         "req": ["carrier", "product_type", "policy_term_years",
-                "premium_frequency", "sum_assured_inr"],
+                "premium_paying_term_years", "premium_frequency",
+                "sum_assured_inr", "premium_amount_inr"],
         "optional": [],
         "enums": {
-            "product_type": {"Term", "ULIP", "Endowment", "Money-back", "Health", "Annuity"},
+            # product_type enum removed (now free-text).
             "premium_frequency": {"Single", "Annual", "Half-yearly", "Quarterly", "Monthly"},
         },
         "numeric": {
             "policy_term_years": (1, 50),
+            "premium_paying_term_years": (1, 50),
             "sum_assured_inr": (0, None),
+            "premium_amount_inr": (0, None),
         },
     },
     "ncd_primary": {
         # Public-issue NCD application. Amount must be a multiple of ₹1,000
         # because NCDs are issued in ₹1,000 face-value lots.
         "req": ["issuer_name", "series_option", "application_amount_inr",
-                "coupon_rate_pct", "tenure_years", "interest_frequency"],
+                "interest_frequency"],
         "optional": ["asba_upi_reference"],
         "enums": {
             "interest_frequency": {"Monthly", "Quarterly", "Annual", "Cumulative"},
         },
         "numeric": {
             "application_amount_inr": (10_000, None),
-            "coupon_rate_pct": (1, 20),
-            "tenure_years": (1, 15),
         },
         # Custom rule: amount must be divisible by 1000.
         "custom": [
@@ -112,6 +121,21 @@ _PRODUCT_SCHEMA: Dict[str, Dict[str, Any]] = {
              lambda v: float(v) % 1000 == 0,
              "Application amount must be a multiple of ₹1,000 (NCD face value).")
         ],
+    },
+    "sif": {
+        # Phase 21 — Specialised Investment Fund. Mirrors the MF shape:
+        # vehicle-locked identity + free-form theme + investment-type radio +
+        # conditional frequency (only when staggered) + optional lock-in.
+        "req": ["sif_name", "strategy_theme", "investment_type"],
+        "optional": ["frequency", "lock_in_months"],
+        "enums": {
+            "investment_type": {"Lump sum", "Staggered (SIP-equivalent)",
+                                 "Open-ended subscription"},
+            "frequency": {"Monthly", "Quarterly", "Annually"},
+        },
+        "numeric": {
+            "lock_in_months": (0, 120),
+        },
     },
 }
 
@@ -227,6 +251,20 @@ def _validate_product(product: str, fields: Dict[str, Any]) -> Tuple[Dict[str, A
     if product == "mutual_fund" and out.get("scheme_type") in {"SIP", "SWP", "STP"}:
         if not fields.get("frequency"):
             errors.append(_bad("frequency", "Required when scheme_type is SIP/SWP/STP."))
+    # Phase 21 — SIF conditional: `Staggered (SIP-equivalent)` requires
+    # `frequency`. Lump sum / Open-ended must NOT carry a frequency (catch
+    # tampering — return 422 if frequency is present in the wrong context).
+    if product == "sif":
+        itype = out.get("investment_type")
+        freq = fields.get("frequency")
+        if itype == "Staggered (SIP-equivalent)":
+            if not freq:
+                errors.append(_bad("frequency",
+                                    "Required when investment_type is Staggered (SIP-equivalent)."))
+        elif freq:
+            errors.append(_bad("frequency",
+                                "frequency only applies when investment_type is "
+                                "'Staggered (SIP-equivalent)'."))
     # Phase 15 — generic custom rules (used by NCD primary issue for the
     # "amount must be a multiple of ₹1,000" check).
     for fname, predicate, msg in schema.get("custom", []):
@@ -248,26 +286,18 @@ def _validate_product(product: str, fields: Dict[str, Any]) -> Tuple[Dict[str, A
 
 
 def _validate_mf_arn(fields: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
-    """Phase 17 — MF ARN-Transfer subtype.
+    """Phase 21 — MF Folio Transfer subtype (formerly "ARN Transfer", kept on
+    the same `subtype="arn_transfer"` key for back-compat with existing rows
+    and the admin pipeline filter).
 
-    Fires when payload.fields.arn_transfer == True. Replaces the SIP/lump-sum
-    contract with an ARN-specific one. AMC + scheme are still required but
-    derive from the locked vehicle picker (auto-filled, read-only on FE).
+    Existing/new ARN codes and the transfer-effective date are no longer
+    captured per user direction. The sub-flow is now a thin "folio transfer"
+    report: AMC + scheme are still required (auto-fill from locked vehicle),
+    plus folio numbers + AUM transferred + free-form remarks.
     """
     errors: List[Dict[str, str]] = []
     out: Dict[str, Any] = {"subtype": "arn_transfer"}
     sub = fields.get("arn_transfer_fields") or {}
-
-    existing = (sub.get("existing_arn") or "").strip().upper()
-    new = (sub.get("new_arn") or "").strip().upper()
-    if not ARN_RE.match(existing):
-        errors.append(_bad("existing_arn",
-                           "ARN must be 4-7 alphanumeric chars (optionally prefixed ARN-)."))
-    if not ARN_RE.match(new):
-        errors.append(_bad("new_arn",
-                           "ARN must be 4-7 alphanumeric chars (optionally prefixed ARN-)."))
-    if existing and new and existing == new:
-        errors.append(_bad("new_arn", "New ARN must differ from existing ARN."))
 
     folio = (sub.get("folio_numbers") or "").strip()
     if not folio:
@@ -280,11 +310,46 @@ def _validate_mf_arn(fields: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[
     if not scheme:
         errors.append(_bad("scheme_name", "Scheme name is required (auto-fills from vehicle)."))
 
-    eff = (sub.get("transfer_effective_date") or "").strip()
     try:
-        date.fromisoformat(eff)
+        aum = float(sub.get("aum_inr") or 0)
+        if aum < 1000:
+            errors.append(_bad("aum_inr", "AUM transferred must be ≥ ₹1,000."))
     except Exception:
-        errors.append(_bad("transfer_effective_date", "Provide a valid date (YYYY-MM-DD)."))
+        errors.append(_bad("aum_inr", "AUM must be a number."))
+        aum = 0
+
+    remarks = (sub.get("arn_remarks") or "").strip()[:500]
+    out["arn_transfer"] = {
+        "folio_numbers": folio,
+        "amc_name": amc,
+        "scheme_name": scheme,
+        "aum_inr": aum,
+        "arn_remarks": remarks,
+    }
+    # For downstream consistency we also surface AMC/scheme at the top level
+    # of `product_details` so the existing UI / admin row continues to work
+    # without product-type-specific accessors.
+    out["amc_name"] = amc
+    out["scheme_name"] = scheme
+    out["scheme_type"] = "ARN Transfer"
+    return out, errors
+
+
+def _validate_aif_arn(fields: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    """Phase 21 — AIF ARN Transfer sub-flow. AIF name auto-fills from the
+    locked vehicle picker. Commitment account ID + AUM + remarks captured.
+    """
+    errors: List[Dict[str, str]] = []
+    out: Dict[str, Any] = {"subtype": "arn_transfer"}
+    sub = fields.get("arn_transfer_fields") or {}
+
+    aif_name = (sub.get("aif_name") or fields.get("aif_name") or "").strip()
+    if not aif_name:
+        errors.append(_bad("aif_name", "AIF name is required (auto-fills from vehicle)."))
+
+    acct = (sub.get("commitment_account_id") or "").strip()
+    if not acct:
+        errors.append(_bad("commitment_account_id", "Commitment account ID is required."))
 
     try:
         aum = float(sub.get("aum_inr") or 0)
@@ -296,22 +361,99 @@ def _validate_mf_arn(fields: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[
 
     remarks = (sub.get("arn_remarks") or "").strip()[:500]
     out["arn_transfer"] = {
-        "existing_arn": existing,
-        "new_arn": new,
-        "folio_numbers": folio,
-        "amc_name": amc,
-        "scheme_name": scheme,
-        "transfer_effective_date": eff,
+        "aif_name": aif_name,
+        "commitment_account_id": acct,
         "aum_inr": aum,
         "arn_remarks": remarks,
     }
-    # For downstream consistency we also surface AMC/scheme at the top level
-    # of `product_details` so the existing UI / admin row continues to work
-    # without product-type-specific accessors.
-    out["amc_name"] = amc
-    out["scheme_name"] = scheme
-    out["scheme_type"] = "ARN Transfer"
+    out["aif_name"] = aif_name
     return out, errors
+
+
+def _validate_sif_arn(fields: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    """Phase 21 — SIF ARN Transfer sub-flow. SIF name auto-fills from the
+    locked vehicle picker. Folio/account ID + AUM + remarks captured.
+    """
+    errors: List[Dict[str, str]] = []
+    out: Dict[str, Any] = {"subtype": "arn_transfer"}
+    sub = fields.get("arn_transfer_fields") or {}
+
+    sif_name = (sub.get("sif_name") or fields.get("sif_name") or "").strip()
+    if not sif_name:
+        errors.append(_bad("sif_name", "SIF name is required (auto-fills from vehicle)."))
+
+    acct = (sub.get("folio_account_id") or "").strip()
+    if not acct:
+        errors.append(_bad("folio_account_id", "Folio / account ID is required."))
+
+    try:
+        aum = float(sub.get("aum_inr") or 0)
+        if aum < 1000:
+            errors.append(_bad("aum_inr", "AUM transferred must be ≥ ₹1,000."))
+    except Exception:
+        errors.append(_bad("aum_inr", "AUM must be a number."))
+        aum = 0
+
+    remarks = (sub.get("arn_remarks") or "").strip()[:500]
+    out["arn_transfer"] = {
+        "sif_name": sif_name,
+        "folio_account_id": acct,
+        "aum_inr": aum,
+        "arn_remarks": remarks,
+    }
+    out["sif_name"] = sif_name
+    return out, errors
+
+
+def _validate_pms_aprn(fields: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
+    """Phase 21 — PMS APRN Transfer sub-flow (APMI Registration Number).
+    Separate subtype `aprn_transfer` so admin can route + filter it
+    independently from the AIF/SIF/MF ARN family.
+
+    Provider + strategy auto-fill from the locked vehicle picker. Portfolio
+    account ID + transferred corpus + remarks captured.
+    """
+    errors: List[Dict[str, str]] = []
+    out: Dict[str, Any] = {"subtype": "aprn_transfer"}
+    sub = fields.get("aprn_transfer_fields") or {}
+
+    provider = (sub.get("pms_provider") or fields.get("pms_provider") or "").strip()
+    strategy = (sub.get("strategy_name") or fields.get("strategy_name") or "").strip()
+    if not provider:
+        errors.append(_bad("pms_provider", "PMS provider is required (auto-fills from vehicle)."))
+    if not strategy:
+        errors.append(_bad("strategy_name", "Strategy name is required (auto-fills from vehicle)."))
+
+    acct = (sub.get("portfolio_account_id") or "").strip()
+    if not acct:
+        errors.append(_bad("portfolio_account_id", "Portfolio account ID is required."))
+
+    try:
+        corpus = float(sub.get("corpus_inr") or 0)
+        if corpus < 1000:
+            errors.append(_bad("corpus_inr", "Corpus transferred must be ≥ ₹1,000."))
+    except Exception:
+        errors.append(_bad("corpus_inr", "Corpus must be a number."))
+        corpus = 0
+
+    remarks = (sub.get("aprn_remarks") or "").strip()[:500]
+    out["aprn_transfer"] = {
+        "pms_provider": provider,
+        "strategy_name": strategy,
+        "portfolio_account_id": acct,
+        "corpus_inr": corpus,
+        "aprn_remarks": remarks,
+    }
+    out["pms_provider"] = provider
+    out["strategy_name"] = strategy
+    return out, errors
+
+
+_ARN_TRANSFER_VALIDATORS = {
+    "mutual_fund": _validate_mf_arn,
+    "aif":         _validate_aif_arn,
+    "sif":         _validate_sif_arn,
+}
 
 
 async def _next_submission_id(db) -> str:
@@ -388,12 +530,20 @@ def build_router(db) -> APIRouter:
                 )
 
         common, errs_c = _validate_common(fields)
-        # Phase 17 — MF ARN-Transfer branches on the `arn_transfer` toggle.
-        is_arn = product == "mutual_fund" and bool(fields.get("arn_transfer"))
+        # Phase 17 — MF ARN-Transfer. Phase 21 — extended to AIF + SIF (same
+        # `arn_transfer` subtype, different validator per product) and a
+        # NEW `aprn_transfer` subtype for PMS only.
+        is_arn = bool(fields.get("arn_transfer")) and product in _ARN_TRANSFER_VALIDATORS
+        is_aprn = bool(fields.get("aprn_transfer")) and product == "pms"
         if is_arn:
-            product_fields, errs_p = _validate_mf_arn(fields)
+            product_fields, errs_p = _ARN_TRANSFER_VALIDATORS[product](fields)
+            subtype = "arn_transfer"
+        elif is_aprn:
+            product_fields, errs_p = _validate_pms_aprn(fields)
+            subtype = "aprn_transfer"
         else:
             product_fields, errs_p = _validate_product(product, fields)
+            subtype = None
         all_errors = errs_c + errs_p
         if all_errors:
             raise HTTPException(status_code=422, detail={"errors": all_errors})
@@ -403,7 +553,7 @@ def build_router(db) -> APIRouter:
             "_id": str(uuid.uuid4()),
             "submission_id": submission_id,
             "product": product,
-            "subtype": "arn_transfer" if is_arn else None,
+            "subtype": subtype,
             "employee": employee,
             "client": {
                 "client_name": common["client_name"],

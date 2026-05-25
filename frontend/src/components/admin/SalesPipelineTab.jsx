@@ -5,8 +5,35 @@ const PRODUCT_LABEL = {
   mutual_fund: "Mutual Fund", aif: "AIF", pms: "PMS",
   fd: "Fixed Deposit", insurance: "Insurance",
   ncd_primary: "NCD Primary Issue",
+  sif: "SIF",
 };
 const STATUS_OPTIONS = ["submitted", "logged", "funded", "reconciled", "cancelled"];
+
+// Phase 21 — keys that the CURRENT FE schema knows how to display per
+// product. Anything in `product_details` that's not in this list (or in
+// the matching transfer sub-object) is rendered under a "Legacy fields"
+// collapsible so old rows from pre-Phase-21 still surface without
+// cluttering the new drawer view.
+const CURRENT_PRODUCT_KEYS = {
+  mutual_fund: ["amc_name", "scheme_name", "scheme_type", "frequency"],
+  aif:         ["aif_name", "commitment_amount_inr"],
+  pms:         ["pms_provider", "strategy_name", "corpus_inr"],
+  fd:          ["issuer_name", "issuer_type", "tenure_months", "payout_frequency", "fd_type"],
+  insurance:   ["carrier", "product_type", "policy_term_years",
+                "premium_paying_term_years", "premium_frequency",
+                "sum_assured_inr", "premium_amount_inr"],
+  ncd_primary: ["issuer_name", "series_option", "application_amount_inr",
+                "number_of_ncds", "interest_frequency", "asba_upi_reference"],
+  sif:         ["sif_name", "strategy_theme", "investment_type", "frequency",
+                "lock_in_months"],
+};
+const CURRENT_TRANSFER_KEYS = {
+  arn_transfer:  ["folio_numbers", "amc_name", "scheme_name", "aif_name", "sif_name",
+                   "commitment_account_id", "folio_account_id", "aum_inr", "arn_remarks"],
+  aprn_transfer: ["pms_provider", "strategy_name", "portfolio_account_id",
+                   "corpus_inr", "aprn_remarks"],
+};
+const _ALWAYS_VISIBLE_KEYS = new Set(["deck_vehicle", "subtype"]);
 
 // Phase 19 — visual taxonomy for the four send statuses + legacy reasons.
 const EMAIL_STATUS_META = {
@@ -55,7 +82,11 @@ export default function SalesPipelineTab({ api }) {
 
   const [productFilter, setProductFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [arnOnly, setArnOnly] = useState(false);  // Phase 17 — ARN Transfer filter
+  // Phase 17 → 21 — was `arnOnly` boolean. Now a 3-way enum:
+  //   ""        → all
+  //   "arn"     → ARN Transfer rows (MF / AIF / SIF; subtype = "arn_transfer")
+  //   "aprn"    → APRN Transfer rows (PMS; subtype = "aprn_transfer")
+  const [transferFilter, setTransferFilter] = useState("");
 
   const [drawerSubId, setDrawerSubId] = useState(null);
   const [drawerData, setDrawerData] = useState(null);
@@ -70,7 +101,8 @@ export default function SalesPipelineTab({ api }) {
       const params = { limit: 100 };
       if (productFilter) params.product = productFilter;
       if (statusFilter) params.status = statusFilter;
-      if (arnOnly) params.subtype = "arn_transfer";
+      if (transferFilter === "arn")  params.subtype = "arn_transfer";
+      if (transferFilter === "aprn") params.subtype = "aprn_transfer";
       const { data } = await adminApi.get("/admin/sales", { params });
       setRows(data.items || []);
       setKpis(data.kpis || {});
@@ -80,7 +112,7 @@ export default function SalesPipelineTab({ api }) {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [productFilter, statusFilter, arnOnly]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [productFilter, statusFilter, transferFilter]);
 
   const openDrawer = async (submission_id) => {
     setDrawerSubId(submission_id);
@@ -182,13 +214,17 @@ export default function SalesPipelineTab({ api }) {
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
-        {(productFilter === "" || productFilter === "mutual_fund") && (
-          <label className="smifs-admin-arn-toggle" data-testid="sales-filter-arn-row">
-            <input type="checkbox" checked={arnOnly} onChange={(e) => setArnOnly(e.target.checked)}
-                   data-testid="sales-filter-arn-only" />
-            ARN Transfer only
-          </label>
-        )}
+        {/* Phase 21 — was MF-only ARN toggle; now a 3-way transfer filter
+            covering ARN (MF/AIF/SIF) and APRN (PMS). */}
+        <label className="smifs-admin-arn-toggle" data-testid="sales-filter-transfer-row">
+          Transfer subtype
+          <select value={transferFilter} onChange={(e) => setTransferFilter(e.target.value)}
+                  data-testid="sales-filter-transfer">
+            <option value="">All</option>
+            <option value="arn">ARN Transfer</option>
+            <option value="aprn">APRN Transfer</option>
+          </select>
+        </label>
         <button className="smifs-admin-btn-ghost" onClick={load} disabled={loading} data-testid="sales-refresh">
           <RefreshCw size={14} /> Refresh
         </button>
@@ -217,13 +253,17 @@ export default function SalesPipelineTab({ api }) {
           {rows.map((r) => {
             const vName = r.vehicle_name || "—";
             const vShort = vName.length > 32 ? vName.slice(0, 32) + "…" : vName;
-            const isArn = r.subtype === "arn_transfer";
+            const isArn  = r.subtype === "arn_transfer";
+            const isAprn = r.subtype === "aprn_transfer";
             return (
               <tr key={r.submission_id} onClick={() => openDrawer(r.submission_id)} className="smifs-admin-row-click" data-testid={`sales-row-${r.submission_id}`}>
                 <td><b>{r.submission_id}</b></td>
                 <td>
                   {PRODUCT_LABEL[r.product] || r.product}
-                  {isArn && <span className="smifs-admin-pill smifs-admin-pill--arn" data-testid={`sales-arn-badge-${r.submission_id}`}>ARN</span>}
+                  {isArn  && <span className="smifs-admin-pill smifs-admin-pill--arn"
+                                    data-testid={`sales-arn-badge-${r.submission_id}`}>ARN</span>}
+                  {isAprn && <span className="smifs-admin-pill smifs-admin-pill--aprn"
+                                    data-testid={`sales-aprn-badge-${r.submission_id}`}>APRN</span>}
                 </td>
                 <td title={vName} data-testid={`sales-vehicle-${r.submission_id}`}>{vShort}</td>
                 <td>{r.client_name_masked}</td>
@@ -257,6 +297,10 @@ export default function SalesPipelineTab({ api }) {
                       <span className="smifs-admin-pill smifs-admin-pill--arn"
                             data-testid="sales-drawer-arn-badge"> ARN Transfer</span>
                     )}
+                    {drawerData.subtype === "aprn_transfer" && (
+                      <span className="smifs-admin-pill smifs-admin-pill--aprn"
+                            data-testid="sales-drawer-aprn-badge"> APRN Transfer</span>
+                    )}
                   </div>
                   <div><b>Vehicle</b><br/>{drawerData.vehicle_name || "—"}
                     {drawerData.vehicle_type ? <span className="smifs-admin-dim"> · {drawerData.vehicle_type}</span> : null}
@@ -272,21 +316,69 @@ export default function SalesPipelineTab({ api }) {
                   <div><b>Phone</b><br/>{drawerData.client?.client_phone}</div>
                   <div><b>Email</b><br/>{drawerData.client?.client_email}</div>
                 </div>
-                <div className="smifs-admin-section">{drawerData.subtype === "arn_transfer" ? "ARN Transfer details" : `${PRODUCT_LABEL[drawerData.product]} specifics`}</div>
+                <div className="smifs-admin-section">
+                  {drawerData.subtype === "arn_transfer"  ? "ARN Transfer details"
+                   : drawerData.subtype === "aprn_transfer" ? "APRN Transfer details"
+                   : `${PRODUCT_LABEL[drawerData.product]} specifics`}
+                </div>
                 <div className="smifs-admin-detail-grid" data-testid="sales-drawer-product-details">
                   {(() => {
                     const pd = { ...(drawerData.product_details || {}) };
-                    // Phase 17 — flatten ARN sub-object into the grid.
-                    const arn = pd.arn_transfer;
-                    if (arn && typeof arn === "object") {
-                      delete pd.arn_transfer;
-                      for (const [k, v] of Object.entries(arn)) {
-                        if (!(k in pd)) pd[k] = v;
+                    // Flatten ARN / APRN sub-object into the grid.
+                    for (const subKey of ["arn_transfer", "aprn_transfer"]) {
+                      const sub = pd[subKey];
+                      if (sub && typeof sub === "object") {
+                        delete pd[subKey];
+                        for (const [k, v] of Object.entries(sub)) {
+                          if (!(k in pd)) pd[k] = v;
+                        }
                       }
                     }
-                    return Object.entries(pd).map(([k, v]) => (
-                      <div key={k} data-testid={`sales-drawer-field-${k}`}><b>{k.replace(/_/g, " ")}</b><br/>{String(v)}</div>
-                    ));
+                    // Phase 21 — split into "current" vs "legacy" keys per
+                    // product (or per transfer subtype). Legacy keys go into
+                    // a collapsible so old rows with dropped fields (e.g.
+                    // `category`, `fee_structure`, `coupon_rate_pct`) still
+                    // surface without cluttering the new drawer view.
+                    const product = drawerData.product;
+                    const subtype = drawerData.subtype;
+                    const okKeys = new Set([
+                      ...(subtype && CURRENT_TRANSFER_KEYS[subtype]
+                        ? CURRENT_TRANSFER_KEYS[subtype]
+                        : (CURRENT_PRODUCT_KEYS[product] || [])),
+                      ..._ALWAYS_VISIBLE_KEYS,
+                    ]);
+                    const currentEntries = [];
+                    const legacyEntries = [];
+                    for (const [k, v] of Object.entries(pd)) {
+                      if (okKeys.has(k)) currentEntries.push([k, v]);
+                      else                legacyEntries.push([k, v]);
+                    }
+                    return (
+                      <>
+                        {currentEntries.map(([k, v]) => (
+                          <div key={k} data-testid={`sales-drawer-field-${k}`}>
+                            <b>{k.replace(/_/g, " ")}</b><br/>{String(v)}
+                          </div>
+                        ))}
+                        {legacyEntries.length > 0 && (
+                          <details className="smifs-admin-legacy-fields"
+                                   data-testid="sales-drawer-legacy-fields"
+                                   style={{ gridColumn: "1 / -1", marginTop: 6 }}>
+                            <summary style={{ cursor: "pointer", color: "var(--smifs-fg-muted, #6e7a78)" }}>
+                              Legacy fields ({legacyEntries.length}) — captured before Phase 21 cleanup
+                            </summary>
+                            <div className="smifs-admin-detail-grid" style={{ marginTop: 6 }}>
+                              {legacyEntries.map(([k, v]) => (
+                                <div key={k} data-testid={`sales-drawer-legacy-${k}`}>
+                                  <b>{k.replace(/_/g, " ")}</b><br/>
+                                  {typeof v === "object" ? JSON.stringify(v) : String(v)}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </>
+                    );
                   })()}
                 </div>
                 <div className="smifs-admin-section">Submitted by</div>

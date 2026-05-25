@@ -232,3 +232,13 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 - P0 fix: KNOWLEDGE-intent fallback to legacy RAG when Phase 20 returns text-only refusal/no-tool — restored Phase 16 `vehicle_cta` emission for NCD/MF/PMS queries. Telemetry row written to `tool_calls` as `phase20_fallback_to_rag` for audit.
 - P0 fix: card payload normalization. `employee_card`/`client_card` now ship with `data:{...}` wrap matching FE convention. Idempotent — applies to both LLM-emitted and programmatic-fallback cards. `verified:true` defaulted (adapter-sourced = attested).
 - Verified: PURPLE STYLE LABS NCD → `vehicle_cta` with `vehicle_id=cc602b11-9fc2-4bbd-b6af-df529f3bf719`. Client snapshot question → `client_card` with populated `data.ucc/client_name/pan/branch/state/rm_name`. Clamp gate still emits localised refusal. Phase 20 tool-shape questions still route through `TOOLS_PIPELINE` (no over-fallback).
+
+### Phase 21 — Sales-Ops field cleanup + SIF + extended ARN/APRN (2026-05-25 PM)
+- Field removals across MF / AIF / PMS / FD / Insurance / NCD per user walk-through (13 fields dropped in total).
+- Insurance: `product_type` flipped radio → free-text; added `premium_paying_term_years` + `premium_amount_inr`.
+- New product `sif` (Specialised Investment Fund) with vehicle-locked identity, conditional frequency, optional lock-in.
+- ARN Transfer simplified (dropped existing/new ARN codes + transfer date) and extended to AIF + SIF.
+- New PMS APRN Transfer subtype (`aprn_transfer`); admin pipeline filter went boolean → 3-way enum.
+- Old sales rows preserved; admin drawer surfaces dropped keys under "Legacy fields" collapsible.
+- BE acceptance: all 8 curl tests pass (catalog has 7 buckets including `sif`; MF+legacy fields silently drops; AIF/SIF/PMS transfer subtypes route correctly; SIF lumpsum+frequency rejected 422; Insurance free-text accepted; Insurance missing PPT rejected 422).
+- Docs: `SALES_OPS_PRODUCTS.md` Phase 21 section appended.

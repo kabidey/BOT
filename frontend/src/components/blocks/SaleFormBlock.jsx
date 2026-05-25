@@ -15,6 +15,7 @@ const PRODUCT_LABEL = {
   fd: "Fixed Deposit",
   insurance: "Insurance",
   ncd_primary: "NCD Primary Issue",
+  sif: "SIF",
 };
 
 const COMMON = [
@@ -28,11 +29,17 @@ const COMMON = [
   { key: "remarks",              label: "Remarks (optional)", type: "textarea" },
 ];
 
-// Phase 17.1 — AMC_OPTIONS retired. The MF `amc_name` field is now a
-// vehicle-locked text input (auto-filled + read-only on vehicle pick); the
-// deck is the source of truth and the previous static dropdown could not
-// represent every AMC the deck exposes.
-
+// Phase 21 — Field-cleanup pass + SIF + extended ARN/APRN transfer:
+//   • MF standard: dropped `folio_number`, `arn_distributor_code`.
+//   • AIF: dropped `category`, `drawdown_schedule`, `fund_manager`.
+//   • PMS: dropped `fee_structure`, `fixed_fee_pct`, `performance_fee_pct`.
+//   • FD: dropped `interest_rate_pct`.
+//   • Insurance: `product_type` flipped radio → free-text; added
+//     `premium_paying_term_years` + `premium_amount_inr`.
+//   • NCD Primary: dropped `coupon_rate_pct`, `tenure_years`.
+//   • NEW product `sif` (Specialised Investment Fund).
+// Old sales rows keep their dropped fields in Mongo `product_details` — the
+// admin drawer surfaces them under a "Legacy fields" collapsible.
 const PRODUCT_FIELDS = {
   mutual_fund: [
     { key: "amc_name",            label: "AMC", type: "text", required: true, lockedByVehicle: true },
@@ -42,35 +49,21 @@ const PRODUCT_FIELDS = {
     { key: "frequency",           label: "Frequency", type: "select",
       options: ["Monthly","Quarterly","Annually"],
       showIf: (v) => v.scheme_type && v.scheme_type !== "Lump sum" },
-    { key: "folio_number",        label: "Folio number (existing)", type: "text" },
-    { key: "arn_distributor_code",label: "ARN / Distributor code",  type: "text" },
   ],
   aif: [
     { key: "aif_name",                label: "AIF name", type: "text", required: true, lockedByVehicle: true },
-    { key: "category",                label: "Category", type: "radio", required: true,
-      options: ["Cat I", "Cat II", "Cat III"] },
     { key: "commitment_amount_inr",   label: "Commitment amount (₹)", type: "number", required: true, min: 0 },
-    { key: "drawdown_schedule",       label: "Drawdown schedule",   type: "textarea", required: true,
-      placeholder: "e.g. 100% upfront, OR phased over 3 years (40 / 30 / 30)" },
-    { key: "fund_manager",            label: "Fund manager", type: "text", required: true },
   ],
   pms: [
     { key: "pms_provider",        label: "PMS provider", type: "text", required: true, lockedByVehicle: true },
     { key: "strategy_name",       label: "Strategy name", type: "text", required: true, lockedByVehicle: true },
     { key: "corpus_inr",          label: "Corpus (₹)", type: "number", required: true, min: 5000000 },
-    { key: "fee_structure",       label: "Fee structure", type: "radio", required: true,
-      options: ["Fixed only", "Variable only", "Hybrid"] },
-    { key: "fixed_fee_pct",       label: "Fixed fee %", type: "number", step: 0.01, min: 0, max: 10,
-      showIf: (v) => v.fee_structure === "Fixed only" || v.fee_structure === "Hybrid" },
-    { key: "performance_fee_pct", label: "Performance fee %", type: "number", step: 0.01, min: 0, max: 50,
-      showIf: (v) => v.fee_structure === "Variable only" || v.fee_structure === "Hybrid" },
   ],
   fd: [
     { key: "issuer_name",      label: "Issuer (bank / NBFC)", type: "text", required: true, lockedByVehicle: true },
     { key: "issuer_type",      label: "Issuer type", type: "radio", required: true,
       options: ["Bank", "NBFC", "Corporate FD"] },
     { key: "tenure_months",    label: "Tenure (months)", type: "number", required: true, min: 1, max: 120 },
-    { key: "interest_rate_pct",label: "Interest rate (%)", type: "number", required: true, step: 0.01, min: 0, max: 15 },
     { key: "payout_frequency", label: "Payout frequency", type: "select", required: true,
       options: ["Monthly","Quarterly","Half-yearly","Annual","On maturity"] },
     { key: "fd_type",          label: "FD type", type: "radio", required: true,
@@ -78,11 +71,17 @@ const PRODUCT_FIELDS = {
   ],
   insurance: [
     { key: "carrier",          label: "Carrier", type: "text", required: true, lockedByVehicle: true, placeholder: "LIC, HDFC Life, …" },
-    { key: "product_type",     label: "Product type", type: "radio", required: true,
-      options: ["Term", "ULIP", "Endowment", "Money-back", "Health", "Annuity"] },
-    { key: "policy_term_years",label: "Policy term (years)", type: "number", required: true, min: 1, max: 50 },
+    // Phase 21 — free-text (was radio with 6 fixed options).
+    { key: "product_type",     label: "Product type", type: "text", required: true,
+      placeholder: "Term, ULIP, Endowment, Health, Annuity, Custom hybrid plan, …" },
+    { key: "policy_term_years",        label: "Policy term (years)", type: "number", required: true, min: 1, max: 50,
+      helper: "Total duration the policy stays in force." },
+    { key: "premium_paying_term_years",label: "Premium paying term (years)", type: "number", required: true, min: 1, max: 50,
+      helper: "Years the client actually pays premium (may be shorter than policy term)." },
     { key: "premium_frequency",label: "Premium frequency", type: "select", required: true,
       options: ["Single","Annual","Half-yearly","Quarterly","Monthly"] },
+    { key: "premium_amount_inr",label: "Premium amount (₹)", type: "number", required: true, min: 0,
+      helper: "Per-period premium — separate from the sum assured." },
     { key: "sum_assured_inr",  label: "Sum assured (₹)", type: "number", required: true, min: 0 },
   ],
   ncd_primary: [
@@ -98,15 +97,24 @@ const PRODUCT_FIELDS = {
       compute: (v) => (v && Number(v) > 0 && Number(v) % 1000 === 0)
         ? String(Math.floor(Number(v) / 1000)) : "—",
       helper: "Auto-computed (application amount ÷ ₹1,000)." },
-    { key: "coupon_rate_pct",        label: "Coupon rate (% p.a.)", type: "number",
-      required: true, min: 1, max: 20, step: 0.01 },
-    { key: "tenure_years",           label: "Tenure (years)", type: "number",
-      required: true, min: 1, max: 15 },
     { key: "interest_frequency",     label: "Interest payment frequency", type: "select",
       required: true,
       options: ["Monthly","Quarterly","Annual","Cumulative"] },
     { key: "asba_upi_reference",     label: "ASBA / UPI reference", type: "text",
       placeholder: "(optional)" },
+  ],
+  sif: [
+    { key: "sif_name",         label: "SIF name", type: "text", required: true, lockedByVehicle: true,
+      placeholder: "auto-filled from picked vehicle" },
+    { key: "strategy_theme",   label: "Strategy / theme", type: "text", required: true,
+      placeholder: "e.g. Long-Short Equity, Quant Multi-Cap, Sector Rotation" },
+    { key: "investment_type",  label: "Investment type", type: "radio", required: true,
+      options: ["Lump sum", "Staggered (SIP-equivalent)", "Open-ended subscription"] },
+    { key: "frequency",        label: "Frequency", type: "select",
+      options: ["Monthly","Quarterly","Annually"],
+      showIf: (v) => v.investment_type === "Staggered (SIP-equivalent)" },
+    { key: "lock_in_months",   label: "Lock-in period (months)", type: "number", min: 0, max: 120,
+      helper: "Optional. 0 if open-ended." },
   ],
 };
 
@@ -116,14 +124,7 @@ function todayPlus(days) {
   return d.toISOString().slice(0, 10);
 }
 
-// Phase 17 — auto-fill mapping: when a deck vehicle is picked, the
-// product-specific identity field(s) get pre-populated with `vehicle_name`
-// and then LOCKED (read-only) so a free-text override path can't reintroduce
-// off-deck submissions. See `backend/sales_api.create_sale` cross-type check.
-// Phase 17.1 — every "scheme/issuer/AMC/provider/carrier"-style identity field
-// that the deck row encompasses is in this list. The same `vehicle_name`
-// string is mirrored into each field; the deck doesn't expose a separate
-// provider/scheme split (vehicle_name IS the identity).
+// Phase 17 — auto-fill mapping. Phase 21 — added `sif`.
 const VEHICLE_AUTOFILL_BY_PRODUCT = {
   mutual_fund: ["amc_name", "scheme_name"],
   aif:         ["aif_name"],
@@ -131,24 +132,51 @@ const VEHICLE_AUTOFILL_BY_PRODUCT = {
   fd:          ["issuer_name"],
   insurance:   ["carrier"],
   ncd_primary: ["issuer_name"],
+  sif:         ["sif_name"],
 };
 
-// ARN Transfer field defs (kept in this file rather than `PRODUCT_FIELDS` so
-// the renderer can swap them in/out cleanly on toggle without polluting the
-// non-ARN MF flow).
-const ARN_FIELDS = [
-  { key: "existing_arn",            label: "Existing ARN code",  type: "text", required: true,
-    placeholder: "ARN-XXXXX or 4-7 alphanumeric" },
-  { key: "new_arn",                 label: "New ARN code",       type: "text", required: true,
-    placeholder: "ARN-XXXXX or 4-7 alphanumeric" },
-  { key: "folio_numbers",           label: "Folio number(s)",    type: "text", required: true,
+// ARN/APRN Transfer field defs. Phase 21 simplified MF ARN (dropped existing/
+// new ARN codes + transfer effective date) and added AIF/SIF/PMS variants.
+// All four sub-flows share the locked-identity-+-account-id-+-amount-+-remarks
+// shape so the renderer can swap them in/out cleanly on toggle.
+const ARN_FIELDS = [   // MF folio transfer
+  { key: "folio_numbers", label: "Folio number(s)", type: "text", required: true,
     placeholder: "comma-separated folios" },
-  { key: "amc_name",                label: "AMC name (locked)",  type: "text", required: true, lockedByVehicle: true },
-  { key: "scheme_name",             label: "Scheme name (locked)", type: "text", required: true, lockedByVehicle: true },
-  { key: "transfer_effective_date", label: "Transfer effective date", type: "date", required: true },
-  { key: "aum_inr",                 label: "AUM being transferred (₹)", type: "number", required: true, min: 1000 },
-  { key: "arn_remarks",             label: "Remarks (optional)", type: "textarea" },
+  { key: "amc_name",      label: "AMC name (locked)", type: "text", required: true, lockedByVehicle: true },
+  { key: "scheme_name",   label: "Scheme name (locked)", type: "text", required: true, lockedByVehicle: true },
+  { key: "aum_inr",       label: "AUM being transferred (₹)", type: "number", required: true, min: 1000 },
+  { key: "arn_remarks",   label: "Remarks (optional)", type: "textarea" },
 ];
+
+const AIF_ARN_FIELDS = [
+  { key: "aif_name",               label: "AIF name (locked)", type: "text", required: true, lockedByVehicle: true },
+  { key: "commitment_account_id",  label: "Commitment account ID", type: "text", required: true },
+  { key: "aum_inr",                label: "AUM being transferred (₹)", type: "number", required: true, min: 1000 },
+  { key: "arn_remarks",            label: "Remarks (optional)", type: "textarea" },
+];
+
+const SIF_ARN_FIELDS = [
+  { key: "sif_name",         label: "SIF name (locked)", type: "text", required: true, lockedByVehicle: true },
+  { key: "folio_account_id", label: "Folio / account ID", type: "text", required: true },
+  { key: "aum_inr",          label: "AUM being transferred (₹)", type: "number", required: true, min: 1000 },
+  { key: "arn_remarks",      label: "Remarks (optional)", type: "textarea" },
+];
+
+const PMS_APRN_FIELDS = [
+  { key: "pms_provider",         label: "PMS provider (locked)", type: "text", required: true, lockedByVehicle: true },
+  { key: "strategy_name",        label: "Strategy name (locked)", type: "text", required: true, lockedByVehicle: true },
+  { key: "portfolio_account_id", label: "Portfolio account ID", type: "text", required: true },
+  { key: "corpus_inr",           label: "Corpus being transferred (₹)", type: "number", required: true, min: 1000 },
+  { key: "aprn_remarks",         label: "Remarks (optional)", type: "textarea" },
+];
+
+// Which products expose which sub-flow toggle.
+const SUBFLOW_BY_PRODUCT = {
+  mutual_fund: { kind: "arn",  label: "ARN Transfer",  fields: ARN_FIELDS,     testidToggle: "mf-arn-transfer-toggle"   },
+  aif:         { kind: "arn",  label: "ARN Transfer",  fields: AIF_ARN_FIELDS, testidToggle: "aif-arn-transfer-toggle"  },
+  sif:         { kind: "arn",  label: "ARN Transfer",  fields: SIF_ARN_FIELDS, testidToggle: "sif-arn-transfer-toggle"  },
+  pms:         { kind: "aprn", label: "APRN Transfer", fields: PMS_APRN_FIELDS, testidToggle: "pms-aprn-transfer-toggle" },
+};
 
 export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }) {
   const product = (data && data.product) || "mutual_fund";
@@ -170,9 +198,14 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef(null);
 
-  // ARN Transfer toggle (MF only). When true, swap the body to ARN_FIELDS.
-  const [arnTransfer, setArnTransfer] = useState(false);
-  const isArnFlow = product === "mutual_fund" && arnTransfer;
+  // Sub-flow toggle (Phase 17 MF; Phase 21 extended to AIF/SIF/PMS). When
+  // active, swap the body to the appropriate transfer fields. `subFlowKind`
+  // mirrors the backend subtype: "arn" for MF/AIF/SIF, "aprn" for PMS.
+  const [transferActive, setTransferActive] = useState(false);
+  const subFlowDef = SUBFLOW_BY_PRODUCT[product] || null;
+  const isTransferFlow = !!(subFlowDef && transferActive);
+  const isArnFlow = isTransferFlow; // legacy alias (used in a few sites below)
+  const subFlowFields = subFlowDef ? subFlowDef.fields : [];
 
   // Fetch deck catalog once per session/product mount.
   useEffect(() => {
@@ -286,19 +319,17 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
         && values.expected_payment_date < values.expected_login_date) {
       e.expected_payment_date = "Must be on/after login date.";
     }
-    if (isArnFlow) {
-      // ARN-branch validation (existing non-ARN MF specifics are skipped).
-      for (const f of ARN_FIELDS) {
+    if (isTransferFlow) {
+      // Transfer-branch validation (product-specific transfer field set).
+      for (const f of subFlowFields) {
         if (f.required && (!values[f.key] || String(values[f.key]).trim() === "")) {
           e[f.key] = "Required.";
         }
       }
-      const ea = (values.existing_arn || "").toUpperCase();
-      const na = (values.new_arn || "").toUpperCase();
-      if (ea && !ARN_RE.test(ea)) e.existing_arn = "ARN must be 4-7 alphanumeric (optionally ARN-prefixed).";
-      if (na && !ARN_RE.test(na)) e.new_arn = "ARN must be 4-7 alphanumeric (optionally ARN-prefixed).";
-      if (ea && na && ea === na) e.new_arn = "New ARN must differ from existing ARN.";
-      if (values.aum_inr && Number(values.aum_inr) < 1000) e.aum_inr = "Min ₹1,000.";
+      // Per-flow numeric minimums.
+      const aum = values.aum_inr ?? values.corpus_inr;
+      if (subFlowDef.kind === "arn"  && values.aum_inr && Number(values.aum_inr) < 1000) e.aum_inr = "Min ₹1,000.";
+      if (subFlowDef.kind === "aprn" && values.corpus_inr && Number(values.corpus_inr) < 1000) e.corpus_inr = "Min ₹1,000.";
     } else {
       for (const f of productFields) {
         if (f.required && (f.showIf ? f.showIf(values) : true)
@@ -332,24 +363,27 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
         cleaned.amount_inr = n;
         cleaned.number_of_ncds = (n > 0 && n % 1000 === 0) ? Math.floor(n / 1000) : undefined;
       }
-      // Phase 17 — MF ARN-Transfer: pack the ARN-specific keys into a
-      // nested `arn_transfer_fields` object so the backend's
-      // `_validate_mf_arn` discriminator picks them up cleanly.
-      if (isArnFlow) {
-        cleaned.arn_transfer = true;
-        cleaned.arn_transfer_fields = {
-          existing_arn: (values.existing_arn || "").toUpperCase(),
-          new_arn: (values.new_arn || "").toUpperCase(),
-          folio_numbers: values.folio_numbers || "",
-          amc_name: values.amc_name || "",
-          scheme_name: values.scheme_name || "",
-          transfer_effective_date: values.transfer_effective_date || "",
-          aum_inr: Number(values.aum_inr || 0),
-          arn_remarks: values.arn_remarks || "",
-        };
-        // Mirror AUM into the common amount_inr so the common-block
-        // validation min ₹1,000 passes off the single ARN AUM input.
-        cleaned.amount_inr = Number(values.aum_inr || 0);
+      // Phase 17 / 21 — Transfer sub-flows. Pack the transfer-specific keys
+      // into a nested object (`arn_transfer_fields` for ARN family,
+      // `aprn_transfer_fields` for PMS) so the backend validators pick them
+      // up cleanly. AUM/Corpus is mirrored into the common `amount_inr`
+      // for the min ₹1,000 check.
+      if (isTransferFlow) {
+        const subKeys = subFlowFields.map((f) => f.key);
+        const subPayload = {};
+        for (const k of subKeys) subPayload[k] = values[k] ?? "";
+        // Coerce numeric fields.
+        if ("aum_inr"    in subPayload) subPayload.aum_inr    = Number(values.aum_inr || 0);
+        if ("corpus_inr" in subPayload) subPayload.corpus_inr = Number(values.corpus_inr || 0);
+        if (subFlowDef.kind === "arn") {
+          cleaned.arn_transfer = true;
+          cleaned.arn_transfer_fields = subPayload;
+          cleaned.amount_inr = Number(values.aum_inr || 0);
+        } else {
+          cleaned.aprn_transfer = true;
+          cleaned.aprn_transfer_fields = subPayload;
+          cleaned.amount_inr = Number(values.corpus_inr || 0);
+        }
       }
       const { data: resp } = await axios.post(`${API}/sales`, {
         form_type: product,
@@ -521,14 +555,15 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
       <div className="smifs-sale-form__section">Vehicle (from deck)</div>
       {renderPicker()}
 
-      {/* Phase 17 — MF ARN Transfer toggle (only on MF, only when a vehicle is picked). */}
-      {product === "mutual_fund" && selectedVehicle && (
-        <label className="smifs-sale-form__arn-toggle" data-testid="mf-arn-transfer-row">
-          <input type="checkbox" checked={arnTransfer}
-                 data-testid="mf-arn-transfer-toggle"
-                 onChange={(e) => setArnTransfer(e.target.checked)} />
+      {/* Phase 17 / 21 — Transfer sub-flow toggle (MF/AIF/SIF → ARN; PMS → APRN). */}
+      {subFlowDef && selectedVehicle && (
+        <label className={`smifs-sale-form__arn-toggle ${subFlowDef.kind === "aprn" ? "is-aprn" : ""}`}
+               data-testid={`${product}-${subFlowDef.kind}-transfer-row`}>
+          <input type="checkbox" checked={transferActive}
+                 data-testid={subFlowDef.testidToggle}
+                 onChange={(e) => setTransferActive(e.target.checked)} />
           <Repeat size={14} strokeWidth={2.25}/>
-          <span>This is an <strong>ARN Transfer</strong></span>
+          <span>This is an <strong>{subFlowDef.label}</strong></span>
         </label>
       )}
 
@@ -538,10 +573,10 @@ export default function SaleFormBlock({ data, sessionId, onSubmitted, disabled }
       </div>
 
       <div className="smifs-sale-form__section" data-testid="product-specifics-heading">
-        {isArnFlow ? "ARN Transfer details" : `${PRODUCT_LABEL[product]} specifics`}
+        {isTransferFlow ? `${subFlowDef.label} details` : `${PRODUCT_LABEL[product]} specifics`}
       </div>
       <div className="smifs-sale-form__grid">
-        {(isArnFlow ? ARN_FIELDS : productFields).map(renderField)}
+        {(isTransferFlow ? subFlowFields : productFields).map(renderField)}
       </div>
 
       <div className="smifs-sale-form__section">Commercials &amp; timeline</div>

@@ -41,10 +41,15 @@ VEHICLE_TYPE_TO_PRODUCT: Dict[str, str] = {
     "Insurance":  "insurance",
     "Mediclaim":  "insurance",
     "NCD":        "ncd_primary",
+    # Phase 21 — Specialised Investment Fund. The deck may emit either short
+    # form `SIF` or the long form depending on the source row.
+    "SIF":                            "sif",
+    "Specialised Investment Fund":    "sif",
+    "Specialized Investment Fund":    "sif",  # US/Br English variant tolerance
 }
 
 # Allowed product buckets (must match `sales_api.PRODUCTS`)
-PRODUCT_BUCKETS = ("mutual_fund", "aif", "pms", "fd", "insurance", "ncd_primary")
+PRODUCT_BUCKETS = ("mutual_fund", "aif", "pms", "fd", "insurance", "ncd_primary", "sif")
 
 CACHE_TTL_SECONDS = 60
 

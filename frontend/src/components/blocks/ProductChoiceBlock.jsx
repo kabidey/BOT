@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { TrendingUp, Briefcase, BarChart3, Landmark, Shield, FileText } from "lucide-react";
+import { TrendingUp, Briefcase, BarChart3, Landmark, Shield, FileText, Compass } from "lucide-react";
 
 /**
- * Phase 14 — Product picker (now 6 products as of Phase 15 — NCD Primary Issue).
+ * Phase 14 — Product picker. Phase 21 — extended to 7 tiles (added SIF).
  *
  * Props:
  *   data: { products?: [{id, label, subtitle, icon}] }
@@ -16,6 +16,8 @@ const DEFAULT_PRODUCTS = [
   { id: "insurance",   label: "Insurance",          icon: Shield     },
   { id: "ncd_primary", label: "NCD Primary Issue",  icon: FileText,
     subtitle: "Public issue NCD application" },
+  { id: "sif",         label: "SIF",                icon: Compass,
+    subtitle: "Specialised Investment Fund" },
 ];
 
 export default function ProductChoiceBlock({ data, onPick, disabled }) {

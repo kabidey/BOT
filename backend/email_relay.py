@@ -59,6 +59,7 @@ _PRODUCT_LABEL = {
     "fd": "Fixed Deposit",
     "insurance": "Insurance",
     "ncd_primary": "NCD Primary Issue",
+    "sif": "SIF",
 }
 _LEGACY_PRODUCT_ENV = {
     "mutual_fund": "TO_EMAIL_MUTUAL_FUND",
@@ -67,6 +68,7 @@ _LEGACY_PRODUCT_ENV = {
     "fd": "TO_EMAIL_FD",
     "insurance": "TO_EMAIL_INSURANCE",
     "ncd_primary": "TO_EMAIL_NCD_PRIMARY",
+    "sif": "TO_EMAIL_SIF",
 }
 
 # Phase 19 — 1-hour TTL chain cache. Key = employee_id (string).
@@ -125,11 +127,19 @@ def _ops_cc(cfg_ops: Optional[List[str]] = None) -> List[str]:
     return [a.strip().lower() for a in raw.split(",") if a.strip()]
 
 
-def _legacy_route_to(product: str) -> List[str]:
+def _legacy_route_to(product: str, subtype: Optional[str] = None) -> List[str]:
     """Legacy per-product TO fallback (used only when the submitter has no
     plaintext email — should be vanishingly rare with verified-employee
-    sessions, but keeps Phase 14 behaviour intact)."""
-    candidate = os.environ.get(_LEGACY_PRODUCT_ENV.get(product, ""), "").strip()
+    sessions, but keeps Phase 14 behaviour intact).
+
+    Phase 21 — optional `TO_EMAIL_PMS_APRN_TRANSFER` override routes PMS
+    APRN-transfer notifications to a dedicated mailbox if set.
+    """
+    candidate = ""
+    if subtype == "aprn_transfer" and product == "pms":
+        candidate = os.environ.get("TO_EMAIL_PMS_APRN_TRANSFER", "").strip()
+    if not candidate:
+        candidate = os.environ.get(_LEGACY_PRODUCT_ENV.get(product, ""), "").strip()
     if not candidate:
         candidate = os.environ.get("TO_EMAIL", "").strip()
     return [a.strip() for a in candidate.split(",") if a.strip()]
@@ -433,11 +443,25 @@ def _render_html(entry: Dict[str, Any]) -> str:
     )
     if details.get("arn_transfer"):
         arn = details.pop("arn_transfer", {}) or {}
-        for k in ("existing_arn", "new_arn", "folio_numbers", "amc_name",
-                  "scheme_name", "transfer_effective_date", "aum_inr", "arn_remarks"):
+        # Phase 21 — extended key list covers MF + AIF + SIF flavours. Legacy
+        # rows may still carry `existing_arn`/`new_arn`/`transfer_effective_date`
+        # — keep them in the loop so old email re-sends render the way they
+        # were captured.
+        for k in ("existing_arn", "new_arn", "folio_numbers",
+                  "amc_name", "scheme_name", "aif_name", "sif_name",
+                  "commitment_account_id", "folio_account_id",
+                  "transfer_effective_date", "aum_inr", "arn_remarks"):
             if k in arn:
                 details.setdefault(k, arn[k])
         details.setdefault("subtype", "ARN Transfer")
+    if details.get("aprn_transfer"):
+        # Phase 21 — PMS APRN Transfer.
+        aprn = details.pop("aprn_transfer", {}) or {}
+        for k in ("pms_provider", "strategy_name", "portfolio_account_id",
+                  "corpus_inr", "aprn_remarks"):
+            if k in aprn:
+                details.setdefault(k, aprn[k])
+        details.setdefault("subtype", "APRN Transfer")
     if entry.get("vehicle_name"):
         details.setdefault("deck_vehicle", entry["vehicle_name"])
     product_rows = "".join(_row(k.replace("_", " ").title(), v) for k, v in details.items())
@@ -505,12 +529,28 @@ def _build_subject(entry: Dict[str, Any]) -> str:
             f"[SMIFS Sales-Ops] NCD Primary Issue — {client_name} — "
             f"{_fmt_inr(amount)}"
         )
+    # Phase 17 / 21 — ARN Transfer family: MF / AIF / SIF use the
+    # `arn_transfer` subtype; product label changes the subject prefix.
     if entry.get("subtype") == "arn_transfer":
         client_name = (entry.get("client") or {}).get("client_name") or "unknown"
         arn = (entry.get("product_details") or {}).get("arn_transfer") or {}
         amount = arn.get("aum_inr") or entry.get("amount_inr")
+        product_label = {
+            "mutual_fund": "MF",
+            "aif":         "AIF",
+            "sif":         "SIF",
+        }.get(product, _PRODUCT_LABEL.get(product, product.title()))
         subject = (
-            f"[SMIFS Sales-Ops] MF — ARN Transfer — {client_name} — "
+            f"[SMIFS Sales-Ops] {product_label} — ARN Transfer — {client_name} — "
+            f"{_fmt_inr(amount)}"
+        )
+    # Phase 21 — PMS APRN Transfer (separate subtype).
+    if entry.get("subtype") == "aprn_transfer":
+        client_name = (entry.get("client") or {}).get("client_name") or "unknown"
+        aprn = (entry.get("product_details") or {}).get("aprn_transfer") or {}
+        amount = aprn.get("corpus_inr") or entry.get("amount_inr")
+        subject = (
+            f"[SMIFS Sales-Ops] PMS — APRN Transfer — {client_name} — "
             f"{_fmt_inr(amount)}"
         )
     return subject
@@ -566,7 +606,7 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
     # still receives the notification (rare; verified-employee flow gives
     # us a plaintext work email almost always).
     if not routing["to"]:
-        legacy = _legacy_route_to(product)
+        legacy = _legacy_route_to(product, entry.get("subtype"))
         if legacy:
             routing["to"] = legacy
             routing["errors"] = (routing.get("errors") or []) + ["legacy_to_used"]

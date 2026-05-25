@@ -228,3 +228,66 @@ this bucket" instead of a silent absence of stars. On the current deck:
 upstream SMIFS Knowledge API currently flags 2 vehicles as `isFocused` in
 the entire 168-vehicle corpus (1 AIF + 1 NCD). Worth flagging to Sales-Ops /
 the Knowledge API owners.
+
+---
+
+## Phase 21 — Field cleanup + SIF + extended ARN/APRN transfer (May 2026)
+
+### Removed fields (existing products)
+- **mutual_fund**: `folio_number`, `arn_distributor_code`
+- **aif**: `category`, `drawdown_schedule`, `fund_manager`
+- **pms**: `fee_structure`, `fixed_fee_pct`, `performance_fee_pct`
+- **fd**: `interest_rate_pct`
+- **insurance** — `product_type` enum dropped (still REQUIRED, now free-text — admin captures whatever bespoke product label the rep types)
+- **ncd_primary**: `coupon_rate_pct`, `tenure_years`
+
+Old rows keep these keys in Mongo `product_details`; admin drawer renders them under a "Legacy fields" collapsible (`SalesPipelineTab.jsx`).
+
+### Added fields (existing products)
+- **insurance**: `premium_paying_term_years` (number, 1-50), `premium_amount_inr` (number ≥ 0). PPT is the number of years the client actually pays premium — may be shorter than the policy term.
+
+### MF ARN Transfer sub-flow simplified
+Dropped `existing_arn`, `new_arn`, `transfer_effective_date`. The sub-flow is now a thin folio-transfer report with `folio_numbers` + `amc_name` (locked) + `scheme_name` (locked) + `aum_inr` + `arn_remarks`. Subtype key remains `arn_transfer` for back-compat.
+
+### NEW product — SIF (Specialised Investment Fund)
+- **Bucket key**: `sif` (canonical short slug — matches the `fd`/`pms` style)
+- Vehicle-type strings the deck-to-bucket mapper recognises: `SIF`, `Specialised Investment Fund`, `Specialized Investment Fund`
+- Vehicle autofill: `sif_name`
+- Required fields: `sif_name`, `strategy_theme`, `investment_type`
+- Optional fields: `frequency`, `lock_in_months`
+- Conditional: `frequency` allowed ONLY when `investment_type == "Staggered (SIP-equivalent)"`; submitting `frequency` with a Lump-sum or Open-ended investment_type returns 422.
+
+### Extended ARN Transfer (AIF + SIF) — same `arn_transfer` subtype
+Toggle exposed on AIF and SIF forms (same "Repeat" pattern as MF). Backend validators:
+- `_validate_aif_arn` — captures `aif_name` (locked) + `commitment_account_id` + `aum_inr` + `arn_remarks`
+- `_validate_sif_arn` — captures `sif_name` (locked) + `folio_account_id` + `aum_inr` + `arn_remarks`
+
+Email subject for AIF/SIF transfers: `[SMIFS Sales-Ops] AIF — ARN Transfer — <client> — ₹<aum>` / `[SMIFS Sales-Ops] SIF — ARN Transfer — <client> — ₹<aum>`.
+
+### NEW subtype — APRN Transfer (PMS only)
+APRN = APMI Registration Number. PMS gets its own toggle labelled "APRN Transfer" with subtype `aprn_transfer` so admin can route + filter it independently.
+- Validator: `_validate_pms_aprn` — `pms_provider` (locked) + `strategy_name` (locked) + `portfolio_account_id` + `corpus_inr` + `aprn_remarks`
+- Email subject: `[SMIFS Sales-Ops] PMS — APRN Transfer — <client> — ₹<corpus>`
+- Optional env override: `TO_EMAIL_PMS_APRN_TRANSFER` — routes APRN sales to a dedicated mailbox when set
+- Admin pipeline pill: muted neutral (`smifs-admin-pill--aprn` — uses `--smifs-canvas-soft` bg + `--smifs-ink-muted` text + `--smifs-hairline` border, all theme vars)
+- Admin pipeline filter: 3-way enum (`""` / `"arn"` / `"aprn"`) — was a boolean ARN-only checkbox
+
+### Updated bucket-key convention table
+
+| Deck `vehicle_type`             | Bucket key      | Frontend label         |
+|--------------------------------|-----------------|------------------------|
+| `MF`                           | `mutual_fund`   | Mutual Fund            |
+| `AIF`                          | `aif`           | AIF                    |
+| `PMS`                          | `pms`           | PMS                    |
+| `FD`                           | `fd`            | Fixed Deposit          |
+| `Insurance` / `Mediclaim`      | `insurance`     | Insurance              |
+| `NCD`                          | `ncd_primary`   | NCD Primary Issue      |
+| `SIF` / `Specialised Investment Fund` | **`sif`** | SIF                    |
+
+### Unknown fields posted to `/api/sales`
+The validator iterates the schema's `req` + `optional` keys. Extra keys (e.g. an old client posting `folio_number` after Phase 21) are silently dropped — they do NOT 422. This keeps old client builds compatible during rollout. Documented here as the canonical behaviour.
+
+### Non-regression
+- COMMON block untouched.
+- Existing `sales_entries` rows unchanged in Mongo.
+- Phase 16/17/18/19/20 surfaces unchanged.
