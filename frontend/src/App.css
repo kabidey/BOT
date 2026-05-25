@@ -745,6 +745,162 @@ body {
 }
 .smifs-embed-close:hover { background: rgba(255, 255, 255, 0.18); }
 
+/* ---------------- Phase 23.2 — Light-mode contrast pass on `.smifs-shell--embed` ---------------
+ * The base `:root` ink tokens (`--ink: #ecf3ef`, `--ink-muted: #a4c4b4`,
+ * `--ink-dim: #6e8b7c`) are calibrated for the deep-green dark surface on `/`.
+ * Inheriting them into the LIGHT embed body (#FFFFFF) produces ghost-pale
+ * text that fails WCAG AA. Phase 23.2 introduces a complete light-mode token
+ * override scoped exclusively to `.smifs-shell--embed` — the dark main `/`
+ * route is untouched.
+ *
+ * Contrast guarantees on white (#FFFFFF):
+ *   --ink        #0f172a   slate-900 → 19.6 : 1   (AAA)
+ *   --ink-muted  #475569   slate-600 →  7.5 : 1   (AAA)
+ *   --ink-dim    #64748b   slate-500 →  4.9 : 1   (AA — placeholder / disclaimer floor)
+ *
+ * The dark header retains its existing green surface; we re-light the text
+ * for elements *inside* `.smifs-header` so they stay bright on dark. */
+.smifs-shell--embed {
+  --ink:         #0f172a;
+  --ink-muted:   #475569;
+  --ink-dim:     #64748b;
+  --muted:       #64748b;
+  --line:        #e2e8f0;
+  --line-strong: #cbd5e1;
+  color: var(--ink);
+}
+
+/* Header lives on the dark-green panel — restore bright tokens locally. */
+.smifs-shell--embed .smifs-header {
+  /* Re-establish the dark-surface tokens just for header descendants so the
+   * brand title / subtitle / icon buttons stay readable on green. */
+  --ink:       #ffffff;
+  --ink-muted: rgba(255, 255, 255, 0.82);
+  --ink-dim:   rgba(255, 255, 255, 0.66);
+  color: #ffffff;
+}
+.smifs-shell--embed .smifs-header .smifs-title,
+.smifs-shell--embed .smifs-header h1 { color: #ffffff; }
+.smifs-shell--embed .smifs-header .smifs-subtitle { color: rgba(255, 255, 255, 0.82); }
+
+/* Bot message bubble — explicit light surface so the agent reply is readable.
+ * Base rule uses `background: rgba(255,255,255,0.025)` (invisible on white). */
+.smifs-shell--embed .smifs-msg--bot .smifs-msg-bubble,
+.smifs-shell--embed .smifs-msg-bubble {
+  background: #f1f5f9;            /* slate-100 */
+  border-color: #e2e8f0;
+  color: #0f172a;                  /* slate-900 */
+}
+.smifs-shell--embed .smifs-msg--bot .smifs-msg-bubble * { color: inherit; }
+
+/* User bubble — keep the green-accent tint but readable text on it. */
+.smifs-shell--embed .smifs-msg--user .smifs-msg-bubble {
+  background: linear-gradient(180deg, rgba(9, 140, 98, 0.10), rgba(9, 140, 98, 0.05));
+  border-color: rgba(9, 140, 98, 0.35);
+  color: #0f172a;
+}
+.smifs-shell--embed .smifs-msg--user .smifs-msg-bubble * { color: inherit; }
+
+/* "ADVISOR" / "YOU" speaker pill above each bubble. */
+.smifs-shell--embed .smifs-msg-meta { color: var(--ink-muted); }
+.smifs-shell--embed .smifs-msg--user .smifs-msg-meta { color: var(--smifs-green); }
+.smifs-shell--embed .smifs-msg-model { color: var(--ink-dim); }
+
+/* Error bubble — keep red, but darken text for readability. */
+.smifs-shell--embed .smifs-msg--error .smifs-msg-bubble {
+  background: #fef2f2;
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #7f1d1d;
+}
+
+/* Composer placeholder — was pale-green-on-white, now slate-500 (AA on white). */
+.smifs-shell--embed .smifs-input,
+.smifs-shell--embed textarea.smifs-input {
+  color: #0f172a;
+}
+.smifs-shell--embed .smifs-input::placeholder,
+.smifs-shell--embed textarea.smifs-input::placeholder {
+  color: #64748b;
+  opacity: 1;                     /* Firefox dims placeholders by default */
+}
+
+/* Footer disclaimer + Markdown link text in chat surface. */
+.smifs-shell--embed .smifs-footer { color: var(--ink-dim); }
+.smifs-shell--embed .smifs-link   { color: var(--smifs-green-deep, #066b4a); }
+
+/* LocaleChoiceBlock — light card surface + readable unselected chips. */
+.smifs-shell--embed .smifs-locale-choice {
+  background: #f8fafc;
+  border-color: var(--line);
+}
+.smifs-shell--embed .smifs-locale-choice__head { color: var(--ink); }
+.smifs-shell--embed .smifs-locale-choice__chip {
+  color: #0f172a;
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+.smifs-shell--embed .smifs-locale-choice__chip:hover {
+  border-color: var(--smifs-green);
+  background: rgba(9, 140, 98, 0.06);
+}
+.smifs-shell--embed .smifs-locale-choice__chip.is-picked {
+  background: var(--smifs-green);
+  color: #ffffff;
+  border-color: var(--smifs-green);
+}
+.smifs-shell--embed .smifs-locale-choice__foot { color: var(--ink-dim); }
+
+/* Header inline locale globe trigger (dark header) stays bright. */
+.smifs-shell--embed .smifs-locale-trigger {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+.smifs-shell--embed .smifs-locale-trigger:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+/* Citations + grounded badges inside chat surface. */
+.smifs-shell--embed .smifs-cite-sep { color: var(--ink-dim); }
+.smifs-shell--embed .smifs-cite-sec { color: var(--ink-muted); }
+.smifs-shell--embed .smifs-grounded--off { color: var(--ink-dim); }
+
+/* Form inputs that appear inside chat (PAN/UCC/email forms). */
+.smifs-shell--embed .smifs-form-input,
+.smifs-shell--embed input.smifs-form-input,
+.smifs-shell--embed select.smifs-form-input {
+  background: #ffffff;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+.smifs-shell--embed .smifs-form-input::placeholder { color: var(--ink-dim); opacity: 1; }
+.smifs-shell--embed select.smifs-form-input option {
+  background: #ffffff;
+  color: var(--ink);
+}
+
+/* "Start new conversation" pill in footer — was using --ink-muted on dark,
+ * needs an outline-style dark version for the light embed surface. */
+.smifs-shell--embed .smifs-new-conv {
+  color: var(--smifs-green-deep, #066b4a);
+  border-color: var(--smifs-green);
+  background: rgba(9, 140, 98, 0.06);
+}
+.smifs-shell--embed .smifs-new-conv:hover {
+  background: rgba(9, 140, 98, 0.12);
+}
+
+/* Header button row safety — guarantee no overlap on narrow phones. The
+ * three icon buttons (+, language globe, X) sit inside the header bar. */
+.smifs-shell--embed .smifs-header { column-gap: 8px; }
+@media (max-width: 380px) {
+  .smifs-shell--embed .smifs-header .smifs-locale-trigger { padding: 0 8px; }
+  .smifs-shell--embed .smifs-header .smifs-locale-trigger .smifs-locale-trigger-label { display: none; }
+}
+
+/* ---------------- /Phase 23.2 ---------------- */
+
 .smifs-msg--streaming .smifs-msg-meta { opacity: 0.85; }
 
 
