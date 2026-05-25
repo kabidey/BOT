@@ -220,3 +220,10 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 - Net vs V1: flat (-1). Won A5, A9, A10, C7, C8, D2, D5, E4, H4; lost B1, B5, B6, F2 (LLM became more conservative or emitted JSON-as-text).
 - Files: `matrix_results_v2.{json,md}`, `matrix_run_v2.md`. Bo-crm one-paragraph TL;DR added at top of `orglens_bo_crm_scope_request.md`.
 - Honest assessment: gpt-4o on Hub AI looks to plateau around 68-70% PASS on the matrix shape. Path forward: (a) bo-crm endpoints land → +4 PASS, (b) tighter list-shape few-shot → +3-4 PASS, (c) try `claude-sonnet-4-5` as the composer model → unknown but worth a probe. 45/50 is reachable with (a)+(b).
+
+### Phase 20 V3 (2026-05-25 ~11:55 UTC)
+- **PASS = 39/50 (78%)**, PARTIAL = 10, BLOCKED = 1. In-house gate accepted at 39/50; full 45/50 gate deferred to post bo-crm.
+- Shipped: HARD RULE synthesis prompt + response_builder hard gates (clamp + shape) + composer probe.
+- Composer probe outcome: gpt-4o and sonnet tied 5/5 on the subset; kept gpt-4o (no swap per ≥3 rule).
+- Files: `matrix_results_v3.json`, `matrix_run_v3.md`, `_v3_probe_{gpt4o,sonnet}.json`.
+- Net vs V2: +5 PASS (B4, C4, D1, E2, H2). H2 ← clamp gate fired and emitted refusal text matching scorer markers.

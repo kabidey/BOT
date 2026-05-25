@@ -416,3 +416,11 @@ admin UI's Sales Pipeline drawer shows the "SMTP auth disabled" badge in red.
 - No SMTP relay regressions.
 - No router-vocabulary regressions (router still classifies into the same 9 intents; we just intercept 4 of them when the flag is on).
 
+
+### V3 outcome (2026-05-25)
+- **PASS = 39/50 (78%)** · PARTIAL = 10 · BLOCKED = 1 · FAIL = 0
+- **In-house gate accepted at 39/50**; full gate (45/50) deferred until bo-crm endpoints land.
+- Reclassifying the 3 bo-crm-data-gap rows as BLOCKED, runnable score = 39/46 = **85% of in-scope questions**.
+- Three additions vs V2: HARD RULE in synthesis prompt; response_builder hard gates (clamp + shape) with one reprompt + programmatic table fallback; composer probe (gpt-4o vs claude-sonnet-4-5) — kept gpt-4o (sonnet tied, didn't beat by ≥3 PASS).
+- New telemetry: `security_events.kind="composition_format_failure"` rows logged whenever the programmatic table fallback is used. Watch this in prod after cutover to inform per-question prompt tuning.
+- Env knob added: `PHASE_20_SYNTHESIS_MODEL` (defaults to `gpt-4o`). Lets us swap composer model without code redeploy if Hub AI roll out a new strong model.

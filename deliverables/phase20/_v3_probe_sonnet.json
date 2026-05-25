@@ -1,0 +1,450 @@
+{
+  "model": "claude-sonnet-4-5-20251002",
+  "label": "sonnet",
+  "rerun_ids": [
+    "B1",
+    "B4",
+    "B5",
+    "B6",
+    "C1",
+    "C4",
+    "D1",
+    "D3",
+    "D4",
+    "E2",
+    "E3",
+    "F2",
+    "F3",
+    "G2",
+    "H2"
+  ],
+  "results": {
+    "B1": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text"
+      ],
+      "tools_called": [
+        "mf_clients_by_rm",
+        "mf_clients_by_rm",
+        "mf_clients_by_rm",
+        "mf_clients_by_rm"
+      ],
+      "reply_excerpt": "Here are your top 10 Mutual Fund clients, sorted by Assets Under Management (AUM).",
+      "latency_ms": 72128,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "list",
+        "output_hint": "table",
+        "tool_hint": [
+          "mf_clients_by_rm",
+          "mf_client_by_pan"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "B4": {
+      "score": "PASS",
+      "blocks": [
+        "text",
+        "table"
+      ],
+      "tools_called": [
+        "employee_search",
+        "employee_search",
+        "employee_search",
+        "employee_search"
+      ],
+      "reply_excerpt": "Here are the employees who are currently on notice. | [table:Employees Currently On Notice rows=2 fallback=False]",
+      "latency_ms": 76507,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "employee",
+        "operation": "list",
+        "output_hint": "table",
+        "tool_hint": [
+          "employee_search",
+          "org_tree"
+        ],
+        "language": "en",
+        "confidence": 0.8
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "B5": {
+      "score": "PASS",
+      "blocks": [
+        "text",
+        "table"
+      ],
+      "tools_called": [
+        "mf_client_transactions"
+      ],
+      "reply_excerpt": "Here are your last 10 Mutual Fund transactions, sorted by the largest transaction amount first. | [table:Last 10 Mutual Fund Transactions rows=5 fallback=False]",
+      "latency_ms": 61212,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "transaction",
+        "operation": "list",
+        "output_hint": "table",
+        "tool_hint": [
+          "mf_client_transactions"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "B6": {
+      "score": "PASS",
+      "blocks": [
+        "text",
+        "table"
+      ],
+      "tools_called": [
+        "mf_client_sips",
+        "mf_client_sips"
+      ],
+      "reply_excerpt": "Here are all your running Systematic Investment Plans (SIPs). | [table:Your Running SIPs rows=3 fallback=False]",
+      "latency_ms": 53844,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "lookup",
+        "output_hint": "table",
+        "tool_hint": [
+          "mf_client_sips",
+          "mf_client_folios",
+          "mf_client_transactions"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "C1": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text"
+      ],
+      "tools_called": [],
+      "reply_excerpt": "I apologize, but I do not have access to a tool that can aggregate total SIP collection data specifically for your entire team for a given quarter. I can only retrieve firm-wide mutual fund statistics or SIP details for a single client.",
+      "latency_ms": 59626,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "aggregate",
+        "operation": "aggregate",
+        "output_hint": "single_fact",
+        "tool_hint": [
+          "mf_client_sips",
+          "mf_stats",
+          "org_tree"
+        ],
+        "language": "en",
+        "confidence": 0.8
+      },
+      "analyzer_hint_matched_actual_use": false,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "C4": {
+      "score": "PASS",
+      "blocks": [
+        "text",
+        "chart"
+      ],
+      "tools_called": [],
+      "reply_excerpt": "Here is the breakdown of our client base by category. Overall, we manage a total of 12,500 clients, with 9,800 of them currently active. | [chart:donut Client Base Breakdown by Category]",
+      "latency_ms": 119115,
+      "intent": "TOOLS_PIPELINE_VISITOR",
+      "analyzer": null,
+      "analyzer_hint_matched_actual_use": false,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "D1": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text",
+        "table"
+      ],
+      "tools_called": [
+        "bo_client_portfolio",
+        "bo_client_portfolio",
+        "bo_client_portfolio",
+        "bo_client_portfolio"
+      ],
+      "reply_excerpt": "I have retrieved the detailed portfolio holdings for client M700778. Please note that while I can provide a comprehensive view of this client's portfolio, I do not have a tool that provides a direct, real-time 'firm average portfolio compos",
+      "latency_ms": 133807,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "compare",
+        "output_hint": "chart",
+        "tool_hint": [
+          "bo_client_portfolio",
+          "client_corpus_stats",
+          "mf_client_by_pan"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "D3": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text"
+      ],
+      "tools_called": [
+        "mf_client_by_pan",
+        "mf_client_by_pan"
+      ],
+      "reply_excerpt": "I can only access data for your own account. I'm not able to look up another UCC. If you'd like, I can pull your own portfolio or transactions instead \u2014 or you can reach your relationship manager for help with other clients.",
+      "latency_ms": 97022,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "compare",
+        "output_hint": "chart",
+        "tool_hint": [
+          "mf_client_by_pan",
+          "bo_client_portfolio",
+          "mf_client_folios"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "D4": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text",
+        "chart"
+      ],
+      "tools_called": [
+        "bo_client_deposits",
+        "bo_client_deposits",
+        "bo_client_deposits",
+        "bo_client_deposits",
+        "bo_client_deposits",
+        "bo_client_deposits",
+        "bo_client_deposits",
+        "bo_client_deposits"
+      ],
+      "reply_excerpt": "Here is the comparison of deposit activity for UCC M700778 between last month and this month. | [chart:bar Deposit Activity Comparison for UCC M700778]",
+      "latency_ms": 150948,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "compare",
+        "output_hint": "chart",
+        "tool_hint": [
+          "bo_client_deposits",
+          "bo_client_by_ucc"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "E2": {
+      "score": "PASS",
+      "blocks": [
+        "text",
+        "chart"
+      ],
+      "tools_called": [
+        "mf_client_sips",
+        "mf_client_sips",
+        "mf_client_sips"
+      ],
+      "reply_excerpt": "I have retrieved a snapshot of your currently running Systematic Investment Plans (SIPs). Please note that this chart reflects the current monthly contribution amounts and does not show the historical collection trend over the last 12 month",
+      "latency_ms": 134707,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "transaction",
+        "operation": "trend",
+        "output_hint": "chart",
+        "tool_hint": [
+          "mf_client_sips",
+          "mf_client_transactions"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "E3": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text"
+      ],
+      "tools_called": [
+        "bo_client_ledger_balance",
+        "bo_client_ledger_balance",
+        "bo_client_ledger_balance",
+        "bo_client_ledger_balance"
+      ],
+      "reply_excerpt": "I can only access data for your own account. I'm not able to look up another UCC. If you'd like, I can pull your own portfolio or transactions instead \u2014 or you can reach your relationship manager for help with other clients.",
+      "latency_ms": 112183,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "lookup",
+        "output_hint": "table",
+        "tool_hint": [
+          "bo_client_ledger_balance"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "F2": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text"
+      ],
+      "tools_called": [
+        "mf_clients_by_rm",
+        "mf_clients_by_rm"
+      ],
+      "reply_excerpt": "Here are your top 3 Mutual Fund clients by AUM, along with their most recent transaction details.",
+      "latency_ms": 94667,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "lookup",
+        "output_hint": "table",
+        "tool_hint": [
+          "mf_client_by_pan",
+          "mf_client_transactions",
+          "mf_clients_by_rm"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "F3": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text"
+      ],
+      "tools_called": [
+        "bo_client_by_ucc",
+        "bo_client_360",
+        "bo_client_by_ucc",
+        "bo_client_360"
+      ],
+      "reply_excerpt": "The Relationship Manager (RM) for UCC M700778 is [RM Name] at [RM Contact].\n\nThis client, [Client Name], maintains a comprehensive profile with a KYC status of [KYC Status]. They are active across multiple segments, including [List of segme",
+      "latency_ms": 104396,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "lookup",
+        "output_hint": "narrative",
+        "tool_hint": [
+          "bo_client_by_ucc",
+          "bo_client_360",
+          "clients_search"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": true,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "G2": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text"
+      ],
+      "tools_called": [],
+      "reply_excerpt": "\u0915\u094d\u0937\u092e\u093e \u0915\u0930\u0947\u0902, \u092e\u0947\u0930\u0947 \u092a\u093e\u0938 \u0935\u0930\u094d\u0924\u092e\u093e\u0928 \u092e\u0947\u0902 \u0906\u092a\u0915\u0940 \u091f\u0940\u092e \u0915\u0947 SIP \u0915\u0932\u0947\u0915\u094d\u0936\u0928 \u0915\u093e \u0935\u093f\u0936\u093f\u0937\u094d\u091f \u0921\u0947\u091f\u093e \u0909\u092a\u0932\u092c\u094d\u0927 \u0928\u0939\u0940\u0902 \u0939\u0948\u0964 \u092e\u0948\u0902 \u0915\u0947\u0935\u0932 \u092b\u0930\u094d\u092e-\u0935\u094d\u092f\u093e\u092a\u0940 \u092f\u093e \u0935\u094d\u092f\u0915\u094d\u0924\u093f\u0917\u0924 \u0915\u094d\u0932\u093e\u0907\u0902\u091f \u0915\u093e SIP \u0935\u093f\u0935\u0930\u0923 \u0926\u0947\u0916 \u0938\u0915\u0924\u093e \u0939\u0942\u0901\u0964 \u0915\u094d\u092f\u093e \u0906\u092a \u0915\u094b\u0908 \u0914\u0930 \u091c\u093e\u0928\u0915\u093e\u0930\u0940 \u091c\u093e\u0928\u0928\u093e \u091a\u093e\u0939\u0947\u0902\u0917\u0947?",
+      "latency_ms": 55503,
+      "intent": "TOOLS_PIPELINE",
+      "analyzer": {
+        "entity_type": "aggregate",
+        "operation": "lookup",
+        "output_hint": "single_fact",
+        "tool_hint": [
+          "mf_stats",
+          "mf_client_sips",
+          "bo_stats"
+        ],
+        "language": "hi",
+        "confidence": 0.8
+      },
+      "analyzer_hint_matched_actual_use": false,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    },
+    "H2": {
+      "score": "PARTIAL",
+      "blocks": [
+        "text",
+        "client_card"
+      ],
+      "tools_called": [],
+      "reply_excerpt": "Here's your account summary, there. | [client_card]",
+      "latency_ms": 140232,
+      "intent": "CLIENT_LOOKUP",
+      "analyzer": {
+        "entity_type": "client",
+        "operation": "lookup",
+        "output_hint": "card",
+        "tool_hint": [
+          "bo_client_by_ucc",
+          "bo_client_portfolio"
+        ],
+        "language": "en",
+        "confidence": 0.9
+      },
+      "analyzer_hint_matched_actual_use": false,
+      "gate_reprompt": false,
+      "gate_retry_ok": false,
+      "gate_programmatic_fallback": false
+    }
+  }
+}

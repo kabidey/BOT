@@ -35,7 +35,8 @@ from . import response_builder as _rb
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_ROUNDS = 4  # hard cap on sequential tool-call rounds per turn
-_MAIN_MODEL = "gpt-4o"  # tool-composing model (per user choice — better at multi-tool composition than -mini)
+import os as _os
+_MAIN_MODEL = _os.environ.get("PHASE_20_SYNTHESIS_MODEL", "gpt-4o").strip() or "gpt-4o"
 _FINAL_JSON_FALLBACK_MODEL = "gpt-4o-mini"  # cheaper for the post-tool JSON synthesis
 
 
@@ -65,7 +66,16 @@ def _system_prompt(role: str, output_hint: str, language: str) -> str:
         "admin":    "Caller is an admin. Full surface.",
     }.get(role, "")
     return (
-        "You are SMIFS Lead Wealth-Engagement Agent. Use the provided OrgLens tools to answer.\n"
+        "You are SMIFS Lead Wealth-Engagement Agent. Use the provided OrgLens tools to answer.\n\n"
+        "═══════════════════════════════════════════════════════════════════\n"
+        "HARD RULES (non-negotiable; violation = malformed response, will be rejected and re-prompted)\n"
+        "═══════════════════════════════════════════════════════════════════\n"
+        f"• The Question Analyzer classified this turn's `output_hint` as: **{output_hint.upper()}**.\n"
+        " • If `output_hint=table` AND any tool result's `value` contains a list/array field with >=1 entries, you MUST emit a `table` block in `blocks[]`. A text block ALONE is FORBIDDEN in this case.\n"
+        " • If `output_hint=chart` AND tool data contains a time-series OR comparable-categories field, you MUST emit a `chart` block. A text block ALONE is FORBIDDEN in this case.\n"
+        " • If `output_hint=card` AND a tool returned a single employee or client record, you MUST emit `employee_card` or `client_card`. A text block ALONE is FORBIDDEN.\n"
+        " • There is NO EXCEPTION to the above three rules. If you genuinely have no data, say so in text — but if you have list/series/entity data, the structured block is REQUIRED.\n"
+        "═══════════════════════════════════════════════════════════════════\n\n"
         "STRICT DATA RULES (non-negotiable):\n"
         " • NEVER fabricate rows, names, UCCs, PANs, amounts, scrips, or any field values. Every cell in your reply must come from a tool result you can cite. If you didn't get data, say so.\n"
         " • If a tool returns ok=false (forbidden_role / not_in_rm_book / session_binding_missing / orglens_unavailable / execution_failed), DO NOT call it again with the same params and DO NOT pretend you got data. Compose a polite refusal/explanation in a `text` block.\n"
@@ -255,6 +265,7 @@ async def run(db, session_id: str, user_message: str,
     model_used = None
     saw_any_tool_calls = False
     prior_signatures: set = set()
+    accumulated_tool_payloads: List[Dict[str, Any]] = []  # parsed _compact_for_llm outputs (for hard gates)
     for round_idx in range(_MAX_TOOL_ROUNDS):
         # On the FIRST round, we let the model decide if it needs tools (tool_choice=auto).
         # Once we have at least one tool result, we still allow more tool calls but also
@@ -295,6 +306,12 @@ async def run(db, session_id: str, user_message: str,
                                                     "session_type": session_context.get("session_type"),
                                                     "identity": identity_obj or {}},
                                                    turn_id, tool_calls, prior_signatures)
+        # Capture parsed payloads for response_builder hard gates (table-shape + clamp).
+        for tm in tool_results:
+            try:
+                accumulated_tool_payloads.append(json.loads(tm.get("content") or "{}"))
+            except Exception:
+                pass
         messages.extend(tool_results)
     else:
         # Hit the cap — force a final JSON synthesis pass without tools.
@@ -339,6 +356,68 @@ async def run(db, session_id: str, user_message: str,
     blocks = _rb.build_blocks(final_text,
                                 output_hint=classification.get("output_hint", "narrative"),
                                 language=classification.get("language", "en"))
+
+    # 4a. HARD GATES (response_builder layer) — table-shape + clamp-shape.
+    # Returns possibly-rewritten blocks + a flag if the LLM needs a reprompt.
+    output_hint = classification.get("output_hint", "narrative")
+    language = classification.get("language", "en")
+    blocks, needs_reprompt, gate_reason = _rb.enforce_hard_gates(
+        blocks,
+        output_hint=output_hint,
+        tool_payloads=accumulated_tool_payloads,
+        language=language,
+    )
+    if needs_reprompt:
+        trace.append({"step": "hard_gate_reprompt", "reason": gate_reason})
+        # ONE retry: re-prompt the LLM with the explicit shape instruction.
+        gate_instr = (
+            "Your previous reply was rejected by the response gate: it was missing the required "
+            f"`{gate_reason}` block. Re-emit your answer with that structured block included. "
+            "Use the tool data you already retrieved this turn. Return ONLY the JSON object."
+        )
+        messages.append({"role": "system", "content": gate_instr})
+        try:
+            res3 = await _llm.call_with_tools(
+                messages=messages, tools=function_schemas,
+                temperature=0.0, max_tokens=1200, model=_MAIN_MODEL,
+                session_id=session_id, intent="tools_orchestrator_gate_retry",
+                response_format={"type": "json_object"}, tool_choice="none",
+                timeout=75.0,
+            )
+            choice3 = (res3.get("data") or {}).get("choices", [{}])[0]
+            retry_text = (choice3.get("message") or {}).get("content") or ""
+            retry_blocks = _rb.build_blocks(retry_text, output_hint=output_hint, language=language)
+            retry_blocks, still_needs, _r2 = _rb.enforce_hard_gates(
+                retry_blocks, output_hint=output_hint,
+                tool_payloads=accumulated_tool_payloads, language=language,
+            )
+            if not still_needs:
+                blocks = retry_blocks
+                trace.append({"step": "hard_gate_retry_ok"})
+            else:
+                # Final fallback: synthesise the structured block programmatically.
+                blocks = _rb.programmatic_fallback(
+                    retry_blocks, output_hint=output_hint,
+                    tool_payloads=accumulated_tool_payloads, language=language,
+                )
+                trace.append({"step": "hard_gate_programmatic_fallback",
+                              "reason": gate_reason})
+                try:
+                    import resilience as _r
+                    await _r.log_security_event(
+                        db, kind="composition_format_failure", session_id=session_id,
+                        role_state_value=role,
+                        user_message=f"output_hint={output_hint} reason={gate_reason} retry_still_missing=True",
+                        action="programmatic_fallback_used",
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            logger.exception("hard-gate retry failed; using programmatic fallback")
+            blocks = _rb.programmatic_fallback(
+                blocks, output_hint=output_hint,
+                tool_payloads=accumulated_tool_payloads, language=language,
+            )
 
     # 5. Image hook — generate a PNG for the two approved use cases.
     blocks = await _rb.maybe_generate_image_blocks(
