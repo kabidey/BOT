@@ -96,7 +96,7 @@
       "  background: " + bubbleBg + ";" +
       "  border: 2px solid " + bubbleAccent + ";" +
       "  display: flex; align-items: center; justify-content: center;" +
-      "  cursor: pointer; z-index: " + Z + ";" +
+      "  cursor: pointer; z-index: " + (Z + 1) + ";" +
       "  box-shadow: 0 12px 30px rgba(11, 27, 43, 0.35);" +
       "  transition: transform 0.18s, box-shadow 0.18s, opacity 0.18s;" +
       "  color: white; font-size: 26px; line-height: 1; user-select: none;" +
@@ -128,10 +128,12 @@
       "}" +
       ".m1-backdrop.is-open { opacity: 1; pointer-events: auto; }" +
 
-      /* ----- Iframe wrap — DESKTOP defaults (>1024px) ----- */
+      /* ----- Iframe wrap — DESKTOP defaults (>1024px). Anchored flush to the
+       *       bottom-right corner per Phase 23 spec. The bubble (z-index Z+1)
+       *       remains clickable above the panel as the toggle/minimize control. */
       ".m1-iframe-wrap {" +
-      "  position: fixed; bottom: 100px; " + iframePos +
-      "  width: 420px; height: 720px; max-height: calc(100dvh - 130px);" +
+      "  position: fixed; bottom: 24px; " + iframePos +
+      "  width: 420px; height: 720px; max-height: calc(100dvh - 48px);" +
       "  z-index: " + Z + ";" +
       "  border-radius: 20px; overflow: hidden;" +
       "  box-shadow: 0 22px 60px rgba(11, 27, 43, 0.32);" +
@@ -144,7 +146,15 @@
       "  opacity: 1; transform: translateY(0) scale(1);" +
       "  pointer-events: auto;" +
       "}" +
-      ".m1-iframe-wrap iframe { width: 100%; height: 100%; border: 0; display: block; background: " + bg + "; }" +
+      /* iframe inherits parent radius so the corners render rounded even when
+       * inspectors read the iframe node directly (defence-in-depth — the
+       * wrap's `overflow: hidden` already crops, but devtools probes that
+       * look only at the iframe see the expected radius too). */
+      ".m1-iframe-wrap iframe {" +
+      "  width: 100%; height: 100%; border: 0; display: block;" +
+      "  background: " + bg + ";" +
+      "  border-radius: inherit;" +
+      "}" +
 
       /* ----- Tablet (641-1024px) — slightly smaller floating panel ----- */
       "@media (max-width: 1024px) and (min-width: 641px) {" +
@@ -153,9 +163,10 @@
       "    bottom: max(20px, env(safe-area-inset-bottom, 20px)); " + iframePos +
       "    border-radius: 18px;" +
       "  }" +
+      "  .m1-iframe-wrap iframe { border-radius: 18px; }" +
       "}" +
 
-      /* ----- Mobile portrait (≤640px portrait OR small width any orientation excluding landscape phones handled below) ----- */
+      /* ----- Mobile portrait (≤640px portrait) — full-screen sheet ----- */
       "@media (max-width: 640px) and (orientation: portrait) {" +
       "  .m1-iframe-wrap {" +
       "    width: 100vw; width: 100dvw;" +
@@ -165,10 +176,11 @@
       "    transform: translateY(100%) scale(1);" +
       "  }" +
       "  .m1-iframe-wrap.is-open { transform: translateY(0); }" +
+      "  .m1-iframe-wrap iframe { border-radius: 0; }" +
       "  .m1-bubble { display: var(--m1-bubble-mobile-display, flex); }" +
       "}" +
 
-      /* ----- Mobile landscape — compact bottom-sheet (80dvh) so partner page still visible ----- */
+      /* ----- Mobile landscape — compact bottom-sheet (80dvh) ----- */
       "@media (max-width: 950px) and (orientation: landscape) {" +
       "  .m1-iframe-wrap {" +
       "    width: min(520px, 96vw); height: 80dvh;" +
@@ -178,6 +190,7 @@
       "    transform: translateY(40%);" +
       "  }" +
       "  .m1-iframe-wrap.is-open { transform: translateY(0); }" +
+      "  .m1-iframe-wrap iframe { border-radius: 16px; }" +
       "}" +
 
       /* ----- Narrow phones (≤360px, e.g. Galaxy Fold cover, iPhone SE) ----- */
