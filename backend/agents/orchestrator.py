@@ -731,12 +731,80 @@ async def run_turn(db, session_id: Optional[str], message: str,
                                           identity_obj=identity_obj,
                                           session_context=session_context)
                     if p20.get("ok"):
-                        out = {"blocks": p20["blocks"], "model": p20.get("model"),
-                                "intent_hint": "TOOLS_PIPELINE"}
-                        trace.append({"step": "phase20", "ok": True,
-                                       "classification": p20.get("classification"),
-                                       "tool_trace": p20.get("trace")})
-                        intent = "TOOLS_PIPELINE"
+                        # ---- KNOWLEDGE fallback to legacy RAG ----
+                        # Phase 20 has no tool for vehicle/NCD/MF prospectus
+                        # questions — those live in the RAG corpus. If we're
+                        # on the KNOWLEDGE intent AND the new pipeline produced
+                        # a text-only refusal (no structured tool data),
+                        # fall through so `_branch_knowledge` can answer with
+                        # citations + a vehicle_cta. This is the ESCAPE HATCH
+                        # for misclassified queries — most KNOWLEDGE turns
+                        # still get the new pipeline. See matrix_run_v3.md.
+                        p20_blocks = p20.get("blocks") or []
+                        p20_block_types = [b.get("type") for b in p20_blocks
+                                            if isinstance(b, dict)]
+                        p20_text = " ".join(
+                            (b.get("text") or "") for b in p20_blocks
+                            if isinstance(b, dict) and b.get("type") == "text"
+                        ).lower()
+                        # Did any tool actually get called?
+                        tool_rounds = sum(
+                            1 for tt in (p20.get("trace") or [])
+                            if isinstance(tt, dict)
+                            and tt.get("step") == "llm_round"
+                            and tt.get("tool_calls")
+                        )
+                        refusal_markers = ("don't have", "do not have",
+                                           "no tool", "outside my scope",
+                                           "unable to retrieve", "i can't help",
+                                           "cannot help", "couldn't find",
+                                           "could not find", "no data",
+                                           "not available", "no information")
+                        looks_like_refusal = (
+                            intent == "KNOWLEDGE"
+                            and set(p20_block_types) <= {"text"}
+                            and (tool_rounds == 0
+                                 or any(m in p20_text for m in refusal_markers))
+                        )
+                        if looks_like_refusal:
+                            trace.append({"step": "phase20_fallback_to_rag",
+                                           "reason": ("no_tools_called"
+                                                       if tool_rounds == 0
+                                                       else "refusal_markers"),
+                                           "tool_rounds": tool_rounds,
+                                           "classification": p20.get("classification"),
+                                           "tool_trace": p20.get("trace")})
+                            # Telemetry — log to tool_calls so we can audit
+                            # how often the fallback fires in prod.
+                            try:
+                                await db.tool_calls.insert_one({
+                                    "session_id": sid,
+                                    "turn_id": None,
+                                    "tool_name": "phase20_fallback_to_rag",
+                                    "ok": True,
+                                    "hit_cache": False,
+                                    "latency_ms": 0,
+                                    "error_kind": None,
+                                    "role": session_context.get("session_type") or "anon",
+                                    "params_redacted": {
+                                        "intent": intent,
+                                        "reason": ("no_tools_called"
+                                                    if tool_rounds == 0
+                                                    else "refusal_markers"),
+                                    },
+                                    "created_at": datetime.now(timezone.utc).isoformat(),
+                                })
+                            except Exception:
+                                logger.debug("phase20_fallback_to_rag telemetry write failed", exc_info=True)
+                            out = None  # fall through to _branch_knowledge
+                        else:
+                            out = {"blocks": p20_blocks,
+                                    "model": p20.get("model"),
+                                    "intent_hint": "TOOLS_PIPELINE"}
+                            trace.append({"step": "phase20", "ok": True,
+                                           "classification": p20.get("classification"),
+                                           "tool_trace": p20.get("trace")})
+                            intent = "TOOLS_PIPELINE"
                     else:
                         trace.append({"step": "phase20", "ok": False,
                                        "reason": p20.get("reason"),

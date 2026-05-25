@@ -127,3 +127,20 @@ Run at: 2026-05-25 12:15:25 UTC
 - Cutover gate (45/50): NOT MET. Gap of 6 PASS remaining.
 - The remaining 4 non-data-gap PARTIAL rows (B1, D3, D4, F2, F3) are composition complexity, not framework issues. They would need either (a) per-question few-shot examples in the system prompt, or (b) a re-think of the score rubric for chart-comparison cases where the underlying data is technically a single-row payload.
 - **Recommendation: ship at V3 (39/50)** as the in-house ceiling. The path to 45/50 is 4 PASS from bo-crm endpoints (E1, C1-ish, E3, G2) + 1-2 PASS from comparison-prompt tuning. No rollback is justified — V3 is +5 vs V2 (+4 vs V1), with stronger security guarantees from the clamp gate.
+---
+
+## V3.1 — Hotfix patch (2026-05-25 evening)
+
+### P0 fixes shipped after tester sweep
+
+**1. Phase 16 `vehicle_cta` regression (FIXED).** When the router lands on `KNOWLEDGE` and Phase 20 takes a swing at the question, the new pipeline often returns a generic refusal for vehicle/NCD/PMS/MF queries (no manifest tool covers those — they live in the RAG corpus). Pre-fix, Phase 20's text-only refusal won the turn and `_branch_knowledge` never ran, so the `vehicle_cta` emitter in `rag_agent.py::_build_vehicle_cta_blocks` was dead-on-arrival.
+
+Fix in `backend/agents/orchestrator.py` (Phase 20 intercept, lines ~724-820): added a **KNOWLEDGE-fallback escape hatch**. After Phase 20 returns ok=True, we inspect the block types and the tool-call trace. If the response is text-only AND (no tools were actually called OR the text contains refusal markers like "don't have a tool" / "outside my scope" / "unable to retrieve"), we set `out=None` and let control fall into `_branch_knowledge` as before. The Phase 20 trace is preserved under `step:"phase20_fallback_to_rag"` so we can audit how often it fires in prod, plus a telemetry row is written to `tool_calls` with `tool_name="phase20_fallback_to_rag"` for dashboarding.
+
+Verified with curl: "Tell me about PURPLE STYLE LABS NCD" now returns `blocks=[text, vehicle_cta, vehicle_cta]` with `vehicle_id=cc602b11-9fc2-4bbd-b6af-df529f3bf719` exactly as Phase 16 promised. Phase 20 tool-shape questions ("Show me MF clients top 10", "Firm total AUM") continue to route through `TOOLS_PIPELINE` — the fallback only fires when the new pipeline produces a refusal, not for normal data turns.
+
+**2. `employee_card` / `client_card` BE↔FE contract mismatch (FIXED).** The FE renderers (`EmployeeCardBlock.jsx`, `ClientCardBlock.jsx`) read `block.data.*`. Phase 20's earlier emission emitted card fields flat at the top level, so the DOM rendered an empty card.
+
+Fix in `backend/orglens_tools/response_builder.py`: added `_normalize_card_payload()` invoked from `_coerce_blocks()` on every `employee_card` / `client_card`. Flat fields are gathered under `data:{}` (idempotent — already-wrapped payloads pass through). `verified=true` is defaulted because adapter-sourced cards come from a verified OrgLens session. Also fixed the system-prompt schema docstrings and few-shot Example D to emit the `data:{...}` shape. Updated `programmatic_fallback()` to emit cards with the wrapped shape. Verified with a live curl: client_card now ships as `{type: "client_card", data: {ucc, client_name, pan, branch, state, rm_name, verified: true}}`.
+
+**Routing fallback note for future maintainers**: the `phase20_fallback_to_rag` path is the ESCAPE HATCH for misclassified knowledge queries. Most KNOWLEDGE turns still get the new pipeline tried first — fall-through only fires when Phase 20 itself signals "I have no tool for this." When tuning the manifest in future phases, prefer adding a corpus-shaped tool (RAG retrieval as a callable) over expanding the fallback heuristics. The current heuristic is intentionally generous so we don't strand any RAG-backed queries during the Phase 20 rollout.

@@ -267,18 +267,68 @@ def programmatic_fallback(blocks: List[Dict[str, Any]], *,
                     and isinstance(p.get("value"), dict)):
                 v = p["value"]
                 if "employee_code" in v or "designation" in v:
-                    out.append({"type": "employee_card", **{k: v.get(k) for k in
-                                                              ("employee_code", "employee_id",
-                                                               "name", "designation", "department",
-                                                               "email", "location", "manager")
-                                                              if v.get(k) is not None}})
+                    card = {"type": "employee_card", "data": {k: v.get(k) for k in
+                                                                ("employee_code", "employee_id",
+                                                                 "name", "designation", "department",
+                                                                 "email", "location", "manager",
+                                                                 "reports_to_name", "employment_status")
+                                                                if v.get(k) is not None},
+                            "fallback_synthesised": True}
+                    card["data"].setdefault("verified", True)
+                    out.append(card)
                 elif "ucc" in v or "client_name" in v:
-                    out.append({"type": "client_card", **{k: v.get(k) for k in
-                                                            ("ucc", "client_name", "pan",
-                                                             "branch", "state")
-                                                            if v.get(k) is not None}})
+                    card = {"type": "client_card", "data": {k: v.get(k) for k in
+                                                              ("ucc", "client_name", "pan",
+                                                               "branch", "state", "rm_name")
+                                                              if v.get(k) is not None},
+                            "fallback_synthesised": True}
+                    card["data"].setdefault("verified", True)
+                    out.append(card)
                 break
     return out or blocks
+
+
+_CARD_FIELD_KEYS = {
+    "employee_card": ("employee_id", "employee_code", "name", "first_name", "last_name",
+                      "designation", "department", "email", "manager", "manager_name",
+                      "reports_to_name", "reports_to_employee_id", "location",
+                      "employment_status", "verified", "phone", "join_date",
+                      "total_team_size", "direct_reports_count", "hod_name", "hrbp_name"),
+    "client_card": ("ucc", "client_name", "name", "pan", "branch", "branch_code",
+                     "state", "city", "email", "phone", "rm_name", "rm_email",
+                     "category", "verified", "kyc_status", "joined_date",
+                     "total_aum", "ledger_balance"),
+}
+
+
+def _normalize_card_payload(block: Dict[str, Any]) -> Dict[str, Any]:
+    """The frontend reads card content from `block.data.*`. LLMs (and our
+    older few-shot prompt) sometimes emit the card fields flat at the top
+    level. Wrap them under `data` so the FE renders correctly. Idempotent —
+    if `data` is already populated, leaves the block alone."""
+    t = block.get("type")
+    if t not in ("employee_card", "client_card"):
+        return block
+    existing_data = block.get("data") if isinstance(block.get("data"), dict) else None
+    # If the LLM already wrapped its payload under `data` and that dict has
+    # meaningful keys, trust it.
+    if existing_data and any(k in existing_data for k in _CARD_FIELD_KEYS[t]):
+        return block
+    # Collect any flat fields from the block into `data`.
+    flat: Dict[str, Any] = {}
+    for k in _CARD_FIELD_KEYS[t]:
+        if k in block and block.get(k) is not None:
+            flat[k] = block[k]
+    # Merge with any partial `data` dict (flat fields take priority).
+    if existing_data:
+        merged = {**existing_data, **flat}
+    else:
+        merged = flat
+    # Default `verified=True` for adapter-sourced cards (the data came from
+    # OrgLens behind a verified session — that's an attested record).
+    if "verified" not in merged:
+        merged["verified"] = True
+    return {"type": t, "data": merged}
 
 
 def _coerce_blocks(parsed: Dict[str, Any], output_hint: str) -> List[Dict[str, Any]]:
@@ -292,6 +342,9 @@ def _coerce_blocks(parsed: Dict[str, Any], output_hint: str) -> List[Dict[str, A
         t = b.get("type")
         if t not in _ALLOWED_TYPES:
             continue
+        # Normalize card payload (FE expects block.data.*).
+        if t in ("employee_card", "client_card"):
+            b = _normalize_card_payload(b)
         # Enforce row caps for inline tables.
         if t == "table":
             rows = b.get("rows") or []

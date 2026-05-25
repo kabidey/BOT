@@ -89,8 +89,8 @@ def _system_prompt(role: str, output_hint: str, language: str) -> str:
         " - {type:'chart', kind:'line|bar|pie|donut|area|sparkline', title, x_key, y_keys:[...], data:[{...}], max_slices:7?}\n"
         " - {type:'image', src:'/api/charts/<id>.png', alt:'...', width, height}  (only if you've been told an image will be generated)\n"
         " - {type:'download', title, format:'csv|json', url, row_count, size_bytes}\n"
-        " - {type:'employee_card', employee_id, name, designation, department, email, manager, location}\n"
-        " - {type:'client_card', ucc, client_name, pan, branch, state}\n\n"
+        " - {type:'employee_card', data:{employee_id, name, designation, department, email, manager, location, employment_status, verified}}\n"
+        " - {type:'client_card', data:{ucc, client_name, pan, branch, state, rm_name, verified}}\n\n"
         "FORMAT-PICKING DECISION TREE (apply IN ORDER, take the FIRST that matches):\n"
         " 1. Tool list response with >=2 rows OR user asked for 'list / all / show / top N / which': USE `table` block.\n"
         " 2. User compared >=2 named items (compare X vs Y / side-by-side / X versus Y): USE `table` with X & Y as rows (2-row table).\n"
@@ -119,7 +119,7 @@ def _system_prompt(role: str, output_hint: str, language: str) -> str:
         '],\"summary\":\"Net positive month-on-month.\"}\n\n'
         "Example D — single entity profile → card (user: 'Who heads Wealth Mgmt?'):\n"
         '{\"blocks\":[\n'
-        '  {\"type\":\"employee_card\",\"employee_id\":\"SMWM-24011024\",\"name\":\"Awanish Chandra\",\"designation\":\"Head — Wealth Management\",\"department\":\"Wealth Mgmt — Mutual Funds\",\"email\":\"awanish.chandra@smifs.com\",\"location\":\"Mumbai\"},\n'
+        '  {\"type\":\"employee_card\",\"data\":{\"employee_id\":\"SMWM-24011024\",\"name\":\"Awanish Chandra\",\"designation\":\"Head — Wealth Management\",\"department\":\"Wealth Mgmt — Mutual Funds\",\"email\":\"awanish.chandra@smifs.com\",\"location\":\"Mumbai\",\"verified\":true}},\n'
         '  {\"type\":\"text\",\"text\":\"Awanish heads the Wealth Management vertical.\"}\n'
         '],\"summary\":\"Wealth Mgmt head identified.\"}\n\n'
         "Example E — clamped attempt → refusal (user: 'show me UCC X9999999 portfolio' as a client):\n"

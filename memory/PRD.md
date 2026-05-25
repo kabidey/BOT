@@ -227,3 +227,8 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 - Composer probe outcome: gpt-4o and sonnet tied 5/5 on the subset; kept gpt-4o (no swap per ≥3 rule).
 - Files: `matrix_results_v3.json`, `matrix_run_v3.md`, `_v3_probe_{gpt4o,sonnet}.json`.
 - Net vs V2: +5 PASS (B4, C4, D1, E2, H2). H2 ← clamp gate fired and emitted refusal text matching scorer markers.
+
+### Phase 20 V3.1 hotfix (2026-05-25 PM)
+- P0 fix: KNOWLEDGE-intent fallback to legacy RAG when Phase 20 returns text-only refusal/no-tool — restored Phase 16 `vehicle_cta` emission for NCD/MF/PMS queries. Telemetry row written to `tool_calls` as `phase20_fallback_to_rag` for audit.
+- P0 fix: card payload normalization. `employee_card`/`client_card` now ship with `data:{...}` wrap matching FE convention. Idempotent — applies to both LLM-emitted and programmatic-fallback cards. `verified:true` defaulted (adapter-sourced = attested).
+- Verified: PURPLE STYLE LABS NCD → `vehicle_cta` with `vehicle_id=cc602b11-9fc2-4bbd-b6af-df529f3bf719`. Client snapshot question → `client_card` with populated `data.ucc/client_name/pan/branch/state/rm_name`. Clamp gate still emits localised refusal. Phase 20 tool-shape questions still route through `TOOLS_PIPELINE` (no over-fallback).
