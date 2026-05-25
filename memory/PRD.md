@@ -213,3 +213,10 @@ auth flow.
 
 ### Non-regressions confirmed
 Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary changes.
+
+### Phase 20 V2 re-run (2026-05-25 11:11 UTC)
+- **PASS = 34/50 (68%)** · PARTIAL = 15 · FAIL = 0 · BLOCKED = 1 · Gate NOT MET
+- Three fixes shipped: visitor parent-orchestrator bypass, adapter clamp surfacing, few-shot composition (decision tree + 5 worked examples).
+- Net vs V1: flat (-1). Won A5, A9, A10, C7, C8, D2, D5, E4, H4; lost B1, B5, B6, F2 (LLM became more conservative or emitted JSON-as-text).
+- Files: `matrix_results_v2.{json,md}`, `matrix_run_v2.md`. Bo-crm one-paragraph TL;DR added at top of `orglens_bo_crm_scope_request.md`.
+- Honest assessment: gpt-4o on Hub AI looks to plateau around 68-70% PASS on the matrix shape. Path forward: (a) bo-crm endpoints land → +4 PASS, (b) tighter list-shape few-shot → +3-4 PASS, (c) try `claude-sonnet-4-5` as the composer model → unknown but worth a probe. 45/50 is reachable with (a)+(b).

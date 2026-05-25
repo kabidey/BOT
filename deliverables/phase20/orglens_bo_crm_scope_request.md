@@ -7,6 +7,12 @@
 
 ---
 
+## TL;DR (forward this paragraph to the OrgLens team)
+
+> Hi team — the SMIFS Wealth Advisor bot (X-API-Key id `smifs-wealth-bot-prod`, scope `directory.read + clients.read + mf.read`) is rolling out a dynamic tool-calling pipeline against `orglens.pesmifs.com/api/v1`. Five high-value chat questions are blocked because four endpoints don't exist yet on the `bo-crm` tag — specifically (1) `GET /mf/scheme/{scheme_code}/nav-history`, (2) `GET /mf/sip-collection-trend?rm_name=`, (3) `GET /bo/client/{ucc}/ledger-history`, and (4) `GET /clients/onboarding-trend`. These unblock NAV trend charts, RM SIP-book trends, ledger-balance time-series, and onboarding cadence reporting. Please either extend our existing X-API-Key with a `bo-crm.read` scope on these paths, or mint a service-account JWT (HTTPBearer) we can rotate. Full contract drafts in this doc; happy to jump on a 15-minute call to walk through the integration points.
+
+---
+
 ## 1. Context
 
 Phase 20 of the SMIFS Wealth-Engagement Agent (Lead Wealth Advisor chatbot) graduates the bot from 6 hard-coded API endpoints to a dynamic tool registry the LLM composes against on every turn. We exhaustively walked the live OrgLens OpenAPI spec at `https://orglens.pesmifs.com/api/v1/openapi.json` (35 endpoints, May 2026) and built 24 production-grade adapters covering:

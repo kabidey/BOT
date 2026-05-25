@@ -592,15 +592,68 @@ async def run_turn(db, session_id: Optional[str], message: str,
                   else "AUTH_CHALLENGE")
         trace.append({"step": "auth", "from": "awaiting_identifier", "to": ns})
     elif state == auth_agent.AWAIT_ROLE:
-        await _emit(emit_status, {"step": "auth", "label": "Identifying your role"})
-        out = await auth_agent.handle_role_response(db, sid, message)
-        new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
-        ns = new_row.get("auth_state")
-        intent = ("AUTH_PAN_REQUEST" if ns == auth_agent.AWAIT_PAN
-                  else "AUTH_CHALLENGE" if ns in (auth_agent.AWAIT_IDENT, auth_agent.AWAIT_ROLE)
-                  else "AUTH_NOT_FOUND" if ns == auth_agent.ANON
-                  else "AUTH_VERIFIED")
-        trace.append({"step": "auth", "from": "awaiting_role", "to": ns})
+        # Phase 20 — visitor escape hatch. If the user isn't picking a role
+        # but is asking a firm-wide aggregate question (e.g. "how many active
+        # clients does SMIFS have?"), don't blackhole them into the role
+        # challenge — try the visitor tool surface first. We keep the role
+        # gate intact: only visitor-allowed tools (firm_stats,
+        # client_corpus_stats, departments_list, locations_list,
+        # designations_list) are visible to this caller. If Phase 20 returns
+        # ok=false or empty, fall through to the original role challenge.
+        msg_l = (message or "").strip().lower()
+        # Quick keyword pre-filter — a real role-pick is short and contains
+        # one of the role words; anything longer is almost certainly a
+        # question the visitor wants answered.
+        is_role_pick = (
+            len(msg_l) < 25 and (
+                msg_l.startswith("employee") or msg_l.startswith("emp ")
+                or msg_l.startswith("client") or msg_l.startswith("visitor")
+                or "i am a client" in msg_l or "i am an employee" in msg_l
+                or "i'm a client" in msg_l or "i'm an employee" in msg_l
+                or "ucc" in msg_l[:8] or id_mod.extract_smifs_email(message)
+            )
+        )
+        p20_visitor_handled = False
+        if (not is_role_pick
+                and os.environ.get("PHASE_20_TOOLS_ENABLED", "false").lower() == "true"):
+            try:
+                from orglens_tools import orchestrator as _p20, registry as _p20reg
+                # Only worth attempting if SOME visitor-eligible tool exists.
+                if _p20reg.visible_to("visitor"):
+                    p20 = await _p20.run(db, sid, message,
+                                          session={"session_type": "visitor",
+                                                   "auth_state": auth_agent.ANON,
+                                                   "identity": None},
+                                          identity_obj=None,
+                                          session_context={"session_type": "visitor",
+                                                            "auth_state": auth_agent.ANON,
+                                                            "locale": (auth_row.get("locale") or "en")})
+                    blocks_have_content = (
+                        bool(p20.get("ok"))
+                        and any(b.get("type") in ("text", "table", "chart", "image",
+                                                    "employee_card", "client_card")
+                                for b in (p20.get("blocks") or []))
+                    )
+                    if blocks_have_content:
+                        out = {"blocks": p20["blocks"], "model": p20.get("model"),
+                                "intent_hint": "TOOLS_PIPELINE_VISITOR"}
+                        intent = "TOOLS_PIPELINE_VISITOR"
+                        trace.append({"step": "phase20_visitor_bypass", "ok": True,
+                                       "classification": p20.get("classification"),
+                                       "tool_trace": p20.get("trace")})
+                        p20_visitor_handled = True
+            except Exception:
+                logger.exception("Phase 20 visitor bypass failed (non-fatal)")
+        if not p20_visitor_handled:
+            await _emit(emit_status, {"step": "auth", "label": "Identifying your role"})
+            out = await auth_agent.handle_role_response(db, sid, message)
+            new_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
+            ns = new_row.get("auth_state")
+            intent = ("AUTH_PAN_REQUEST" if ns == auth_agent.AWAIT_PAN
+                      else "AUTH_CHALLENGE" if ns in (auth_agent.AWAIT_IDENT, auth_agent.AWAIT_ROLE)
+                      else "AUTH_NOT_FOUND" if ns == auth_agent.ANON
+                      else "AUTH_VERIFIED")
+            trace.append({"step": "auth", "from": "awaiting_role", "to": ns})
     else:
         # ---- Anonymous OR Verified. ----
         # Role-trigger detection ONLY for anonymous users — a VERIFIED user

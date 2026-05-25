@@ -212,6 +212,7 @@ async def execute(
     params = dict(params or {})
     binds = tool.get("binds_session") or {}
     bound_key = binds.get(role)
+    clamped_from: Optional[str] = None
     if bound_key:
         forced = _session_binding(session, bound_key, role)
         if not forced:
@@ -221,6 +222,7 @@ async def execute(
             return {"ok": False, "tool_name": tool_name, "error": "session_binding_missing"}
         if params.get(bound_key) and str(params[bound_key]) != str(forced):
             # LLM tried to use a different UCC/PAN — clamp + log a security event.
+            clamped_from = str(params[bound_key])
             try:
                 import resilience as _r
                 await _r.log_security_event(
@@ -260,9 +262,18 @@ async def execute(
         await _record(db, turn_id=turn_id, session_id=session_id, tool_name=tool_name,
                       params_redacted=_redact_params(params), latency_ms=latency_ms,
                       hit_cache=True, ok=True, error_kind=None, role=role)
-        return {"ok": True, "tool_name": tool_name, "value": cached["value"],
-                "cache_hit": True, "cache_tier": cached.get("tier"),
-                "latency_ms": latency_ms}
+        result = {"ok": True, "tool_name": tool_name, "value": cached["value"],
+                  "cache_hit": True, "cache_tier": cached.get("tier"),
+                  "latency_ms": latency_ms}
+        if clamped_from is not None:
+            result["clamped"] = True
+            result["clamped_from"] = clamped_from
+            result["clamped_to"] = str(params.get(bound_key))
+            result["clamp_note"] = ("The caller requested data for a different "
+                                     "identifier; the system silently substituted the "
+                                     "caller's own verified identifier. The data below "
+                                     "belongs to the caller, NOT to the identifier they asked about.")
+        return result
 
     # 5. live call to OrgLens (bypass `directory._shape_employee` to retain raw fields)
     url, qs = _params_to_path(tool["_path"], params)
@@ -312,5 +323,14 @@ async def execute(
     await _record(db, turn_id=turn_id, session_id=session_id, tool_name=tool_name,
                   params_redacted=_redact_params(params), latency_ms=latency_ms,
                   hit_cache=False, ok=True, error_kind=None, role=role)
-    return {"ok": True, "tool_name": tool_name, "value": raw,
-            "cache_hit": False, "latency_ms": latency_ms}
+    result = {"ok": True, "tool_name": tool_name, "value": raw,
+              "cache_hit": False, "latency_ms": latency_ms}
+    if clamped_from is not None:
+        result["clamped"] = True
+        result["clamped_from"] = clamped_from
+        result["clamped_to"] = str(params.get(bound_key))
+        result["clamp_note"] = ("The caller requested data for a different "
+                                 "identifier; the system silently substituted the "
+                                 "caller's own verified identifier. The data below "
+                                 "belongs to the caller, NOT to the identifier they asked about.")
+    return result
