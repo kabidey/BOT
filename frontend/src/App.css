@@ -1480,8 +1480,106 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   background: transparent; border: 1px solid var(--line); color: var(--ink-muted);
   padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
   transition: all 120ms ease;
+  display: inline-flex; align-items: center; gap: 6px;
 }
 .smifs-admin-btn-ghost:hover { color: var(--gold); border-color: var(--gold-deep); }
+.smifs-admin-btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Phase 19.2 — primary action button used by the SMTP / Email Relay tab */
+.smifs-admin-btn-primary {
+  background: rgba(9,140,98,0.22);
+  border: 1px solid rgba(9,140,98,0.55);
+  color: var(--gold-soft);
+  padding: 7px 14px; border-radius: 8px; font-size: 12px; cursor: pointer;
+  transition: all 120ms ease;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 600;
+}
+.smifs-admin-btn-primary:hover {
+  background: rgba(9,140,98,0.32);
+  border-color: rgba(9,140,98,0.85);
+  color: #fff;
+}
+.smifs-admin-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Phase 19.2 — Email Relay tab grid + test rows */
+.smifs-erelay-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin-top: 8px;
+}
+.smifs-erelay-grid label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 11px; color: var(--ink-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.smifs-erelay-grid input[type="text"],
+.smifs-erelay-grid input[type="number"],
+.smifs-erelay-grid input[type="password"] {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  text-transform: none; letter-spacing: 0;
+}
+.smifs-erelay-grid input:focus {
+  outline: none;
+  border-color: var(--gold-deep);
+  background: rgba(255,255,255,0.06);
+}
+.smifs-erelay-toggle {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  font-size: 12px !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  color: var(--ink) !important;
+  padding-top: 22px;
+}
+.smifs-erelay-toggle input { width: 14px; height: 14px; }
+.smifs-erelay-wide { grid-column: 1 / -1; }
+
+.smifs-erelay-test-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 4px;
+}
+.smifs-erelay-recipient {
+  flex: 1 1 280px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.smifs-erelay-recipient:focus {
+  outline: none;
+  border-color: var(--gold-deep);
+}
+.smifs-erelay-error {
+  background: rgba(224,122,110,0.10);
+  border: 1px solid rgba(224,122,110,0.30);
+  color: var(--danger);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+@media (max-width: 960px) {
+  .smifs-erelay-grid { grid-template-columns: 1fr; }
+  .smifs-erelay-toggle { padding-top: 0; }
+}
 .spin { animation: smifs-spin 1s linear infinite; }
 @keyframes smifs-spin { to { transform: rotate(360deg); } }
 

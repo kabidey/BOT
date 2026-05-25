@@ -85,8 +85,9 @@ _RECENT_ATTEMPTS_MAX = 25
 # ----------------------- helpers ---------------------------------------------
 
 def _mask_password_in(text: str) -> str:
-    """Defensive scrubber. We don't log the password ourselves, but if a
-    third-party traceback ever embeds it we mask before persisting.
+    """Defensive scrubber against the env-sourced password. Mongo-sourced
+    passwords are scrubbed via `_scrub_with(text, cfg['password'])` from
+    the active config dict (kept in-process only).
     """
     pw = os.environ.get("SMTP_PASSWORD") or ""
     if pw and pw in text:
@@ -94,14 +95,32 @@ def _mask_password_in(text: str) -> str:
     return text
 
 
+def _scrub_with(text: str, pwd: str) -> str:
+    """Phase 19.2 — scrub against the in-process plaintext password
+    (Mongo-sourced via `email_relay_config.get_smtp_config`)."""
+    out = text or ""
+    for candidate in (pwd, os.environ.get("SMTP_PASSWORD") or ""):
+        if candidate and candidate in out:
+            out = out.replace(candidate, "***")
+    return out
+
+
 def _is_configured() -> bool:
+    """Env-only configuration check (legacy fast-path). `send_sale_notification`
+    no longer calls this; it goes through `email_relay_config.get_smtp_config`
+    which honours the Mongo config when present."""
     return bool(
         os.environ.get("SMTP_HOST") and os.environ.get("SMTP_USER")
         and os.environ.get("SMTP_PASSWORD") and os.environ.get("FROM_EMAIL")
     )
 
 
-def _ops_cc() -> List[str]:
+def _ops_cc(cfg_ops: Optional[List[str]] = None) -> List[str]:
+    """Phase 19.2 — prefer the explicit cfg_ops (typically pulled from the
+    Mongo `app_config` doc) over the legacy env var. Falls back to env when
+    `cfg_ops` is None / empty (preserves Phase 14/19 behaviour)."""
+    if cfg_ops:
+        return [a.strip().lower() for a in cfg_ops if a and a.strip()]
     raw = os.environ.get("CC_OPS_FIXED", "")
     return [a.strip().lower() for a in raw.split(",") if a.strip()]
 
@@ -223,6 +242,7 @@ async def resolve_recipient_chain(
     db=None,
     *,
     force_refresh: bool = False,
+    ops_cc_override: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Public — returns a structured routing payload:
 
@@ -245,26 +265,46 @@ async def resolve_recipient_chain(
     the back-office still gets the email — and the failure is recorded in
     `security_events` (kind=`email_relay_hierarchy_unresolved`) when a `db`
     handle is provided.
+
+    Phase 19.2 — `ops_cc_override` lets the caller inject the fixed ops list
+    pulled from the Mongo `app_config` doc so the chain payload reflects the
+    UI-managed config rather than the legacy `CC_OPS_FIXED` env var.
     """
     employee_id = (employee_id or "").strip()
     if not employee_id:
         return {
             "employee_id": "",
             "to": [employee_email.lower()] if employee_email else [],
-            "cc": _ops_cc(),
+            "cc": _ops_cc(ops_cc_override),
             "chain": [],
-            "ops_cc": _ops_cc(),
+            "ops_cc": _ops_cc(ops_cc_override),
             "max_hops_reached": False,
             "cache_hit": False,
             "resolved_at": _iso_now(),
             "errors": ["no_employee_id"],
         }
 
-    # Cache lookup (1h TTL).
+    # Cache lookup (1h TTL). NOTE: cached payloads are tied to a specific
+    # ops_cc snapshot; if the ops list has changed we still serve the cache
+    # but refresh the `ops_cc`/`cc` fields below.
     if not force_refresh:
         hit = _CHAIN_CACHE.get(employee_id)
         if hit and hit[0] > _now_epoch():
             payload = {**hit[1], "cache_hit": True}
+            # Refresh ops_cc with the live override so a Mongo-config change
+            # propagates without waiting a full hour.
+            if ops_cc_override is not None:
+                live_ops = _ops_cc(ops_cc_override)
+                payload = dict(payload)
+                payload["ops_cc"] = live_ops
+                chain_emails = [c["email"] for c in payload.get("chain") or [] if c.get("email")]
+                seen = set(payload.get("to") or [])
+                cc_list: List[str] = []
+                for e in chain_emails + live_ops:
+                    if e and e not in seen:
+                        cc_list.append(e)
+                        seen.add(e)
+                payload["cc"] = cc_list
             return payload
 
     async with _CHAIN_LOCK:
@@ -285,7 +325,7 @@ async def resolve_recipient_chain(
         to_list = [submitter_email] if submitter_email else []
 
         chain_emails = [c["email"] for c in chain if c.get("email")]
-        ops = _ops_cc()
+        ops = _ops_cc(ops_cc_override)
         # De-dupe & strip the submitter from CC if it ever appears (defence).
         cc_list: List[str] = []
         seen_cc = set(to_list)
@@ -494,11 +534,31 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
     product = entry.get("product") or ""
     started_at = _iso_now()
 
+    # --- 0. resolve the active SMTP config (Mongo first, env fallback) ---
+    import email_relay_config as _cfg_mod
+    cfg = await _cfg_mod.get_smtp_config(db) if db is not None else None
+    if cfg is None and _is_configured():
+        # No db handle but env is wired — synthesize a legacy cfg so the rest
+        # of the function can be uniform.
+        cfg = {
+            "host": os.environ["SMTP_HOST"],
+            "port": int(os.environ.get("SMTP_PORT") or 587),
+            "starttls": (os.environ.get("SMTP_STARTTLS") or "true").lower() != "false",
+            "user": os.environ["SMTP_USER"],
+            "password": os.environ["SMTP_PASSWORD"],
+            "from_email": os.environ["FROM_EMAIL"],
+            "from_name": os.environ.get("FROM_NAME") or "SMIFS Sales-Ops",
+            "cc_ops_fixed": [a.strip().lower() for a in (os.environ.get("CC_OPS_FIXED") or "").split(",") if a.strip()],
+            "source": "env",
+        }
+    ops_cc_override = (cfg or {}).get("cc_ops_fixed") if cfg else None
+
     # --- 1. resolve TO + CC ---
     routing = await resolve_recipient_chain(
         employee_id=(employee.get("employee_id") or "").strip(),
         employee_email=(employee.get("email") or "").strip().lower() or None,
         db=db,
+        ops_cc_override=ops_cc_override,
     )
 
     # Legacy fallback: if the submitter genuinely has no resolvable email,
@@ -517,7 +577,7 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
     html = _render_html(entry)
 
     # --- 3. SMTP not configured → draft_only ---
-    if not _is_configured():
+    if cfg is None:
         draft_path = _write_draft(entry, html)
         logger.info("SMTP not configured — wrote draft for %s (recipients=%s)",
                     submission_id, len(flat_recipients))
@@ -564,8 +624,7 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
     msg = EmailMessage()
     msg["Subject"] = _build_subject(entry)
     msg["From"] = formataddr(
-        (os.environ.get("FROM_NAME") or "SMIFS Sales-Ops",
-         os.environ["FROM_EMAIL"]),
+        (cfg.get("from_name") or "SMIFS Sales-Ops", cfg["from_email"]),
     )
     msg["To"] = ", ".join(routing["to"])
     if routing["cc"]:
@@ -576,11 +635,11 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
     )
     msg.add_alternative(html, subtype="html")
 
-    smtp_host = os.environ["SMTP_HOST"]
-    smtp_port = int(os.environ.get("SMTP_PORT") or 587)
-    smtp_starttls = (os.environ.get("SMTP_STARTTLS") or "true").lower() != "false"
-    smtp_user = os.environ["SMTP_USER"]
-    smtp_password = os.environ["SMTP_PASSWORD"]  # NEVER log
+    smtp_host = cfg["host"]
+    smtp_port = int(cfg.get("port") or 587)
+    smtp_starttls = bool(cfg.get("starttls", True))
+    smtp_user = cfg["user"]
+    smtp_password = cfg["password"]  # NEVER log; sourced from Mongo (decrypted) or env
 
     try:
         await aiosmtplib.send(
@@ -594,8 +653,9 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
             recipients=routing["to"] + routing["cc"],
         )
         logger.info(
-            "Sale notification SENT submission_id=%s to=%d cc=%d host=%s",
+            "Sale notification SENT submission_id=%s to=%d cc=%d host=%s source=%s",
             submission_id, len(routing["to"]), len(routing["cc"]), smtp_host,
+            cfg.get("source") or "env",
         )
         _record_attempt({
             "submission_id": submission_id, "started_at": started_at,
@@ -623,7 +683,7 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
             pass
         # Fallback heuristic: O365 Basic-Auth-disabled message ("535 5.7.139
         # Authentication unsuccessful, basic authentication is disabled").
-        msg_text = _mask_password_in(str(e))
+        msg_text = _scrub_with(str(e), smtp_password)
         if "535" in msg_text or "basic authentication is disabled" in msg_text.lower():
             is_auth_error = True
 
@@ -669,24 +729,43 @@ async def send_sale_notification(entry: Dict[str, Any], db=None) -> Dict[str, An
 
 # ----------------------- status panel ----------------------------------------
 
-def relay_status() -> Dict[str, Any]:
-    """Synchronous snapshot consumed by `/api/admin/email_relay/status`.
+async def relay_status(db=None) -> Dict[str, Any]:
+    """Snapshot consumed by `/api/admin/email_relay/status`.
 
-    Never leaks the password — only reports whether it's set and the masked
-    user / host / port. Counters come from the in-process ring buffer; for
-    historical depth the admin panel can correlate with `security_events`.
+    Phase 19.2 — pulls the live config via `email_relay_config.get_smtp_config`
+    so a Mongo-stored config is reflected. Falls back to env values when
+    nothing is set in Mongo.
+
+    Never leaks the password — only `password_set: bool` is exposed.
     """
-    configured = _is_configured()
+    import email_relay_config as _cfg_mod
+    cfg = await _cfg_mod.get_smtp_config(db) if db is not None else None
+    if cfg is None and _is_configured():
+        # Synthesize env view when db isn't available.
+        cfg = {
+            "host": os.environ.get("SMTP_HOST"),
+            "port": int(os.environ.get("SMTP_PORT") or 587),
+            "starttls": (os.environ.get("SMTP_STARTTLS") or "true").lower() != "false",
+            "user": os.environ.get("SMTP_USER"),
+            "password": os.environ.get("SMTP_PASSWORD") or "",
+            "from_email": os.environ.get("FROM_EMAIL"),
+            "from_name": os.environ.get("FROM_NAME"),
+            "cc_ops_fixed": _ops_cc(),
+            "source": "env",
+        }
+    configured = bool(cfg and cfg.get("host") and cfg.get("user")
+                      and cfg.get("password") and cfg.get("from_email"))
     return {
         "configured": configured,
-        "host": os.environ.get("SMTP_HOST") or None,
-        "port": int(os.environ.get("SMTP_PORT") or 0) or None,
-        "starttls": (os.environ.get("SMTP_STARTTLS") or "true").lower() != "false",
-        "user": os.environ.get("SMTP_USER") or None,
-        "password_set": bool(os.environ.get("SMTP_PASSWORD")),
-        "from_email": os.environ.get("FROM_EMAIL") or None,
-        "from_name": os.environ.get("FROM_NAME") or None,
-        "ops_cc_fixed": _ops_cc(),
+        "source": (cfg or {}).get("source") or "none",
+        "host": (cfg or {}).get("host"),
+        "port": (cfg or {}).get("port"),
+        "starttls": bool((cfg or {}).get("starttls", True)),
+        "user": (cfg or {}).get("user"),
+        "password_set": bool((cfg or {}).get("password")),
+        "from_email": (cfg or {}).get("from_email"),
+        "from_name": (cfg or {}).get("from_name"),
+        "ops_cc_fixed": list((cfg or {}).get("cc_ops_fixed") or []),
         "chain_cache": chain_cache_snapshot(),
         "recent_attempts": recent_attempts(),
     }

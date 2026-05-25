@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive, TrendingDown, Briefcase } from "lucide-react";
+import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive, TrendingDown, Briefcase, Mail } from "lucide-react";
 
 import OverviewTab from "@/components/admin/OverviewTab";
 import LeadsTab from "@/components/admin/LeadsTab";
@@ -11,6 +11,7 @@ import KnowledgeGapsTab from "@/components/admin/KnowledgeGapsTab";
 import KnowledgeBaseTab from "@/components/admin/KnowledgeBaseTab";
 import WidgetTab from "@/components/admin/WidgetTab";
 import ArchivesTab from "@/components/admin/ArchivesTab";
+import EmailRelayTab from "@/components/admin/EmailRelayTab";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -25,6 +26,7 @@ const TABS = [
   { id: "gaps", label: "Knowledge Gaps", icon: TrendingDown },
   { id: "kb", label: "Knowledge Base", icon: FileStack },
   { id: "archives", label: "Archives", icon: Archive },
+  { id: "email_relay", label: "SMTP / Email Relay", icon: Mail },
   { id: "widget", label: "Widget", icon: MessageSquareCode },
 ];
 
@@ -131,6 +133,7 @@ export default function Admin() {
     activeTab === "gaps"     ? KnowledgeGapsTab :
     activeTab === "widget"   ? WidgetTab :
     activeTab === "archives" ? ArchivesTab :
+    activeTab === "email_relay" ? EmailRelayTab :
     KnowledgeBaseTab;
 
   return (

@@ -318,3 +318,56 @@ Office 365 has disabled Basic Authentication on your tenant. Either:
 Either way, the failure path is graceful: the HTML draft is still written
 to `/app/deliverables/phase14/email_drafts/<submission_id>.html`, and the
 admin UI's Sales Pipeline drawer shows the "SMTP auth disabled" badge in red.
+
+---
+
+## Phase 19.2 — Canonical SMTP config UI (no env editing required)
+
+**Go to `/admin → SMTP / Email Relay` → paste creds → Save → Test Send. That's it.**
+
+### What changed
+- New collection `app_config` with `_id == "smtp_relay"`. Password is
+  Fernet-encrypted at rest. Encryption key lives in env var
+  `CONFIG_FERNET_KEY` and is auto-generated + persisted to `.env` on first
+  write (idempotent — re-runs read the existing key).
+- New admin endpoints (token-gated):
+  - `GET    /api/admin/email_relay/config` — masked view (`***+last4`), includes `source: mongo|env|none`
+  - `PUT    /api/admin/email_relay/config` — upsert via JSON body
+  - `DELETE /api/admin/email_relay/config` — clear Mongo, fall back to env
+  - `POST   /api/admin/email_relay/test_connection` — opens TCP → STARTTLS → AUTH → QUIT (no message)
+  - `POST   /api/admin/email_relay/test_send` — body `{recipient}` — sends a 1-paragraph branded email
+- Resolution order in `email_relay.send_sale_notification`:
+  1. Mongo `app_config` doc
+  2. Env vars (legacy fallback, kept for back-compat)
+  3. `draft_only` (relay disabled)
+- 5-minute in-process memoization. Invalidated automatically on PUT/DELETE.
+- Audit trail: every config change writes a `security_events` row of kind
+  `email_relay_config_changed` with `{action, updated_by_token_hash,
+  masked-summary}`. Password never appears in the audit row.
+
+### Rotating the Fernet key
+1. Generate a new key: `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+2. Replace `CONFIG_FERNET_KEY=...` in `/app/backend/.env` with the new value.
+3. Restart the backend.
+4. Re-`PUT` the SMTP config via the UI or curl — this re-encrypts the
+   password with the new key. (The old ciphertext becomes unreadable, which
+   is the desired behaviour during a rotation incident.)
+
+### Legacy paths (still supported)
+- `POST /api/admin/email_relay/configure` (Phase 19) — writes to `.env`,
+  restarts no longer required. Kept as an alias for the UI-less curl flow.
+- Env-only config (Phase 14/19) — still honoured when the Mongo doc is empty.
+- **Both will be removed in a future phase once no one is relying on them.**
+  The canonical config path is the UI tab + the Mongo collection.
+
+### Test pass (Phase 19.2)
+1. PUT config via API → `source: mongo`. ✅
+2. test_connection → `ok: true` against `smtp.office365.com:587`. ✅
+3. test_send → `ok: true`, sent_at recorded. ✅
+4. Sale resend (`SALE-2026-0018`) → `reason: sent`, source=mongo, 1 TO + 7 CC. ✅
+5. PUT with `password: "***@123"` placeholder → existing password preserved
+   (verified by a subsequent test_send returning `ok: true`). ✅
+6. PUT with wrong password → `test_connection` returns
+   `auth_failed` with masked O365 error. ✅
+7. DELETE → source flips to `env`, env-sourced send still works. ✅
+8. Zero password leaks across all logs and security_events rows. ✅

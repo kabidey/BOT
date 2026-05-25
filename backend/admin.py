@@ -587,9 +587,12 @@ def build_admin_router(db) -> APIRouter:
         Surfaces configuration (with the password redacted), the in-process
         cache snapshot, and the last ~25 send attempts. For long-window
         history correlate with `/api/admin/security_events?kind=email_relay_*`.
+
+        Phase 19.2 — also returns `source: "mongo" | "env" | "none"` so
+        admin can see where the config is being read from.
         """
         import email_relay as _er
-        snap = _er.relay_status()
+        snap = await _er.relay_status(db)
         # Counters of Phase 19 security events for the last 7 days.
         from datetime import datetime as _dt, timezone as _tz, timedelta as _td
         since_iso = (_dt.now(_tz.utc) - _td(days=7)).isoformat()
@@ -747,7 +750,207 @@ def build_admin_router(db) -> APIRouter:
         import email_relay as _er
         return {"ok": True, "applied": True,
                 "keys_written": sorted(new_values.keys()),
-                "status": _er.relay_status()}
+                "status": await _er.relay_status(db)}
+
+    # ---------------- Phase 19.2 — Mongo-backed SMTP config (canonical) ----------------
+    @router.get("/email_relay/config")
+    async def email_relay_get_config():
+        """Returns the active SMTP config with the password masked. The
+        `source` field tells you whether the relay is reading from Mongo or
+        env (or is unconfigured). NEVER returns the plaintext password.
+        """
+        import email_relay_config as _cfg
+        return await _cfg.get_masked_config_view(db)
+
+    @router.put("/email_relay/config")
+    async def email_relay_put_config(
+        payload: Dict[str, Any] = Body(...),
+        x_admin_token: str = Header(default=""),
+    ):
+        """Upsert the SMTP config into Mongo (Fernet-encrypted password).
+        Drops the in-process cache so the very next send picks up the new
+        creds. NEVER logs the password.
+        """
+        import widget_config as _wc
+        # Mandatory fields
+        def _str(key: str, *, required: bool = True):
+            v = payload.get(key)
+            if v is None or (isinstance(v, str) and not v.strip()):
+                if required:
+                    raise HTTPException(status_code=400, detail=f"`{key}` is required")
+                return None
+            return str(v).strip() if isinstance(v, str) else v
+
+        host = _str("host")
+        user = _str("user")
+        password_in = payload.get("password")
+        from_email = _str("from_email")
+        port_raw = payload.get("port") or 587
+        try:
+            port = int(port_raw)
+        except Exception:
+            raise HTTPException(status_code=400, detail="`port` must be an integer")
+        starttls = bool(payload.get("starttls", True))
+        from_name = _str("from_name", required=False) or "SMIFS Wealth Guidance"
+        cc_raw = payload.get("cc_ops_fixed") or []
+        if isinstance(cc_raw, str):
+            cc_list = [a.strip() for a in cc_raw.split(",") if a.strip()]
+        elif isinstance(cc_raw, list):
+            cc_list = [str(a).strip() for a in cc_raw if str(a).strip()]
+        else:
+            cc_list = []
+
+        # Password handling — if the caller omitted the password (or sent the
+        # masked placeholder), keep the existing one from the stored doc.
+        existing = await db.app_config.find_one({"_id": "smtp_relay"}, {"password_encrypted": 1})
+        if not password_in or (isinstance(password_in, str)
+                                and password_in.startswith("***") and existing):
+            import email_relay_config as _cfg
+            password_plain = _cfg._decrypt_password(existing.get("password_encrypted", ""))
+            if not password_plain:
+                raise HTTPException(status_code=400,
+                                    detail="`password` is required (no existing password to reuse)")
+        else:
+            password_plain = str(password_in)
+
+        import email_relay_config as _cfg
+        masked = await _cfg.put_smtp_config(
+            db,
+            host=host, port=port, starttls=starttls,
+            user=user, password=password_plain,
+            from_email=from_email, from_name=from_name,
+            cc_ops_fixed=cc_list,
+            token_hash=_wc.admin_token_fingerprint(x_admin_token),
+        )
+        return {"ok": True, "config": masked}
+
+    @router.delete("/email_relay/config")
+    async def email_relay_delete_config(x_admin_token: str = Header(default="")):
+        """Clear the Mongo config doc. Relay falls back to env (or 'none')."""
+        import email_relay_config as _cfg
+        import widget_config as _wc
+        deleted = await _cfg.delete_smtp_config(
+            db, token_hash=_wc.admin_token_fingerprint(x_admin_token),
+        )
+        view = await _cfg.get_masked_config_view(db)
+        return {"ok": True, "deleted": deleted, "config": view}
+
+    @router.post("/email_relay/test_connection")
+    async def email_relay_test_connection():
+        """Open SMTP → STARTTLS → AUTH → QUIT against the active config.
+        Returns a classified result. Never sends a message."""
+        import email_relay_config as _cfg
+        cfg = await _cfg.get_smtp_config(db)
+        if cfg is None:
+            return {"ok": False, "error_kind": "unknown_error",
+                    "error_message": "SMTP not configured (Mongo + env both empty)"}
+        result = await _cfg.test_connection(cfg)
+        # Persist a calls-log row.
+        from datetime import datetime as _dt, timezone as _tz
+        try:
+            await db.email_relay_calls.insert_one({
+                "created_at": _dt.now(_tz.utc).isoformat(),
+                "reason": "test_connection",
+                "ok": bool(result.get("ok")),
+                "error_kind": result.get("error_kind"),
+                "host": cfg.get("host"), "user": _cfg.mask_email(cfg.get("user") or ""),
+                "source": cfg.get("source"),
+            })
+        except Exception:
+            logger.exception("email_relay_calls insert (test_connection) failed")
+        logger.info(
+            "email_relay test_connection ok=%s kind=%s host=%s user=%s",
+            result.get("ok"), result.get("error_kind"), cfg.get("host"),
+            _cfg.mask_email(cfg.get("user") or ""),
+        )
+        return result
+
+    @router.post("/email_relay/test_send")
+    async def email_relay_test_send(payload: Dict[str, Any] = Body(...)):
+        """Send a single 1-paragraph branded test email to one recipient.
+        No template, no CC. Logged to `email_relay_calls`."""
+        recipient = (payload.get("recipient") or "").strip()
+        if not recipient or "@" not in recipient:
+            raise HTTPException(status_code=400,
+                                detail="`recipient` must be a valid email")
+        import email_relay_config as _cfg
+        cfg = await _cfg.get_smtp_config(db)
+        if cfg is None:
+            return {"ok": False, "error_kind": "unknown_error",
+                    "error_message": "SMTP not configured"}
+
+        from datetime import datetime as _dt, timezone as _tz
+        from email.message import EmailMessage
+        from email.utils import formataddr
+        ts_iso = _dt.now(_tz.utc).isoformat()
+        msg = EmailMessage()
+        msg["Subject"] = f"SMIFS Sales-Ops relay test · {ts_iso[:19].replace('T', ' ')} UTC"
+        msg["From"] = formataddr(
+            (cfg.get("from_name") or "SMIFS Sales-Ops", cfg["from_email"]),
+        )
+        msg["To"] = recipient
+        msg.set_content(
+            "This is a one-paragraph SMIFS Sales-Ops relay test message.\n\n"
+            f"Configuration source: {cfg.get('source')}\n"
+            f"SMTP host: {cfg.get('host')}:{cfg.get('port')}\n"
+            f"From: {cfg.get('from_email')}\n\n"
+            "If you received this message, the relay credentials are valid "
+            "and Phase 19.2 is live."
+        )
+
+        try:
+            import aiosmtplib
+        except ImportError:
+            return {"ok": False, "error_kind": "unknown_error",
+                    "error_message": "aiosmtplib not installed"}
+
+        try:
+            await aiosmtplib.send(
+                msg,
+                hostname=cfg["host"], port=int(cfg.get("port") or 587),
+                username=cfg["user"], password=cfg["password"],
+                start_tls=bool(cfg.get("starttls", True)),
+                timeout=30, recipients=[recipient],
+            )
+            logger.info(
+                "email_relay test_send ok recipient=%s host=%s source=%s",
+                _cfg.mask_email(recipient), cfg.get("host"), cfg.get("source"),
+            )
+            try:
+                await db.email_relay_calls.insert_one({
+                    "created_at": ts_iso, "reason": "test_send",
+                    "ok": True, "recipient": recipient,
+                    "host": cfg.get("host"), "source": cfg.get("source"),
+                })
+            except Exception:
+                pass
+            return {"ok": True, "recipient": recipient, "sent_at": ts_iso}
+        except Exception as e:
+            scrubbed = _cfg._scrub(str(e), cfg.get("password") or "")
+            kind, msg_text = _cfg._classify_auth_exception(e, cfg.get("password") or "")
+            # The classifier is biased toward AUTH errors; for non-auth
+            # exceptions fall back to "unknown_error" unless explicitly auth.
+            if "Connection" in type(e).__name__ or "Refused" in type(e).__name__:
+                kind = "connection_refused"
+            if "TLS" in type(e).__name__ or "SSL" in type(e).__name__:
+                kind = "tls_failed"
+            if "Timeout" in type(e).__name__ or "Timeout" in scrubbed:
+                kind = "timeout"
+            logger.warning(
+                "email_relay test_send FAILED recipient=%s kind=%s exc=%s msg=%s",
+                _cfg.mask_email(recipient), kind, type(e).__name__, scrubbed[:300],
+            )
+            try:
+                await db.email_relay_calls.insert_one({
+                    "created_at": ts_iso, "reason": "test_send",
+                    "ok": False, "recipient": recipient,
+                    "error_kind": kind, "exc": type(e).__name__,
+                    "host": cfg.get("host"), "source": cfg.get("source"),
+                })
+            except Exception:
+                pass
+            return {"ok": False, "error_kind": kind,
+                    "error_message": scrubbed[:300]}
 
     # ---------------- Phase 13 — errors + security_events read surface ----------------
     @router.get("/errors")
