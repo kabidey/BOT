@@ -156,41 +156,87 @@
       "  border-radius: inherit;" +
       "}" +
 
-      /* ----- Tablet (641-1024px) — slightly smaller floating panel ----- */
+      /* ----- Phase 23.3 — JS-resolved breakpoint classes ALWAYS win over the
+       *       width/orientation media queries below (which Android Chrome can
+       *       briefly mis-report during URL-bar collapse / keyboard reflow).
+       *       The `.m1-bp-*` selectors carry one more level of specificity
+       *       than the plain `.m1-iframe-wrap` rules. ----- */
+      ".m1-iframe-wrap.m1-bp-desktop {" +
+      "  bottom: 24px; " + iframePos +
+      "  width: 420px; height: 720px; max-height: calc(100dvh - 48px);" +
+      "  border-radius: 20px;" +
+      "}" +
+      ".m1-iframe-wrap.m1-bp-desktop iframe { border-radius: 20px; }" +
+
+      ".m1-iframe-wrap.m1-bp-tablet {" +
+      "  width: min(420px, 90vw); height: min(720px, 85dvh);" +
+      "  bottom: max(20px, env(safe-area-inset-bottom, 20px)); " + iframePos +
+      "  border-radius: 18px;" +
+      "  top: auto; left: auto;" +
+      "}" +
+      ".m1-iframe-wrap.m1-bp-tablet iframe { border-radius: 18px; }" +
+
+      ".m1-iframe-wrap.m1-bp-mobile {" +
+      "  width: 100vw !important; width: 100dvw !important;" +
+      "  height: 100vh !important; height: 100dvh !important;" +
+      "  top: 0 !important; right: 0 !important;" +
+      "  bottom: 0 !important; left: 0 !important;" +
+      "  max-height: none !important; max-width: none !important;" +
+      "  border-radius: 0 !important;" +
+      "  transform: translateY(100%) scale(1);" +
+      "}" +
+      ".m1-iframe-wrap.m1-bp-mobile.is-open { transform: translateY(0); }" +
+      ".m1-iframe-wrap.m1-bp-mobile iframe { border-radius: 0 !important; }" +
+
+      ".m1-iframe-wrap.m1-bp-mobile-landscape {" +
+      "  width: min(520px, 96vw); height: 80dvh;" +
+      "  bottom: max(8px, env(safe-area-inset-bottom, 8px));" +
+      "  right: 8px; left: auto; top: auto;" +
+      "  border-radius: 16px;" +
+      "  transform: translateY(40%) scale(1);" +
+      "  max-height: none; max-width: none;" +
+      "}" +
+      ".m1-iframe-wrap.m1-bp-mobile-landscape.is-open { transform: translateY(0); }" +
+      ".m1-iframe-wrap.m1-bp-mobile-landscape iframe { border-radius: 16px; }" +
+
+      /* ----- Tablet (641-1024px) — legacy MQ kept as a fallback for partner
+       *       sites that load widget.js asynchronously before our JS detection
+       *       has run. Class-based rules above ALWAYS win when applied. ----- */
       "@media (max-width: 1024px) and (min-width: 641px) {" +
-      "  .m1-iframe-wrap {" +
+      "  .m1-iframe-wrap:not(.m1-bp-desktop):not(.m1-bp-mobile):not(.m1-bp-mobile-landscape) {" +
       "    width: min(420px, 90vw); height: min(720px, 85dvh);" +
       "    bottom: max(20px, env(safe-area-inset-bottom, 20px)); " + iframePos +
       "    border-radius: 18px;" +
       "  }" +
-      "  .m1-iframe-wrap iframe { border-radius: 18px; }" +
+      "  .m1-iframe-wrap:not(.m1-bp-desktop):not(.m1-bp-mobile):not(.m1-bp-mobile-landscape) iframe { border-radius: 18px; }" +
       "}" +
 
-      /* ----- Mobile portrait (≤640px portrait) — full-screen sheet ----- */
-      "@media (max-width: 640px) and (orientation: portrait) {" +
-      "  .m1-iframe-wrap {" +
+      /* ----- Mobile width MQ — NO orientation gate (was the Phase 23.0 bug:
+       *       Android Chrome briefly reports landscape on initial load and
+       *       silently dropped this rule, falling through to landscape MQ). ----- */
+      "@media (max-width: 640px) {" +
+      "  .m1-iframe-wrap:not(.m1-bp-desktop):not(.m1-bp-tablet) {" +
       "    width: 100vw; width: 100dvw;" +
       "    height: 100vh; height: 100dvh;" +
       "    top: 0; right: 0; bottom: 0; left: 0;" +
       "    max-height: none; border-radius: 0;" +
       "    transform: translateY(100%) scale(1);" +
       "  }" +
-      "  .m1-iframe-wrap.is-open { transform: translateY(0); }" +
-      "  .m1-iframe-wrap iframe { border-radius: 0; }" +
+      "  .m1-iframe-wrap:not(.m1-bp-desktop):not(.m1-bp-tablet).is-open { transform: translateY(0); }" +
+      "  .m1-iframe-wrap:not(.m1-bp-desktop):not(.m1-bp-tablet) iframe { border-radius: 0; }" +
       "  .m1-bubble { display: var(--m1-bubble-mobile-display, flex); }" +
       "}" +
 
-      /* ----- Mobile landscape — compact bottom-sheet (80dvh) ----- */
-      "@media (max-width: 950px) and (orientation: landscape) {" +
-      "  .m1-iframe-wrap {" +
+      /* ----- Mobile landscape MQ — fallback only (narrow + landscape). ----- */
+      "@media (max-width: 950px) and (orientation: landscape) and (min-width: 481px) {" +
+      "  .m1-iframe-wrap:not(.m1-bp-desktop):not(.m1-bp-tablet):not(.m1-bp-mobile) {" +
       "    width: min(520px, 96vw); height: 80dvh;" +
       "    bottom: max(8px, env(safe-area-inset-bottom, 8px));" +
       "    right: 8px; left: auto;" +
       "    border-radius: 16px;" +
       "    transform: translateY(40%);" +
       "  }" +
-      "  .m1-iframe-wrap.is-open { transform: translateY(0); }" +
-      "  .m1-iframe-wrap iframe { border-radius: 16px; }" +
+      "  .m1-iframe-wrap:not(.m1-bp-desktop):not(.m1-bp-tablet):not(.m1-bp-mobile).is-open { transform: translateY(0); }" +
       "}" +
 
       /* ----- Narrow phones (≤360px, e.g. Galaxy Fold cover, iPhone SE) ----- */
@@ -252,10 +298,102 @@
 
   function isOpen(wrap) { return wrap.classList.contains("is-open"); }
 
-  /* Detect mobile-portrait (full-screen takeover). Re-evaluated on resize so a
-   * tablet rotation correctly hides/shows the bubble. */
-  function isMobileFullScreen() {
-    return window.matchMedia("(max-width: 640px) and (orientation: portrait)").matches;
+  /* ---- Phase 23.3 — multi-signal breakpoint resolver. ----
+   * `window.matchMedia('(orientation: portrait)')` is unreliable on Android
+   * Chrome during initial page-load reflow (URL-bar collapse can briefly flip
+   * orientation to landscape). Worse: `window.innerWidth` reflects the parent
+   * page's layout viewport, which on legacy partner sites that set
+   * `<meta name="viewport" content="width=1024">` will lie about device size.
+   *
+   * Solution: combine 4 independent signals and bias hard toward "mobile" if
+   * any 2 of them agree. The resolver writes one of four breakpoint class
+   * names onto the iframe-wrap: `m1-bp-desktop`, `m1-bp-tablet`,
+   * `m1-bp-mobile`, `m1-bp-mobile-landscape`. The CSS class rules carry one
+   * more level of specificity than the legacy width media queries, so they
+   * always win.
+   *
+   * Signals:
+   *   1. pointer + hover           — `(pointer: coarse) and (hover: none)` ⇒ touch
+   *   2. screen.width × DPR        — physical screen at CSS pixel resolution
+   *   3. innerWidth/innerHeight    — layout viewport (potentially lying)
+   *   4. userAgent / userAgentData — explicit mobile keyword
+   */
+  function resolveBreakpoint() {
+    var sigs = {
+      touch: false, screenSmall: false, viewportSmall: false, uaMobile: false,
+      orient: "portrait",
+      iw: window.innerWidth || 0, ih: window.innerHeight || 0,
+      sw: (window.screen && window.screen.width) || 0,
+      sh: (window.screen && window.screen.height) || 0,
+      dpr: window.devicePixelRatio || 1,
+    };
+    try { sigs.touch = window.matchMedia("(pointer: coarse) and (hover: none)").matches; } catch (_) {}
+    /* The screen dimensions reflect the physical device — DPR-independent on
+     * modern browsers (they report CSS px). Phones top out around 480 CSS px. */
+    sigs.screenSmall = sigs.sw > 0 && sigs.sw <= 640;
+    sigs.viewportSmall = sigs.iw > 0 && sigs.iw <= 640;
+    var ua = (navigator.userAgent || "").toLowerCase();
+    sigs.uaMobile = /android|iphone|ipod|mobile|blackberry|opera mini|iemobile|windows phone/i.test(ua);
+    /* `navigator.userAgentData` is the modern source of truth on Chromium
+     * (≥ Chrome 90). It returns `true` for mobile devices regardless of UA
+     * spoofing. */
+    if (navigator.userAgentData && typeof navigator.userAgentData.mobile === "boolean") {
+      sigs.uaMobile = sigs.uaMobile || navigator.userAgentData.mobile;
+    }
+    /* Orientation: use raw aspect ratio rather than the unreliable
+     * `(orientation: landscape)` MQ during reflow. */
+    sigs.orient = (sigs.iw > sigs.ih && sigs.ih > 0) ? "landscape" : "portrait";
+
+    /* Decision logic — bias toward mobile when any 2 of (touch, uaMobile,
+     * screenSmall, viewportSmall) agree. This survives partner viewport
+     * lies AND Android orientation flip-flops. */
+    var mobileVotes = 0;
+    if (sigs.touch) mobileVotes++;
+    if (sigs.uaMobile) mobileVotes++;
+    if (sigs.screenSmall) mobileVotes++;
+    if (sigs.viewportSmall) mobileVotes++;
+
+    var bp;
+    /* Phone-in-landscape detection (the short dimension is ≤ 480, regardless
+     * of which axis is wider). iPhone 12 landscape is 844×390 — width
+     * exceeds the 720 tablet threshold, but height of 390 betrays the phone
+     * form factor. */
+    var shortSide = Math.min(sigs.iw || 9999, sigs.ih || 9999);
+    var phoneInLandscape = mobileVotes >= 2 && sigs.orient === "landscape" && shortSide <= 480;
+    if (phoneInLandscape) {
+      bp = "mobile-landscape";
+    } else if (mobileVotes >= 2 && sigs.iw <= 720) {
+      /* Phone-class portrait (phones top out around 640-720 CSS px). */
+      bp = (sigs.orient === "landscape") ? "mobile-landscape" : "mobile";
+    } else if (mobileVotes >= 2 && sigs.iw > 720 && sigs.iw <= 1024) {
+      /* Touch device with tablet-class width (iPad, large Android tablet).
+       * Use the floating tablet panel — partner page stays visible. */
+      bp = "tablet";
+    } else if (sigs.iw > 1024) {
+      bp = "desktop";
+    } else if (sigs.iw > 640) {
+      bp = "tablet";
+    } else {
+      /* Width is small but no touch signals — could be a desktop browser
+       * resized narrow. Treat as mobile portrait for layout. */
+      bp = (sigs.orient === "landscape") ? "mobile-landscape" : "mobile";
+    }
+    return { bp: bp, sigs: sigs };
+  }
+
+  function applyBreakpoint(wrap) {
+    var r = resolveBreakpoint();
+    wrap.classList.remove("m1-bp-desktop", "m1-bp-tablet", "m1-bp-mobile", "m1-bp-mobile-landscape");
+    wrap.classList.add("m1-bp-" + r.bp);
+    wrap.setAttribute("data-bp", r.bp);
+    if (debug) log("breakpoint=" + r.bp, r.sigs);
+    return r.bp;
+  }
+
+  /* "Full-screen takeover" is now defined as "breakpoint is mobile" (portrait
+   * only — landscape mobile is the compact bottom-sheet). */
+  function isMobileFullScreen(wrap) {
+    return wrap && wrap.classList.contains("m1-bp-mobile");
   }
 
   function bootstrap(config) {
@@ -271,6 +409,11 @@
     root.appendChild(b.bubble);
     root.appendChild(f.wrap);
 
+    /* Phase 23.3 — resolve breakpoint synchronously on mount so the wrap
+     * carries the correct class BEFORE first paint. Re-resolved on resize
+     * & orientationchange below. */
+    applyBreakpoint(f.wrap);
+
     var iframeReady = false;
     var open = function () {
       if (!iframeReady) {
@@ -278,14 +421,16 @@
         f.iframe.src = url;
         iframeReady = true;
       }
+      /* Re-resolve in case the device rotated while the panel was closed. */
+      applyBreakpoint(f.wrap);
       f.wrap.classList.add("is-open");
       bd.classList.add("is-open");
       b.unread.classList.remove("is-visible");
       b.bubble.classList.remove("m1-bubble--pulse");
       /* On full-screen mobile, hide the launcher so it doesn't overlap the chat. */
-      if (isMobileFullScreen()) b.bubble.classList.add("is-hidden");
+      if (isMobileFullScreen(f.wrap)) b.bubble.classList.add("is-hidden");
       /* Lock partner page scroll while a full-screen sheet is open. */
-      if (isMobileFullScreen()) {
+      if (isMobileFullScreen(f.wrap)) {
         document.documentElement.dataset.m1ScrollLock = "1";
         document.documentElement.style.overflow = "hidden";
       }
@@ -306,10 +451,11 @@
     });
     bd.addEventListener("click", close);
 
-    /* Re-evaluate bubble visibility on resize / orientation change. */
+    /* Re-evaluate breakpoint + bubble visibility on resize / orientation change. */
     var onResize = function () {
+      applyBreakpoint(f.wrap);
       if (!isOpen(f.wrap)) return;
-      if (isMobileFullScreen()) {
+      if (isMobileFullScreen(f.wrap)) {
         b.bubble.classList.add("is-hidden");
         document.documentElement.style.overflow = "hidden";
         document.documentElement.dataset.m1ScrollLock = "1";

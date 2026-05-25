@@ -281,3 +281,17 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 - `index.html`: viewport meta now includes `viewport-fit=cover`; added `color-scheme: light dark` so OS-level dark mode doesn't force-invert the light embed surface.
 - Verified live across 4 viewports via Playwright: iPhone portrait wrap=375×812@(0,0) edge-to-edge, iPhone landscape 520×245@(284,122) compact, iPad portrait 420×720@(324,284) floating, Desktop 420×720@(996,80) unchanged. Main `/` dark shell renders correctly on both desktop and mobile — no regression.
 - `DEPLOY_NOTES.md` — Phase 23 section appended (full breakpoint contract + supported viewport floor of 320px).
+
+### Phase 23.3 — Multi-signal mobile breakpoint resolver (2026-05-25 LATE+)
+- P0 from real-device screenshot: blocked Android Chrome users at smifs.com got a small floating panel in the corner instead of full-screen sheet. Root cause: `@media (max-width: 640px) and (orientation: portrait)` — Android Chrome briefly reports `landscape` during URL-bar collapse on initial load, so the rule never fires; the request falls through to the landscape MQ which produces a small bottom-right panel.
+- Fix in `frontend/public/widget.js`: introduced JS-level `resolveBreakpoint()` that combines 4 independent signals:
+  1. `(pointer: coarse) and (hover: none)` (touch device)
+  2. `navigator.userAgentData.mobile` ∪ UA-string regex (uaMobile)
+  3. `screen.width ≤ 640` (screenSmall)
+  4. `innerWidth ≤ 640` (viewportSmall)
+- Bias toward mobile when any 2 signals agree. Then sub-route: phone-in-landscape (shortSide ≤ 480) → `mobile-landscape`; touch device width 720-1024 → `tablet`; else width breakpoints.
+- Writes a `.m1-bp-{desktop,tablet,mobile,mobile-landscape}` class onto the iframe-wrap + a `data-bp` attribute for live DevTools inspection. CSS class rules (with `!important` on the mobile-portrait dimensions) carry strictly higher specificity than the legacy width media queries → JS always wins.
+- Removed the unreliable `(orientation: portrait)` gate from the mobile MQ. Width-only fallback now correctly catches Android Chrome regardless of orientation flap.
+- Re-runs on `resize` + `orientationchange` + every `open()` call so device rotations during a closed-panel session still resolve correctly.
+- 9/9 emulated device profiles pass (iPhone 12 portrait, Pixel 5, Samsung Galaxy 360px, Galaxy Fold 280px, iPhone landscape, iPad portrait, iPad landscape, Desktop 1440, Desktop 1920).
+- Preview widget.js has 43 Phase 23.3 markers; production widget.js has 0 — user must redeploy to bot.pesmifs.com to push the fix live.
