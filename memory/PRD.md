@@ -242,3 +242,16 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 - Old sales rows preserved; admin drawer surfaces dropped keys under "Legacy fields" collapsible.
 - BE acceptance: all 8 curl tests pass (catalog has 7 buckets including `sif`; MF+legacy fields silently drops; AIF/SIF/PMS transfer subtypes route correctly; SIF lumpsum+frequency rejected 422; Insurance free-text accepted; Insurance missing PPT rejected 422).
 - Docs: `SALES_OPS_PRODUCTS.md` Phase 21 section appended.
+
+### Phase 22 — Device-fingerprint fraud detection (2026-05-25 EVE)
+- Backend: `fingerprint_guard.py` (scoring + admin actions), `fingerprint_middleware.py` (silent-block + header capture + identity-binding context stash). Indexes auto-created on startup.
+- Scoring axes (7-day half-life decay): rapid burst (+25/UCC after 1st), 24h saturation (+15/UCC after 2nd), lifetime-no-RM (decayed cap 10), IP /16 jump within 10 min (+50), UA rotation in 24h (+10). Mitigators: RM linkage (-20 if ≥50% of bound clients name a same-device employee), single network (-10).
+- Auto-block at score ≥ 75 (env: `FPRINT_BLOCK_SCORE`); flag-only at ≥ 40. All thresholds env-tunable without redeploy.
+- Silent-block: blocked FPs receive HTTP **200** envelopes shaped like real soft-failures — `/api/chat` → "We're currently unable to process your request…", `/api/agent/turn` → `intent: SOFT_ERROR`, `/api/rag/search` → empty hits, `/api/leads` → "Thanks, we'll be in touch" stub (NOT persisted). NEVER a 403, no `blocked: true`, no error banner.
+- Admin Fraud Watch tab + REST: `/api/admin/fingerprint/{summary,list,{hash},block,unblock,trust,untrust,note}`. `/api/admin/*` is bypassed by the middleware → operators never lock themselves out.
+- Frontend: `@fingerprintjs/fingerprintjs@5.2.0` (silent), `frontend/src/lib/fingerprint.js` caches visitorId in `_smifs_dvc`, sets `axios.defaults.headers.common` → `X-Client-Fingerprint`, `X-Client-Tz`, `X-Client-Screen` for every `/api/*` call. Zero UI surface — no banners, no popups, fully invisible.
+- Auth hook: `_finalise_verified` in `auth_agent.py` calls `record_identity_binding(...)` after a PAN match → score recomputed live; identity_key masked in audit (`12***90`).
+- Privacy: fingerprint never tied to plaintext PAN/email/phone; audit trail uses masked identity keys; 90-day TTL on security_events, 180-day TTL on device_fingerprint_audit.
+- Testing: 27/27 acceptance tests pass — 7 pure scoring (time decay, RM-linkage, IP jump, response shapes, identity masking) + 20 integration (block → silent /api/chat, admin bypass, trust clears block, audit trail, regression APIs). Tests in `/app/backend/tests/test_fingerprint_guard.py` and `/app/backend/tests/test_phase22_fingerprint_integration.py`.
+- Docs: `/app/backend/SECURITY_FINGERPRINTING.md` — threat model, scoring axes, silent-block contract, false-positive recovery, env tuning matrix.
+- Minor fix during testing: `/api/admin/security_events` now surfaces `fingerprint_hash` and `path` for `fingerprint_silent_block_served` rows (field-name mismatch — writer→reader contract fixed).

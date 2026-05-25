@@ -627,6 +627,8 @@ async def record_silent_block_served(db, fp_hash: str, path: str) -> None:
             "session_id": None,
             "role_state_value": None,
             "user_message": f"path={path}",
+            "user_message_excerpt": f"path={path}",
+            "path": path,
             "action": "silent_block",
             "ts": now_iso,
             "ts_dt": _now(),

@@ -1002,8 +1002,10 @@ def build_admin_router(db) -> APIRouter:
             "pattern_matched": r.get("kind"),  # alias — same signal lives in `kind`
             "session_role": r.get("role_state"),
             "session_id": r.get("session_id"),
-            "message_excerpt": r.get("user_message_excerpt") or "",
+            "message_excerpt": r.get("user_message_excerpt") or r.get("user_message") or "",
             "action": r.get("action"),
+            "fingerprint_hash": r.get("fingerprint_hash"),
+            "path": r.get("path"),
         } for r in rows]
 
         # by_kind aggregate over the SAME since/kind filter (kind filter is
