@@ -1221,7 +1221,63 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
 
 
 /* ---------- Verified client chip (Phase 3) ---------- */
-.smifs-header-right { display: flex; align-items: center; gap: 12px; }
+.smifs-header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* Phase 19.2.1 — promoted "New conversation" primary button.
+   Used in the header (visible whenever there's at least one message) and
+   the footer (always visible). Uses the SMIFS green accent shared with
+   the admin primary button + auth submit. */
+.smifs-new-conv {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  background: rgba(9,140,98,0.18);
+  border: 1px solid rgba(9,140,98,0.55);
+  color: var(--gold-soft);
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.smifs-new-conv:hover {
+  background: rgba(9,140,98,0.32);
+  border-color: rgba(9,140,98,0.85);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.smifs-new-conv:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--gold-deep), 0 0 0 4px rgba(9,140,98,0.35);
+}
+.smifs-new-conv:active { transform: translateY(0); }
+
+/* Footer variant — same primary look so the affordance is consistent on
+   first paint (when there are no messages yet and the header button is hidden). */
+.smifs-new-conv--footer {
+  padding: 8px 14px;
+}
+
+/* Embed surface — light theme override (uses header_text/header_bg vars
+   set by widgetCfg). Keep the same shape, just adapt contrast. */
+.smifs-header--embed ~ * .smifs-new-conv,
+.smifs-header--embed .smifs-new-conv {
+  background: rgba(9,140,98,0.10);
+  border-color: rgba(9,140,98,0.45);
+  color: var(--gold-deep);
+}
+.smifs-header--embed .smifs-new-conv:hover {
+  background: rgba(9,140,98,0.20);
+  color: var(--gold-deep);
+}
+
+@media (max-width: 640px) {
+  .smifs-new-conv span { display: none; }
+  .smifs-new-conv { padding: 7px 9px; }
+  .smifs-new-conv--footer span { display: inline; }
+  .smifs-new-conv--footer { padding: 8px 14px; }
+}
 
 .smifs-client-chip {
   display: inline-flex;

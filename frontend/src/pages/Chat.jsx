@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle, Square, Globe } from "lucide-react";
+import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase, Clock, PlayCircle, Square, Globe, Plus } from "lucide-react";
 
 import TextBlock from "@/components/blocks/TextBlock";
 import VehicleCtaBlock from "@/components/blocks/VehicleCtaBlock";
@@ -769,6 +769,19 @@ export default function Chat({ embedded = false }) {
           </div>
         </div>
         <div className="smifs-header-right">
+          {messages.length > 0 && (
+            <button
+              type="button"
+              className="smifs-new-conv"
+              onClick={resetThread}
+              data-testid="new-conversation-button"
+              aria-label="Start a new conversation"
+              title="Start a new conversation"
+            >
+              <Plus size={13} strokeWidth={2.5} />
+              <span>New conversation</span>
+            </button>
+          )}
           {client && (
             <div
               className={`smifs-client-chip smifs-client-chip--${(identity?.type) || (client.type) || "client"}`}
@@ -1013,10 +1026,12 @@ export default function Chat({ embedded = false }) {
           <button
             type="button"
             onClick={resetThread}
-            className="smifs-link"
-            data-testid="reset-thread"
+            className="smifs-new-conv smifs-new-conv--footer"
+            data-testid="new-conversation-button-footer"
+            aria-label="Start a new conversation"
           >
-            Start a new conversation
+            <Plus size={13} strokeWidth={2.5} />
+            <span>Start new conversation</span>
           </button>
           <span className="smifs-session" data-testid="session-id">
             {sessionId ? `session · ${sessionId.slice(0, 8)}` : "no session yet"}
