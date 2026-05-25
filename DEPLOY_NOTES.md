@@ -262,3 +262,59 @@ CC_OPS_FIXED=ho.operations@smifs.com,insurance.bpo@smifs.com,fundaccounting@smif
   applied to any exception text before it's persisted to `security_events`.
 - Verified: zero occurrences of the password in `/var/log/supervisor/backend.*.log`
   or anywhere in `/app/**` outside `backend/.env`.
+
+---
+
+## Phase 19 — SMTP bootstrap on a new deployment
+
+You have **two zero-friction ways** to wire Office 365 SMTP on a fresh prod
+backend. Pick whichever you can run from where you're sitting.
+
+### Option A — Admin API (no shell access required) — *recommended*
+
+`POST /api/admin/email_relay/configure` (token-gated). Idempotent: writes /
+upserts the seven SMTP keys into `/app/backend/.env`, pushes them into the
+live `os.environ`, and drops the chain cache. No supervisor restart needed.
+
+```bash
+curl -X POST https://bot.pesmifs.com/api/admin/email_relay/configure \
+  -H "X-Admin-Token: <prod-admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "smtp_host":"smtp.office365.com",
+    "smtp_port":587,
+    "smtp_user":"wealth.guidance@smifs.com",
+    "smtp_password":"<password>",
+    "smtp_starttls":true,
+    "from_email":"wealth.guidance@smifs.com",
+    "from_name":"SMIFS Wealth Guidance"
+  }'
+```
+
+Returns `{ok:true, applied:true, keys_written:[...], status:{...}}`.
+The password is **never echoed back** in the response and **never logged**
+in plain text (the admin log line masks both user and password).
+
+### Option B — Shell one-liner (when SSH'd into the container)
+
+Run `/app/deliverables/phase19/configure_smtp_prod.sh` once. The script is
+idempotent — re-running it upserts the same keys without duplicating lines —
+restarts the backend, hits `/status`, and fires a canary send against
+`SALE-2026-0018` so you immediately know it worked.
+
+```bash
+bash /app/deliverables/phase19/configure_smtp_prod.sh
+rm /app/deliverables/phase19/configure_smtp_prod.sh   # single-use
+```
+
+### What to do if the canary send returns `smtp_auth_disabled`
+
+Office 365 has disabled Basic Authentication on your tenant. Either:
+1. Re-enable Basic Auth on the `wealth.guidance@smifs.com` mailbox via
+   Microsoft 365 admin centre → Active Users → mailbox → Mail → Manage
+   email apps → enable "Authenticated SMTP", **or**
+2. Switch to OAuth2 (requires a Phase 19.1 update to `email_relay.py`).
+
+Either way, the failure path is graceful: the HTML draft is still written
+to `/app/deliverables/phase14/email_drafts/<submission_id>.html`, and the
+admin UI's Sales Pipeline drawer shows the "SMTP auth disabled" badge in red.

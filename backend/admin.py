@@ -632,6 +632,123 @@ def build_admin_router(db) -> APIRouter:
         )
         return payload
 
+    @router.post("/email_relay/configure")
+    async def email_relay_configure(payload: Dict[str, Any] = Body(...)):
+        """Phase 19 — one-shot SMTP bootstrap endpoint.
+
+        Accepts the seven SMTP env values and idempotently upserts them into
+        `/app/backend/.env`, then reloads them into the running process via
+        `os.environ` so no supervisor restart is required.
+
+        The password is NEVER logged, never echoed back in the response, and
+        is masked in any error excerpt persisted to `security_events`. The
+        endpoint is admin-token-gated like the rest of `/api/admin/*`.
+
+        Fixed CC ops list is also accepted (`cc_ops_fixed`, optional).
+        """
+        # 1. Sanity-validate payload (no schema dep on pydantic to keep the
+        # endpoint hot-swappable without a restart).
+        def _str(key: str, *, required: bool = True) -> Optional[str]:
+            v = payload.get(key)
+            if v is None or (isinstance(v, str) and not v.strip()):
+                if required:
+                    raise HTTPException(status_code=400,
+                                        detail=f"`{key}` is required")
+                return None
+            return str(v).strip()
+
+        smtp_host = _str("smtp_host")
+        smtp_user = _str("smtp_user")
+        smtp_password = _str("smtp_password")
+        from_email = _str("from_email")
+        smtp_port_raw = payload.get("smtp_port") or 587
+        try:
+            smtp_port = int(smtp_port_raw)
+        except Exception:
+            raise HTTPException(status_code=400,
+                                detail="`smtp_port` must be an integer")
+        smtp_starttls = bool(payload.get("smtp_starttls", True))
+        from_name = _str("from_name", required=False) or "SMIFS Wealth Guidance"
+        cc_ops_raw = payload.get("cc_ops_fixed")
+        if isinstance(cc_ops_raw, list):
+            cc_ops_fixed = ",".join(s.strip() for s in cc_ops_raw if s and s.strip())
+        elif isinstance(cc_ops_raw, str):
+            cc_ops_fixed = cc_ops_raw.strip()
+        else:
+            cc_ops_fixed = None  # leave the existing value untouched
+
+        new_values: Dict[str, str] = {
+            "SMTP_HOST": smtp_host,
+            "SMTP_PORT": str(smtp_port),
+            "SMTP_STARTTLS": "true" if smtp_starttls else "false",
+            "SMTP_USER": smtp_user,
+            "SMTP_PASSWORD": smtp_password,
+            "FROM_EMAIL": from_email,
+            "FROM_NAME": from_name,
+        }
+        if cc_ops_fixed is not None:
+            new_values["CC_OPS_FIXED"] = cc_ops_fixed
+
+        # 2. Upsert .env idempotently.
+        from pathlib import Path as _Path
+        env_path = _Path(__file__).parent / ".env"
+        try:
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            lines = []
+
+        keys_remaining = set(new_values.keys())
+        out_lines: List[str] = []
+        for line in lines:
+            stripped = line.lstrip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                out_lines.append(line)
+                continue
+            key = stripped.split("=", 1)[0].strip()
+            if key in new_values:
+                out_lines.append(f"{key}={new_values[key]}")
+                keys_remaining.discard(key)
+            else:
+                out_lines.append(line)
+        # Append any keys that weren't already present.
+        if keys_remaining:
+            if out_lines and out_lines[-1].strip():
+                out_lines.append("")
+            out_lines.append("# Phase 19 SMTP bootstrap — appended via /api/admin/email_relay/configure")
+            for k in ("SMTP_HOST", "SMTP_PORT", "SMTP_STARTTLS", "SMTP_USER",
+                      "SMTP_PASSWORD", "FROM_EMAIL", "FROM_NAME", "CC_OPS_FIXED"):
+                if k in keys_remaining:
+                    out_lines.append(f"{k}={new_values[k]}")
+
+        env_path.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+
+        # 3. Push values into the live process so the *very next* send picks
+        # them up — no supervisor restart needed.
+        for k, v in new_values.items():
+            os.environ[k] = v
+
+        # 4. Drop the chain cache so the next send re-resolves with the fresh
+        # config (helps when ops_cc_fixed was just changed).
+        try:
+            import email_relay as _er
+            _er._CHAIN_CACHE.clear()
+        except Exception:
+            pass
+
+        # 5. Log-safe summary (NO password, ever).
+        logger.info(
+            "email_relay configure: host=%s port=%s starttls=%s user=%s "
+            "from=%s cc_ops_changed=%s",
+            smtp_host, smtp_port, smtp_starttls, smtp_user, from_email,
+            cc_ops_fixed is not None,
+        )
+
+        # 6. Return the new status snapshot (password redacted by relay_status).
+        import email_relay as _er
+        return {"ok": True, "applied": True,
+                "keys_written": sorted(new_values.keys()),
+                "status": _er.relay_status()}
+
     # ---------------- Phase 13 — errors + security_events read surface ----------------
     @router.get("/errors")
     async def list_errors(limit: int = 50, since: Optional[str] = None):
