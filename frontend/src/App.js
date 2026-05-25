@@ -1,5 +1,6 @@
 import "@/App.css";
 import "@/admin.css";
+import "@/styles/phase20-blocks.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Chat from "@/pages/Chat";
 import Admin from "@/pages/Admin";

@@ -371,3 +371,48 @@ admin UI's Sales Pipeline drawer shows the "SMTP auth disabled" badge in red.
    `auth_failed` with masked O365 error. ✅
 7. DELETE → source flips to `env`, env-sourced send still works. ✅
 8. Zero password leaks across all logs and security_events rows. ✅
+
+---
+
+## Phase 20 — Dynamic OrgLens Tool Registry (deep integration)
+
+### What changed
+- New package `backend/orglens_tools/` — manifest-driven tool registry, secure adapter, in-memory + Mongo cache, PII masking, Question Analyzer (gpt-4o-mini), multi-round tool-calling orchestrator (gpt-4o for composition).
+- 24 active tools cover firm directory, employee profile, broker-office client surface, mutual-fund surface, and aggregates. Each enforces role gating, session-clamping (clients to own UCC/PAN, employees to RM book), and field masking BEFORE the LLM sees the result.
+- New frontend block renderers under `frontend/src/components/blocks/`: TableBlock, ChartBlock, ImageBlock, DownloadBlock.
+- Two approved PNG generators (matplotlib + kaleido) hooked into the response builder: `org_tree` and `portfolio_doughnut`. Served via `GET /api/charts/{id}.png` (path-traversal-safe, 24h TTL sweep).
+- New admin tab `ToolsTab.jsx` + `GET /api/admin/tools/status` for live registry health, per-tool latency, and disabled-tool drift.
+- Tool-call telemetry → `tool_calls` collection (params PII-redacted, 90-day TTL). Question Analyzer telemetry → `question_analyzer_calls`.
+
+### Feature flag
+- `PHASE_20_TOOLS_ENABLED=true|false` (default false). Currently **true in preview only**; production stays OFF until the 50-question matrix scores >= 45/50 PASS AND a manual greenlight from the product owner.
+- When the flag is false, every chat turn falls through to the legacy Phase 8/12 branches (`_branch_directory`, `_branch_client_query`). No code paths are removed in Phase 20 — they remain as a safety net.
+
+### Cutover gate
+- File: `/app/deliverables/phase20/run_matrix.py`
+- Runs the 50 questions in `/app/deliverables/phase20/question_matrix.md` against `/api/agent/turn` with role-appropriate verified sessions (visitor / client / employee). Captures Question Analyzer envelope + tools called + final block types per row. Writes:
+  - `matrix_results.json` (machine-readable)
+  - `matrix_results.md` (human summary)
+  - `matrix_run.md` (analyzer-accuracy audit)
+- **Gate**: PASS >= 45 of 50 (90%). 5 are BLOCKED by design (see `orglens_bo_crm_scope_request.md`).
+
+### Deprecation timeline (Phase 21 candidate)
+- Phase 20 ships the new pipeline behind the flag. The legacy 6 hard-coded tool paths in `backend/agents/directory_agent.py` and `backend/agents/client_agent.py` stay live as the fallback for ≥ 2 weeks AFTER the flag flips ON in production.
+- Phase 21 will:
+  1. Move the flag default to `true`.
+  2. Delete `_branch_directory` + `_branch_client_query` and their downstream `directory_agent` / `client_agent` modules.
+  3. Trim the router's `DIRECTORY_QUERY` / `CLIENT_QUERY` intents into `KNOWLEDGE` so every data-shaped turn routes through Phase 20 by default.
+
+### Test pass (Phase 20.0)
+1. Tool registry loads + validates 24 entries against the live OpenAPI spec at boot. Disabled-entry log line surfaced.
+2. Hub AI native tool-calling verified on `gpt-4o`, `gpt-4o-mini`, `claude-haiku-4-5`, `llama-3.3-70b-versatile`. All proxy `tools=[...]` and `tool_choice` through to the underlying provider.
+3. Adapter role gate: visitor blocked from `bo_client_by_ucc` → `forbidden_role` + `security_events` row of kind `unauthorized_tool_call`.
+4. Session clamping: employee passes `ucc=M888888` (not in their RM book) → adapter rejects with `not_in_rm_book` + `security_events` row of kind `rm_relationship_violation`.
+5. PII masking: PAN/Aadhaar/bank account fields masked in adapter return; cache rows hold masked values keyed by role.
+6. 50-question matrix → see `/app/deliverables/phase20/matrix_results.md`.
+
+### What did NOT change
+- Phase 16/17/18/19 stay untouched. The new pipeline is additive and gated.
+- No SMTP relay regressions.
+- No router-vocabulary regressions (router still classifies into the same 9 intents; we just intercept 4 of them when the flag is on).
+

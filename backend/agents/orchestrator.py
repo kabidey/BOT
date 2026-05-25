@@ -14,6 +14,7 @@ Per-turn flow:
 """
 from __future__ import annotations
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -662,7 +663,39 @@ async def run_turn(db, session_id: Optional[str], message: str,
             await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
             identity_obj = await auth_agent.get_verified_identity(db, sid)
 
-            if intent == "KNOWLEDGE":
+            # ---- Phase 20 — feature-flagged tool-aware pipeline ----
+            # When PHASE_20_TOOLS_ENABLED=true AND the router landed on a
+            # data-shaped intent (CLIENT_*, DIRECTORY_*), try the dynamic
+            # tool registry first. Falls through to the legacy branches when
+            # the new pipeline can't handle the question or returns ok=False.
+            if (os.environ.get("PHASE_20_TOOLS_ENABLED", "false").lower() == "true"
+                    and intent in ("CLIENT_LOOKUP", "CLIENT_QUERY", "DIRECTORY_QUERY",
+                                    "KNOWLEDGE", "SMALL_TALK")):
+                try:
+                    from orglens_tools import orchestrator as _p20
+                    p20 = await _p20.run(db, sid, message,
+                                          session=auth_row,
+                                          identity_obj=identity_obj,
+                                          session_context=session_context)
+                    if p20.get("ok"):
+                        out = {"blocks": p20["blocks"], "model": p20.get("model"),
+                                "intent_hint": "TOOLS_PIPELINE"}
+                        trace.append({"step": "phase20", "ok": True,
+                                       "classification": p20.get("classification"),
+                                       "tool_trace": p20.get("trace")})
+                        intent = "TOOLS_PIPELINE"
+                    else:
+                        trace.append({"step": "phase20", "ok": False,
+                                       "reason": p20.get("reason"),
+                                       "classification": p20.get("classification")})
+                        out = None  # fall through to legacy branches
+                except Exception:
+                    logger.exception("Phase 20 pipeline failed; falling through")
+                    out = None
+            else:
+                out = None
+
+            if out is None and intent == "KNOWLEDGE":
                 out = await _branch_knowledge(
                     message, history, identity_obj, session_id=sid,
                     emit_token=emit_token, emit_citations=emit_citations, db=db,
@@ -672,31 +705,31 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 )
                 if isinstance(out, dict) and out.get("intent_hint"):
                     intent = out["intent_hint"]
-            elif intent == "LEAD_CAPTURE":
+            elif out is None and intent == "LEAD_CAPTURE":
                 out = await _branch_lead_capture(message, subject, history, identity_obj, session_id=sid,
                                                  emit_token=emit_token, emit_citations=emit_citations)
-            elif intent == "CALLBACK_REQUEST":
+            elif out is None and intent == "CALLBACK_REQUEST":
                 out = await _branch_callback(message, history)
-            elif intent == "MARKET_DATA":
+            elif out is None and intent == "MARKET_DATA":
                 out = await _branch_market(db, message, subject, history)
-            elif intent == "CLIENT_LOOKUP":
+            elif out is None and intent == "CLIENT_LOOKUP":
                 out = await _branch_client_lookup(db, sid, message, subject, auth_row, identity_obj)
                 hint = out.get("intent_hint") if isinstance(out, dict) else None
                 if hint:
                     intent = hint
-            elif intent == "DIRECTORY_QUERY":
+            elif out is None and intent == "DIRECTORY_QUERY":
                 out = await _branch_directory(
                     sid, routing.get("tool_name"), routing.get("tool_args") or {},
                     identity_obj, session_context,
                 )
-            elif intent == "CLIENT_QUERY":
+            elif out is None and intent == "CLIENT_QUERY":
                 out = await _branch_client_query(
                     sid, routing.get("tool_name"), routing.get("tool_args") or {},
                     identity_obj, session_context,
                 )
-            elif intent == "ESCALATION":
+            elif out is None and intent == "ESCALATION":
                 out = await _branch_escalation(message)
-            else:  # SMALL_TALK
+            elif out is None:  # SMALL_TALK fallback
                 out = await _branch_small_talk(
                     message, history, identity_obj, emit_token=emit_token,
                     locale=session_context.get("locale"),

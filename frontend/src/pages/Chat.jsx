@@ -8,6 +8,10 @@ import FormBlock from "@/components/blocks/FormBlock";
 import MarketCardBlock from "@/components/blocks/MarketCardBlock";
 import ClientCardBlock from "@/components/blocks/ClientCardBlock";
 import EmployeeCardBlock from "@/components/blocks/EmployeeCardBlock";
+import TableBlock from "@/components/blocks/TableBlock";
+import ChartBlock from "@/components/blocks/ChartBlock";
+import ImageBlock from "@/components/blocks/ImageBlock";
+import DownloadBlock from "@/components/blocks/DownloadBlock";
 import EscalationBlock from "@/components/blocks/EscalationBlock";
 import RoleGate from "@/components/RoleGate";
 import ResumeOfferBlock from "@/components/blocks/ResumeOfferBlock";
@@ -651,6 +655,14 @@ export default function Chat({ embedded = false }) {
         return <ClientCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "employee_card":
         return <EmployeeCardBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "table":
+        return <TableBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "chart":
+        return <ChartBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "image":
+        return <ImageBlock key={key} block={block} msgIdx={msgIdx} />;
+      case "download":
+        return <DownloadBlock key={key} block={block} msgIdx={msgIdx} />;
       case "resume_offer":
         return (
           <ResumeOfferBlock

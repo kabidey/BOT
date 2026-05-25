@@ -1047,6 +1047,100 @@ def build_admin_router(db) -> APIRouter:
         snap["recent_telemetry"] = rows
         return snap
 
+    # ---------------- Phase 20 — Tools admin observability ----------------
+    @router.get("/tools/registry")
+    async def tools_registry():
+        """Returns every tool in the manifest with metadata + 7-day stats."""
+        from orglens_tools import registry as _reg
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        since_iso = (_dt.now(_tz.utc) - _td(days=7)).isoformat()
+        tools = _reg.all_tools()
+        out: List[Dict[str, Any]] = []
+        for t in tools:
+            stats = {"calls_7d": 0, "ok_7d": 0, "cache_hits_7d": 0,
+                     "p50_ms": None, "p95_ms": None}
+            try:
+                pipeline = [
+                    {"$match": {"tool_name": t["name"], "created_at": {"$gte": since_iso}}},
+                    {"$group": {"_id": "$tool_name",
+                                 "calls": {"$sum": 1},
+                                 "ok": {"$sum": {"$cond": ["$ok", 1, 0]}},
+                                 "cache_hits": {"$sum": {"$cond": ["$hit_cache", 1, 0]}},
+                                 "latencies": {"$push": "$latency_ms"}}},
+                ]
+                async for doc in db.tool_calls.aggregate(pipeline):
+                    stats["calls_7d"] = doc["calls"]
+                    stats["ok_7d"] = doc["ok"]
+                    stats["cache_hits_7d"] = doc["cache_hits"]
+                    lats = sorted(x for x in doc["latencies"] if isinstance(x, int))
+                    if lats:
+                        stats["p50_ms"] = lats[len(lats) // 2]
+                        stats["p95_ms"] = lats[max(0, int(len(lats) * 0.95) - 1)]
+            except Exception:
+                pass
+            out.append({
+                "name": t["name"], "description": t["description"].strip().splitlines()[0][:160],
+                "endpoint": t["endpoint"],
+                "allowed_roles": t["allowed_roles"],
+                "latency_tier": t.get("latency_tier"),
+                "output_hint": t.get("output_hint"),
+                "cache_ttl_seconds": t.get("cache_ttl_seconds"),
+                "stats": stats,
+            })
+        return {"tools": out, "disabled": _reg.disabled(),
+                "flag_enabled": os.environ.get("PHASE_20_TOOLS_ENABLED", "false").lower() == "true"}
+
+    @router.get("/tools/recent")
+    async def tools_recent(limit: int = 50):
+        """Recent tool_call rows for the live tail."""
+        cur = db.tool_calls.find({}, {"_id": 0}).sort("created_at", -1).limit(max(1, min(limit, 200)))
+        return {"items": await cur.to_list(length=limit)}
+
+    @router.get("/tools/analyzer_stats")
+    async def tools_analyzer_stats():
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        since = (_dt.now(_tz.utc) - _td(hours=24)).isoformat()
+        out: Dict[str, Any] = {"by_entity": {}, "by_operation": {}, "by_output_hint": {},
+                                "total": 0, "avg_latency_ms": None}
+        try:
+            total = await db.question_analyzer_calls.count_documents({"created_at": {"$gte": since}})
+            out["total"] = total
+            for field in ("entity_type", "operation", "output_hint"):
+                pipeline = [
+                    {"$match": {"created_at": {"$gte": since}}},
+                    {"$group": {"_id": f"${field}", "n": {"$sum": 1}}},
+                    {"$sort": {"n": -1}},
+                ]
+                key = "by_" + field.split("_")[0]
+                # Map back to expected keys.
+                key = {"by_entity": "by_entity", "by_operation": "by_operation", "by_output": "by_output_hint"}.get(key, key)
+                out_map = {}
+                async for doc in db.question_analyzer_calls.aggregate(pipeline):
+                    out_map[doc["_id"] or "?"] = doc["n"]
+                if field == "entity_type":
+                    out["by_entity"] = out_map
+                if field == "operation":
+                    out["by_operation"] = out_map
+                if field == "output_hint":
+                    out["by_output_hint"] = out_map
+            # Avg latency
+            pipeline = [{"$match": {"created_at": {"$gte": since}}},
+                        {"$group": {"_id": None, "avg": {"$avg": "$latency_ms"}}}]
+            async for d in db.question_analyzer_calls.aggregate(pipeline):
+                out["avg_latency_ms"] = int(d.get("avg") or 0)
+        except Exception:
+            logger.exception("tools_analyzer_stats query failed (non-fatal)")
+        return out
+
+    @router.post("/tools/flag")
+    async def tools_flag(payload: Dict[str, Any] = Body(...)):
+        """Toggle PHASE_20_TOOLS_ENABLED at runtime. Writes to live env only;
+        persistence is via .env (re-PUT after restart) — by design we keep
+        the flag controllable from the UI for fast preview iteration."""
+        on = bool(payload.get("enabled", False))
+        os.environ["PHASE_20_TOOLS_ENABLED"] = "true" if on else "false"
+        return {"ok": True, "flag_enabled": on}
+
     return router
 
 

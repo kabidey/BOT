@@ -1,0 +1,487 @@
+# Phase 20 — OrgLens tool manifest. One stanza per endpoint we expose to
+# the LLM via Hub AI's function-calling. The orchestrator filters this set
+# per turn based on (a) session role, (b) Question Analyzer hints.
+#
+# Schema (loaded + validated by registry.py at boot):
+#   name:                  Unique tool identifier (used as function name in LLM).
+#   description:           One-line LLM-facing prompt; what the tool does + when to call.
+#   endpoint:              "GET /api/v1/..." against OrgLens. Path params in {curly}.
+#   method:                GET | POST (currently all our tools are GET).
+#   allowed_roles:         [visitor, client, employee, admin]. Adapter enforces.
+#   binds_session:         If present, the named param is auto-filled from session
+#                          (ucc → client.verified_ucc; employee_code → employee.code).
+#                          Caller MAY NOT override; mismatch raises ToolForbidden.
+#   latency_tier:          fast | medium | slow (drives caching + parallel hints).
+#   output_hint:           text | card | table | chart | image | download
+#                          (consumed by the LLM second-pass prompt + renderer).
+#   cache_ttl_seconds:     Per-tool TTL override (default 90s from cache.py).
+#   parameters:            JSON-Schema fragment, passed verbatim into the LLM
+#                          function-calling spec. Keep tight — too-loose params
+#                          mean the LLM invents UCCs.
+#   mask_fields:           Adapter-side PII masking (PAN, Aadhaar, account_no).
+#   employee_rm_check:     If true, the adapter verifies the requested ucc is in
+#                          the caller's RM book before forwarding (employee role).
+#   notes:                 Free text; surfaced in the admin tools tab.
+
+# -------------------- Directory primitives (visitor-safe) --------------------
+
+- name: firm_stats
+  description: |
+    Return SMIFS-wide headline counters — total employees, active employees,
+    departments, designations, locations. Use for any "how big is SMIFS" /
+    "how many employees" question.
+  endpoint: GET /api/v1/stats
+  allowed_roles: [visitor, client, employee, admin]
+  latency_tier: medium
+  output_hint: text
+  cache_ttl_seconds: 600
+  parameters:
+    type: object
+    properties: {}
+
+- name: client_corpus_stats
+  description: |
+    Return firm-wide client mix: total / active / suspended / closed, plus a
+    20-row category breakdown (Individual, Mutual Fund, HUF, Insurance, etc.)
+    and a state-wise breakdown. Use for "how does our client base break down"
+    style questions. Returns aggregates only — no PII.
+  endpoint: GET /api/v1/clients/stats
+  allowed_roles: [visitor, client, employee, admin]
+  latency_tier: medium
+  output_hint: chart
+  cache_ttl_seconds: 600
+  parameters:
+    type: object
+    properties: {}
+
+- name: bo_stats
+  description: |
+    Broker-office corpus counters — total clients, ledger entries, trade-book
+    entries, portfolio holdings, deposits, withdrawals. Firm-wide.
+  endpoint: GET /api/v1/bo/stats
+  allowed_roles: [employee, admin]
+  latency_tier: medium
+  output_hint: text
+  cache_ttl_seconds: 600
+  parameters: {type: object, properties: {}}
+
+- name: mf_stats
+  description: |
+    Mutual-fund corpus counters — total MF clients, folios, funds, sips,
+    transactions, and total AUM in INR. Firm-wide.
+  endpoint: GET /api/v1/mf/stats
+  allowed_roles: [employee, admin]
+  latency_tier: medium
+  output_hint: text
+  cache_ttl_seconds: 600
+  parameters: {type: object, properties: {}}
+
+- name: departments_list
+  description: |
+    List all SMIFS departments with name, code, employee count, active flag.
+  endpoint: GET /api/v1/departments
+  allowed_roles: [visitor, client, employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 3600
+  parameters:
+    type: object
+    properties:
+      status: {type: string, enum: [active, inactive], description: "Filter by status."}
+
+- name: locations_list
+  description: List SMIFS office locations.
+  endpoint: GET /api/v1/locations
+  allowed_roles: [visitor, client, employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 3600
+  parameters:
+    type: object
+    properties:
+      status: {type: string, enum: [active, inactive]}
+
+- name: designations_list
+  description: List all designations / titles in the firm.
+  endpoint: GET /api/v1/designations
+  allowed_roles: [visitor, client, employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 3600
+  parameters:
+    type: object
+    properties:
+      status: {type: string, enum: [active, inactive]}
+
+# -------------------- Employee profile (employee + admin) --------------------
+
+- name: employee_by_code
+  description: |
+    Full SMIFS employee profile by employee_id (e.g., SMWM-25031054).
+    Returns 77 fields incl. designation, department, reporting line
+    (manager, HOD, HRBP), band, grade, business unit, cost centre, joining,
+    confirmation, on-notice, direct-reports count, team size. CTC fields are
+    REDACTED in chat for all roles except admin.
+  endpoint: GET /api/v1/employee/by-code/{employee_code}
+  allowed_roles: [employee, admin]
+  latency_tier: medium
+  output_hint: card
+  cache_ttl_seconds: 300
+  parameters:
+    type: object
+    required: [employee_code]
+    properties:
+      employee_code:
+        type: string
+        pattern: '^SM[A-Z]{2}-[0-9]{8}$'
+        description: "SMIFS employee identifier."
+  mask_fields: [pan_number, personal_mobile, personal_mobile_number]
+  redact_for_non_admin: [fixed_ctc, total_ctc, salary_structure]
+
+- name: employee_search
+  description: |
+    Search SMIFS employees by free-text name / email / department / employee_id.
+    Returns up to 25 matches with name, designation, department, location,
+    reports_to. Use for "find <person>" or "show the <team> team" questions.
+  endpoint: GET /api/v1/employees
+  allowed_roles: [employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    properties:
+      search:     {type: string, description: "Free-text search across name/email."}
+      department: {type: string, description: "Department name filter."}
+      status:     {type: string, enum: [Active, Inactive, "On Notice"]}
+      location:   {type: string, description: "Office location filter."}
+  redact_for_non_admin: [fixed_ctc, total_ctc, salary_structure]
+
+- name: org_tree
+  description: |
+    Reporting hierarchy (org chart) of SMIFS. Heavy endpoint — only call when
+    the user explicitly asks for "org chart" / "reporting structure" /
+    "team tree". Pre-cached for 30 minutes.
+  endpoint: GET /api/v1/org-tree
+  allowed_roles: [employee, admin]
+  latency_tier: slow
+  output_hint: image
+  cache_ttl_seconds: 1800
+  parameters:
+    type: object
+    properties:
+      status: {type: string, enum: [active, inactive], default: active}
+
+# -------------------- Client lookup (employee, or self for client) --------------------
+
+- name: bo_client_by_ucc
+  description: |
+    Broker-office client master record by UCC. Returns 47 fields incl. name,
+    PAN, segment flags (cash/F&O/MF/MTF/commodity), branch, KYC status, bank,
+    nominees. PAN partially masked in chat; full PAN in admin only.
+  endpoint: GET /api/v1/bo/client/by-ucc/{ucc}
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: card
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc: {type: string, description: "Unique Client Code."}
+  mask_fields: [pan, bank_account_no]
+
+- name: bo_client_360
+  description: |
+    One-shot client snapshot — master + ledger summary + last trades +
+    portfolio holdings count + deposits total + withdrawals total + F&O P&L
+    scrip count. Best entry-point when the user asks for "everything about
+    UCC X" or "full snapshot".
+  endpoint: GET /api/v1/bo/client/{ucc}/360
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: card
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc: {type: string}
+  mask_fields: [pan, bank_account_no]
+
+- name: bo_client_portfolio
+  description: |
+    Current equity portfolio holdings for a UCC — scrip-level. Returns
+    quantity, average cost, market price, market value, unrealised P&L.
+  endpoint: GET /api/v1/bo/client/{ucc}/portfolio
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 90
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc: {type: string}
+
+- name: bo_client_ledger_balance
+  description: |
+    Cash ledger balance for a UCC, as of an optional date.
+  endpoint: GET /api/v1/bo/client/{ucc}/ledger/balance
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: text
+  cache_ttl_seconds: 60
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc:   {type: string}
+      as_of: {type: string, description: "YYYY-MM-DD; defaults to today."}
+
+- name: bo_client_trade_book
+  description: |
+    Trade-book entries for a UCC. Filterable by date range, exchange, side.
+    Best for "show my trades" / "buys this month" / "NSE sells in Q3" style.
+  endpoint: GET /api/v1/bo/client/{ucc}/trade-book
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 90
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc:       {type: string}
+      from_date: {type: string, description: "YYYY-MM-DD."}
+      to_date:   {type: string}
+      exchange:  {type: string, enum: [NSE, BSE, MCX, NCDEX, ALL]}
+      side:      {type: string, enum: [BUY, SELL, ALL]}
+
+- name: bo_client_charges
+  description: |
+    Brokerage + STT + GST + stamp duty + other charges by UCC. Filterable
+    by date range. Use for "how much brokerage have I paid" questions.
+  endpoint: GET /api/v1/bo/client/{ucc}/charges
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 90
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc:       {type: string}
+      from_date: {type: string}
+      to_date:   {type: string}
+
+- name: bo_client_deposits
+  description: Cash deposit history for a UCC. Filterable by date range.
+  endpoint: GET /api/v1/bo/client/{ucc}/deposits
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc:       {type: string}
+      from_date: {type: string}
+      to_date:   {type: string}
+
+- name: bo_client_withdrawals
+  description: Cash withdrawal history for a UCC.
+  endpoint: GET /api/v1/bo/client/{ucc}/withdrawals
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  employee_rm_check: true
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc:       {type: string}
+      from_date: {type: string}
+      to_date:   {type: string}
+
+- name: bo_clients_by_rm
+  description: |
+    List broker-office clients for a given RM (relationship manager). The
+    `rm` filter is a free-text match on the RM's name. Critical for any
+    employee asking "show me my clients" — adapter auto-fills `rm` with the
+    caller's employee record.
+  endpoint: GET /api/v1/bo/clients
+  allowed_roles: [employee, admin]
+  binds_session: {employee: rm}
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 180
+  parameters:
+    type: object
+    properties:
+      rm:          {type: string, description: "RM name (free-text match)."}
+      branch_code: {type: string}
+      pan:         {type: string}
+      name:        {type: string, description: "Client name filter."}
+      limit:       {type: integer, default: 50, maximum: 200}
+  mask_fields: [pan, bank_account_no]
+
+# -------------------- Mutual-fund tools --------------------
+
+- name: mf_client_by_pan
+  description: |
+    MF investor profile by PAN. Returns 102 fields incl. AUM split (mfEquity
+    + mfDebt), target asset allocation, RM name + email + phone, KYC status,
+    family, bank, occupation, net worth. PAN partially masked in chat.
+  endpoint: GET /api/v1/mf/client/by-pan/{pan}
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: pan}
+  latency_tier: medium
+  output_hint: card
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    required: [pan]
+    properties:
+      pan: {type: string, pattern: '^[A-Z]{5}[0-9]{4}[A-Z]$'}
+  mask_fields: [pan, banks]
+
+- name: mf_client_by_uid
+  description: |
+    MF investor profile by internal UID. Same payload as mf_client_by_pan.
+    Prefer mf_client_by_pan when the user gives a PAN; this is for chained
+    follow-ups (we resolved the uid in a previous call).
+  endpoint: GET /api/v1/mf/client/by-uid/{uid}
+  allowed_roles: [employee, admin]
+  latency_tier: medium
+  output_hint: card
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    required: [uid]
+    properties:
+      uid: {type: string}
+  mask_fields: [pan, banks]
+
+- name: mf_client_folios
+  description: |
+    All MF folios held by a single investor (resolved by uid). Returns
+    folio_no, scheme_name, AMC, asset_category, current_value, units.
+  endpoint: GET /api/v1/mf/client/{uid}/folios
+  allowed_roles: [client, employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 90
+  parameters:
+    type: object
+    required: [uid]
+    properties:
+      uid: {type: string}
+
+- name: mf_client_transactions
+  description: |
+    Mutual-fund transaction history for an investor (purchases, redemptions,
+    switches, dividends). Filterable by type + paginated.
+  endpoint: GET /api/v1/mf/client/{uid}/transactions
+  allowed_roles: [client, employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 60
+  parameters:
+    type: object
+    required: [uid]
+    properties:
+      uid:      {type: string}
+      txn_type: {type: string, enum: [Purchase, Redemption, Switch, Dividend, ALL]}
+      limit:    {type: integer, default: 25, maximum: 200}
+      skip:     {type: integer, default: 0}
+
+- name: mf_client_sips
+  description: |
+    All SIPs (running, paused, stopped) for an investor. Returns scheme,
+    frequency, amount, next_debit_date, status.
+  endpoint: GET /api/v1/mf/client/{uid}/sips
+  allowed_roles: [client, employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 90
+  parameters:
+    type: object
+    required: [uid]
+    properties:
+      uid: {type: string}
+
+- name: mf_clients_by_rm
+  description: |
+    List MF investors for a given RM. Adapter auto-fills `rm_name` for
+    employees. Use for "my MF clients", "top clients by AUM" questions.
+  endpoint: GET /api/v1/mf/clients
+  allowed_roles: [employee, admin]
+  binds_session: {employee: rm_name}
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 180
+  parameters:
+    type: object
+    properties:
+      rm_name: {type: string}
+      name:    {type: string, description: "Investor name search."}
+      pan:     {type: string}
+      limit:   {type: integer, default: 50, maximum: 200}
+  mask_fields: [pan]
+
+# -------------------- Generic client lookup (canonical) --------------------
+
+- name: client_by_ucc
+  description: |
+    Canonical client identity by UCC. Lighter than bo_client_by_ucc — use
+    when you only need name + PAN + status + state, not the BO master record.
+  endpoint: GET /api/v1/client/by-ucc/{ucc}
+  allowed_roles: [client, employee, admin]
+  binds_session: {client: ucc}
+  latency_tier: medium
+  output_hint: card
+  cache_ttl_seconds: 300
+  parameters:
+    type: object
+    required: [ucc]
+    properties:
+      ucc: {type: string}
+  mask_fields: [pan]
+
+- name: clients_search
+  description: |
+    Global client search (PAN, name, state). Use for "find a client" /
+    "how many active clients in West Bengal" / suspended-list audit.
+  endpoint: GET /api/v1/clients
+  allowed_roles: [employee, admin]
+  latency_tier: medium
+  output_hint: table
+  cache_ttl_seconds: 120
+  parameters:
+    type: object
+    properties:
+      ucc:         {type: string}
+      pan:         {type: string}
+      client_name: {type: string}
+      state:       {type: string}
+      status:      {type: string, enum: [Active, Suspended, Closed]}
+      limit:       {type: integer, default: 50, maximum: 200}
+  mask_fields: [pan]

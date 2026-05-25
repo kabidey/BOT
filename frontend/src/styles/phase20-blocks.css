@@ -1,0 +1,184 @@
+/* Phase 20 — Block-renderer styles for TableBlock / ChartBlock /
+   ImageBlock / DownloadBlock. Reuses existing SMIFS theme tokens. */
+
+.smifs-block-table {
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  overflow: hidden;
+}
+.smifs-block-table-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,0.03);
+}
+.smifs-block-table-head h4 {
+  margin: 0; font-size: 13px; color: var(--gold-soft); font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.smifs-block-table-actions {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 11px; color: var(--ink-muted);
+}
+.smifs-block-table-csv {
+  background: transparent; border: 1px solid var(--line); color: var(--ink-muted);
+  padding: 4px 9px; border-radius: 6px; cursor: pointer; font-size: 11px;
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: all 120ms ease;
+}
+.smifs-block-table-csv:hover { color: var(--gold); border-color: var(--gold-deep); }
+
+.smifs-block-table-scroll {
+  overflow-x: auto;
+  max-height: 480px;
+}
+.smifs-block-table table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.smifs-block-table th {
+  background: rgba(255,255,255,0.04);
+  color: var(--gold-soft);
+  text-align: left;
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  position: sticky; top: 0; z-index: 2;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.smifs-block-table th.sortable { cursor: pointer; user-select: none; }
+.smifs-block-table th.sortable:hover { color: var(--gold); }
+.smifs-block-table th.frozen, .smifs-block-table td.frozen {
+  position: sticky; left: 0; z-index: 1;
+  background: rgba(11,27,43,0.95);
+}
+.smifs-block-table td {
+  padding: 7px 12px;
+  color: var(--ink);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  white-space: nowrap;
+}
+.smifs-block-table td[data-type="inr"], .smifs-block-table td[data-type="num"] {
+  text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--gold-soft);
+}
+.smifs-block-table tbody tr:hover td { background: rgba(255,255,255,0.03); }
+
+.smifs-block-table-cards { display: none; }
+
+.smifs-block-table-pager {
+  display: flex; justify-content: center; align-items: center; gap: 14px;
+  padding: 10px; font-size: 11px; color: var(--ink-muted);
+  border-top: 1px solid var(--line);
+}
+.smifs-block-table-pager button {
+  background: transparent; border: 1px solid var(--line); color: var(--ink-muted);
+  width: 28px; height: 28px; border-radius: 6px; cursor: pointer;
+}
+.smifs-block-table-pager button:hover:not(:disabled) { color: var(--gold); }
+.smifs-block-table-pager button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.smifs-block-table-footnote {
+  margin: 0; padding: 8px 14px;
+  font-size: 11px; color: var(--ink-muted);
+  border-top: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
+}
+
+@media (max-width: 640px) {
+  .smifs-block-table-scroll { display: none; }
+  .smifs-block-table-cards { display: block; padding: 6px; }
+  .smifs-block-table-card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 6px 4px;
+    background: rgba(255,255,255,0.02);
+  }
+  .smifs-block-table-card-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+  .smifs-block-table-card-label { color: var(--ink-muted); font-size: 10px; text-transform: uppercase; }
+  .smifs-block-table-card-value { color: var(--ink); text-align: right; }
+  .smifs-block-table-card-value[data-type="inr"] { color: var(--gold-soft); }
+}
+
+/* ---- ChartBlock ---- */
+.smifs-block-chart {
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+  padding: 14px 10px 6px;
+}
+.smifs-block-chart h4 {
+  margin: 0 0 4px 8px;
+  font-size: 13px; color: var(--gold-soft); font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.smifs-block-chart-canvas { width: 100%; }
+.smifs-block-chart-empty {
+  color: var(--ink-muted); font-size: 12px; padding: 28px 14px; text-align: center;
+}
+
+/* ---- ImageBlock ---- */
+.smifs-block-image {
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0B1B2B;
+}
+.smifs-block-image img {
+  width: 100%; height: auto; display: block;
+}
+.smifs-block-image-cap {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px;
+  font-size: 11px; color: var(--ink-muted);
+  border-top: 1px solid var(--line);
+  background: rgba(255,255,255,0.02);
+}
+.smifs-block-image-cap a {
+  color: var(--gold-soft); display: inline-flex; align-items: center; gap: 4px;
+  text-decoration: none;
+}
+.smifs-block-image-cap a:hover { color: var(--gold); }
+.smifs-block-image-error {
+  padding: 20px; color: var(--ink-muted);
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* ---- DownloadBlock ---- */
+.smifs-block-download {
+  margin: 8px 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(9,140,98,0.08);
+}
+.smifs-block-download-icon { color: var(--gold-soft); }
+.smifs-block-download-meta { flex: 1; min-width: 0; }
+.smifs-block-download-title { font-size: 13px; color: var(--ink); font-weight: 600; }
+.smifs-block-download-sub { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+.smifs-block-download-btn {
+  background: rgba(9,140,98,0.18); border: 1px solid rgba(9,140,98,0.55);
+  color: var(--gold-soft); padding: 6px 12px; border-radius: 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  text-decoration: none; white-space: nowrap;
+  transition: all 120ms ease;
+}
+.smifs-block-download-btn:hover {
+  background: rgba(9,140,98,0.32); color: #fff;
+}
+.smifs-block-download-disabled {
+  color: var(--ink-muted); font-size: 11px; font-style: italic;
+}

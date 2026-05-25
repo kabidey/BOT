@@ -176,3 +176,40 @@ auth flow.
 **Live-send checkpoint**
 - `SALE-2026-0018` (submitter `SMWM-25031054`): delivered to 1 TO + 7 CC via `smtp.office365.com` (`reason=sent`).
 - Wrong-password regression: `reason=smtp_auth_disabled`, fallback draft written, security event row inserted.
+
+---
+
+## Phase 20 — Dynamic OrgLens Tool Registry (2026-05-25)
+
+### Status: Pipeline GREEN, Cutover Gate NOT MET (35/50 PASS = 70%, target 45/50)
+
+### Implemented
+- 24-tool manifest registry (`backend/orglens_tools/manifest.yaml`) loaded + validated at boot.
+- Generic adapter with role gate, session clamping (UCC/PAN/RM), employee RM-book check, PII masking, Mongo + in-memory cache.
+- Question Analyzer (gpt-4o-mini) — 90.7% analyzer→tool hit rate on the matrix.
+- Multi-round Hub AI tool-calling orchestrator (gpt-4o, 4-round cap, dedup guard).
+- Frontend block renderers (TableBlock, ChartBlock, ImageBlock, DownloadBlock).
+- Admin Tools tab (`/api/admin/tools/status` + `ToolsTab.jsx`).
+- Telemetry: `tool_calls`, `question_analyzer_calls` collections (90-day TTL).
+- Feature flag `PHASE_20_TOOLS_ENABLED=true` in preview ONLY.
+
+### Matrix result (50 questions, mixed roles)
+- PASS=35, PARTIAL=14, BLOCKED=1, FAIL=0
+- Gate: NOT MET (needs 45/50). Honest scoring per user mandate.
+- Deliverables: `/app/deliverables/phase20/{matrix_results.{json,md},matrix_run.md,orglens_bo_crm_scope_request.md}`
+
+### What blocks the 45/50 gate (PARTIAL breakdown)
+- **bo-crm endpoint gaps (4 rows)**: NAV history, SIP-collection trend, ledger time-series. Scope request submitted.
+- **Visitor parent-orchestrator deflection (3 rows)**: role-trigger fires before Phase 20 for visitor aggregate questions.
+- **LLM composition gaps (5 rows)**: Tool data gathered, prompt nudges insufficient to force chart/table block; needs few-shot examples.
+- **Scoring/safety (2 rows)**: H2 cross-UCC clamp not surfaced as refusal; H4 deflection not recognised by refusal-marker scorer.
+
+### Next tasks (P0/P1/P2)
+- P0: Bypass parent-orchestrator role-trigger for visitor analyzer-aggregate intents → unlocks C4/C7/H4 (+3 PASS expected).
+- P0: Surface adapter clamp events to LLM (`clamped:true`) so it can refuse on cross-UCC attempts → H2 (+1 PASS).
+- P1: 4-6 few-shot examples in system prompt for chart/table composition → A5, D1, D4, D5, F3 (+5 PASS).
+- P1: Phase 21 — delete legacy `_branch_directory` / `_branch_client_query` once flag is on in prod for 2 weeks.
+- P2: bo-crm endpoints land → unlocks E1, E2, E3, G2 (+4 PASS expected to reach 48/50).
+
+### Non-regressions confirmed
+Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary changes.

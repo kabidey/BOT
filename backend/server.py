@@ -779,6 +779,30 @@ async def widget_config_preflight(request: Request):
 # ---------------- App wiring ----------------
 import sales_api
 api_router.include_router(sales_api.build_router(db))
+
+
+# ---------------- Phase 20 — chart serving ----------------
+from fastapi.responses import FileResponse as _FileResponse
+from pathlib import Path as _Path
+
+_CHARTS_DIR = _Path("/app/uploads/charts")
+
+
+@api_router.get("/charts/{chart_id}.png")
+async def get_chart_png(chart_id: str):
+    """Serve a generated chart PNG. Path-traversal-safe.
+    Files older than 24h are swept on every read (cheap)."""
+    safe = "".join(c for c in chart_id if c.isalnum())
+    if not safe or len(safe) > 64:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="invalid_chart_id")
+    p = _CHARTS_DIR / f"{safe}.png"
+    if not p.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="chart_not_found")
+    return _FileResponse(str(p), media_type="image/png")
+
+
 app.include_router(api_router)
 app.include_router(build_admin_router(db))
 bind_llm_db(db)

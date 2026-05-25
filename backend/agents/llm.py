@@ -99,7 +99,10 @@ def bind_db(db) -> None:
 async def _post(messages: List[Dict[str, str]], model: str, temperature: float,
                 max_tokens: Optional[int], response_format: Optional[Dict[str, str]],
                 context_chunks: Optional[List[Dict[str, Any]]] = None,
-                routing_hint: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                routing_hint: Optional[Dict[str, Any]] = None,
+                tools: Optional[List[Dict[str, Any]]] = None,
+                tool_choice: Optional[Any] = None,
+                timeout: float = 45.0) -> Dict[str, Any]:
     url = f"{LLMHUB_BASE_URL}/chat/completions"
     headers = {"Authorization": f"Bearer {LLMHUB_API_KEY}", "Content-Type": "application/json"}
     payload: Dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature}
@@ -111,9 +114,13 @@ async def _post(messages: List[Dict[str, str]], model: str, temperature: float,
         payload["context_chunks"] = context_chunks
     if routing_hint and model == "auto":
         payload[HUB_HINT_FIELD] = routing_hint
+    if tools:
+        payload["tools"] = tools
+    if tool_choice is not None:
+        payload["tool_choice"] = tool_choice
     sem = _get_hub_semaphore()
     async with sem:
-        async with httpx.AsyncClient(timeout=30.0) as http:
+        async with httpx.AsyncClient(timeout=timeout) as http:
             # Auto-retry transient 429 / 5xx with exponential backoff.
             last_resp: Optional[httpx.Response] = None
             for attempt in range(3):
@@ -128,6 +135,43 @@ async def _post(messages: List[Dict[str, str]], model: str, temperature: float,
             assert last_resp is not None
             last_resp.raise_for_status()
             return last_resp.json()
+
+
+async def call_with_tools(
+    messages: List[Dict[str, Any]],
+    *,
+    tools: List[Dict[str, Any]],
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.2,
+    max_tokens: Optional[int] = 1400,
+    session_id: Optional[str] = None,
+    intent: Optional[str] = None,
+    tool_choice: Optional[Any] = "auto",
+    response_format: Optional[Dict[str, str]] = None,
+    timeout: float = 90.0,
+) -> Dict[str, Any]:
+    """Phase 20 — single-shot LLM call with OpenAI-style function-calling.
+
+    Caller drives the multi-round loop (see `orglens_tools.orchestrator.run`).
+    Returns `{data, model}` where `data` is the raw Hub AI response so the
+    caller can inspect `choices[0].message.tool_calls`.
+    """
+    t0 = time.monotonic()
+    try:
+        data = await _post(messages, model, temperature, max_tokens, response_format,
+                            tools=tools, tool_choice=tool_choice, timeout=timeout)
+        local_latency_ms = int((time.monotonic() - t0) * 1000)
+        if _db_handle is not None:
+            cost_ledger.fire_and_forget_record(
+                _db_handle, task="tools", session_id=session_id, intent=intent,
+                data=data, request_model=model, local_latency_ms=local_latency_ms,
+            )
+        return {"data": data, "model": model}
+    except httpx.HTTPStatusError as e:
+        body = e.response.text[:400] if e.response is not None else ""
+        logger.warning("call_with_tools failed model=%s status=%s body=%s",
+                       model, getattr(e.response, "status_code", "?"), body)
+        raise
 
 
 async def call_with_fallback(
