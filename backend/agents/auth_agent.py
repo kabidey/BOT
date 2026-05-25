@@ -525,6 +525,37 @@ async def _finalise_verified(db, session_id: str, session_type: str,
             pass
     await _atomic_set(db, session_id, **fields)
 
+    # Phase 22 — device-fingerprint binding. Best-effort: every successful
+    # PAN→identity match records a binding so the fraud-detection scorer can
+    # spot client-data harvesting from a single device. Failure here MUST
+    # NOT break verification (security-belt, not parachute).
+    try:
+        import fingerprint_guard as _fp
+        # Pull the request context that auth_agent stashed when the verify
+        # request landed (see middleware).
+        ctx = await db.sessions.find_one({"_id": session_id},
+                                          {"_id": 0, "last_request_ctx": 1}) or {}
+        rc = ctx.get("last_request_ctx") or {}
+        fp_hash = rc.get("fingerprint_hash") or ""
+        if fp_hash:
+            identity_key = (pending.get("ucc") if session_type == "client"
+                             else pending.get("employee_id"))
+            rm_name = ((pending.get("rm_name") or pending.get("relationship_manager")
+                         or pending.get("rm"))
+                        if session_type == "client" else None)
+            await _fp.record_identity_binding(
+                db, fp_hash,
+                identity_type=session_type,
+                identity_key=str(identity_key or ""),
+                identity_rm_name=rm_name,
+                ip=rc.get("ip", ""),
+                ua=rc.get("ua", ""),
+                tz=rc.get("tz", ""),
+                screen=rc.get("screen", ""),
+            )
+    except Exception:
+        logger.debug("fingerprint identity binding failed (non-fatal)", exc_info=True)
+
     # Phase 7 — rehydration offer on successful verification
     import lifecycle  # late import to avoid cycles
     offers = await lifecycle.rehydration_candidates_for_session(db, session_id)

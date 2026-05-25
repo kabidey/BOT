@@ -807,6 +807,10 @@ app.include_router(api_router)
 app.include_router(build_admin_router(db))
 bind_llm_db(db)
 widget_config.bind_db(db)
+# Phase 22 — Silent device-fingerprint guard. MUST be added AFTER the routers
+# include, but the middleware itself is order-independent of CORS (added next).
+import fingerprint_middleware as _fp_mw
+app.add_middleware(_fp_mw.FingerprintGuardMiddleware, db=db)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -864,6 +868,12 @@ async def startup_event():
             await db.errors.create_index("error_id", name="errors_error_id_idx", sparse=True)
             await db.security_events.create_index([("created_at", -1)], name="security_events_created_at_desc")
             await db.security_events.create_index("kind", name="security_events_kind_idx", sparse=True)
+            # Phase 22 — fingerprint guard indexes.
+            try:
+                import fingerprint_guard as _fpg
+                await _fpg.ensure_indexes(db)
+            except Exception:
+                logger.exception("fingerprint_guard.ensure_indexes failed (non-fatal)")
         except Exception:
             logger.exception("TTL index creation failed (non-fatal)")
         reset_llm_cache()

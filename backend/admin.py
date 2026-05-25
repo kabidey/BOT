@@ -1141,6 +1141,112 @@ def build_admin_router(db) -> APIRouter:
         os.environ["PHASE_20_TOOLS_ENABLED"] = "true" if on else "false"
         return {"ok": True, "flag_enabled": on}
 
+    # ---------------- Phase 22 — Fraud Watch (device fingerprint) ----------------
+    import hashlib as _hashlib
+
+    def _admin_actor_hash(x_admin_token: str) -> str:
+        if not x_admin_token:
+            return ""
+        return _hashlib.sha256(x_admin_token.encode("utf-8")).hexdigest()[:16]
+
+    @router.get("/fingerprint/summary")
+    async def fingerprint_summary():
+        import fingerprint_guard as _fpg
+        return await _fpg.counters_summary(db)
+
+    @router.get("/fingerprint/list")
+    async def fingerprint_list(status: str = "active", limit: int = 50):
+        import fingerprint_guard as _fpg
+        if status not in ("active", "flagged", "blocked", "trusted"):
+            status = "active"
+        items = await _fpg.list_top_suspicious(
+            db, limit=max(1, min(int(limit), 200)),
+            only_status=status,
+        )
+        return {"status": status, "count": len(items), "items": items}
+
+    @router.get("/fingerprint/{fp_hash}")
+    async def fingerprint_detail(fp_hash: str):
+        import fingerprint_guard as _fpg
+        row = await _fpg.get_fingerprint(db, fp_hash)
+        if not row:
+            raise HTTPException(status_code=404, detail="fingerprint_not_found")
+        audit_cur = db.device_fingerprint_audit.find(
+            {"fingerprint_hash": fp_hash}, {"_id": 0}).sort("ts", -1).limit(50)
+        row["audit"] = await audit_cur.to_list(length=50)
+        return row
+
+    @router.post("/fingerprint/{fp_hash}/block")
+    async def fingerprint_block(
+        fp_hash: str, payload: Dict[str, Any] = Body(default_factory=dict),
+        x_admin_token: str = Header(default=""),
+    ):
+        import fingerprint_guard as _fpg
+        reason = (payload.get("reason") or "manual_admin").strip()[:300]
+        ok = await _fpg.block(db, fp_hash, reason=reason,
+                                by_token_hash=_admin_actor_hash(x_admin_token))
+        if not ok:
+            raise HTTPException(status_code=404, detail="fingerprint_not_found")
+        return {"ok": True, "fingerprint_hash": fp_hash, "blocked": True,
+                "reason": reason}
+
+    @router.post("/fingerprint/{fp_hash}/unblock")
+    async def fingerprint_unblock(
+        fp_hash: str, payload: Dict[str, Any] = Body(default_factory=dict),
+        x_admin_token: str = Header(default=""),
+    ):
+        import fingerprint_guard as _fpg
+        reason = (payload.get("reason") or "manual_admin").strip()[:300]
+        ok = await _fpg.unblock(db, fp_hash, reason=reason,
+                                  by_token_hash=_admin_actor_hash(x_admin_token))
+        if not ok:
+            raise HTTPException(status_code=404, detail="fingerprint_not_found")
+        return {"ok": True, "fingerprint_hash": fp_hash, "blocked": False,
+                "reason": reason}
+
+    @router.post("/fingerprint/{fp_hash}/trust")
+    async def fingerprint_trust(
+        fp_hash: str, payload: Dict[str, Any] = Body(default_factory=dict),
+        x_admin_token: str = Header(default=""),
+    ):
+        import fingerprint_guard as _fpg
+        reason = (payload.get("reason") or "operator_attested_legit").strip()[:300]
+        ok = await _fpg.set_trust(db, fp_hash, trusted=True, reason=reason,
+                                    by_token_hash=_admin_actor_hash(x_admin_token))
+        if not ok:
+            raise HTTPException(status_code=404, detail="fingerprint_not_found")
+        return {"ok": True, "fingerprint_hash": fp_hash, "trusted": True,
+                "reason": reason}
+
+    @router.post("/fingerprint/{fp_hash}/untrust")
+    async def fingerprint_untrust(
+        fp_hash: str, payload: Dict[str, Any] = Body(default_factory=dict),
+        x_admin_token: str = Header(default=""),
+    ):
+        import fingerprint_guard as _fpg
+        reason = (payload.get("reason") or "trust_revoked").strip()[:300]
+        ok = await _fpg.set_trust(db, fp_hash, trusted=False, reason=reason,
+                                    by_token_hash=_admin_actor_hash(x_admin_token))
+        if not ok:
+            raise HTTPException(status_code=404, detail="fingerprint_not_found")
+        return {"ok": True, "fingerprint_hash": fp_hash, "trusted": False,
+                "reason": reason}
+
+    @router.post("/fingerprint/{fp_hash}/note")
+    async def fingerprint_note(
+        fp_hash: str, payload: Dict[str, Any] = Body(...),
+        x_admin_token: str = Header(default=""),
+    ):
+        import fingerprint_guard as _fpg
+        note = (payload.get("note") or "").strip()
+        if not note:
+            raise HTTPException(status_code=400, detail="note_required")
+        ok = await _fpg.add_note(db, fp_hash, note=note[:1000],
+                                   by_token_hash=_admin_actor_hash(x_admin_token))
+        if not ok:
+            raise HTTPException(status_code=404, detail="fingerprint_not_found")
+        return {"ok": True, "fingerprint_hash": fp_hash}
+
     return router
 
 

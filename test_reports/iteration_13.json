@@ -1,0 +1,39 @@
+{
+  "summary": "Phase 22 (Device-fingerprint fraud detection) backend acceptance suite: 27/27 tests pass (20 new integration + 7 pre-existing unit). Silent-block invariant verified end-to-end on /api/chat and /api/agent/turn — both return HTTP 200 with SOFT_ERROR-shaped envelopes (model=null, blocks[0].text contains 'unable to process'), zero leakage of 'blocked'/'forbidden'/'403' or any error field. /api/admin/* bypass verified (admin summary stays real even when hit with the blocked FP header). Block→unblock restores the LLM handler, trust clears blocked=true, notes append, audit trail records block/unblock/trust kinds. No-FP-header path is never enforced. Regression APIs (health w/ llm_reachable, /api/admin/leads, /cost, /sales) all 200. Backend logs clean — no 'fingerprint_guard.ensure_indexes failed' after fresh restart. ONE real data-projection bug found in /api/admin/security_events (records fingerprint_hash+path but the read API silently drops them); test still passes because the audit row is correctly written and tagged by kind.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/admin/security_events?kind=fingerprint_silent_block_served",
+       "issue": "Underlying audit row is written correctly by fingerprint_guard.record_silent_block_served with `user_message='path=/api/chat'` and `fingerprint_hash=<hash>`, but the admin reader projects `message_excerpt = r.get('user_message_excerpt')` (wrong field name) and never surfaces `fingerprint_hash` or the path. Result: SOC console operators cannot tell which FP or path triggered a silent block from the events list alone. Fix: in /app/backend/admin.py:1005 read `r.get('user_message')` (or rename the writer's field to `user_message_excerpt`) and add `fingerprint_hash: r.get('fingerprint_hash')` to the response item shape."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase22_fingerprint_integration.py",
+    "/app/backend/tests/test_fingerprint_guard.py",
+    "/app/test_reports/pytest/phase22_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL (minor): fix /api/admin/security_events reader to surface fingerprint_hash and the silent-blocked path (currently stored in the DB row but stripped by the read projection — see backend_issues.minor)."
+  ],
+  "critical_code_review_comments": [
+    "Field-name mismatch between writer and reader in security_events for fingerprint_silent_block_served (writer: `user_message`, reader: `user_message_excerpt`). The data is preserved on the underlying document but invisible to admin consumers.",
+    "Admin security_events reader does not expose `fingerprint_hash` even though the writer persists it. Operators investigating a silent-block alert have to drop into Mongo directly to correlate the row with a fingerprint.",
+    "fingerprint_middleware.dispatch reads the request body via `await request.body()` to extract session_id for POSTs — relies on Starlette's body cache. Safe today, but worth a unit test if FastAPI ever changes that contract.",
+    "fingerprint_middleware fail-open on `is_blocked` exception (correctly logs+continues) — appropriate; just ensure metrics tracking exists if Mongo connectivity flakes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase22_fingerprint_integration.py (new)"
+  ],
+  "success_rate": {"backend": "100% (27/27)", "frontend": "n/a — skipped per request"},
+  "test_credentials": "ADMIN_TOKEN=smifs-admin-2026 (header X-Admin-Token); BASE_URL read from /app/frontend/.env REACT_APP_BACKEND_URL",
+  "seed_data_creation": "Each test creates a unique TEST_FP_<uuid16> fingerprint via /api/conversations priming (fast path — no LLM). Cleaned up in fixture teardown by calling /unblock + /untrust. The device_fingerprints rows themselves remain (no delete endpoint exists — by design, audit retention).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Use _prime_fp(fp) to make a FP row exist quickly — calling /api/chat for priming will time out >30s because it hits the real LLM. The chat handler is also slow on real requests (~30-60s p95) so post-unblock tests use timeout=120. Silent-block tests are fast because the middleware short-circuits before the handler. JUnit XML: /app/test_reports/pytest/phase22_results.xml. Pure-function tests live in tests/test_fingerprint_guard.py and run in <0.1s.",
+  "rca_of_the_minor_issue": "fingerprint_guard.record_silent_block_served (line 622-637) inserts security_events with key `user_message`. admin.py list_security_events (line 1005) reads `r.get('user_message_excerpt')`. Names diverged because other security_events writers (resilience.log_error) use `user_message_excerpt`. Two-line fix: change the writer to use `user_message_excerpt` and store `path=<path>` AND also include `path: <path>` as a top-level key, plus add `fingerprint_hash` to the reader's projected item dict."
+}
