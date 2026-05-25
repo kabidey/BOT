@@ -1,0 +1,4678 @@
+[
+  {
+    "method": "POST",
+    "path": "/api/auth/login",
+    "tags": [
+      "auth"
+    ],
+    "summary": "Login",
+    "description": "Authenticate with email and password. Returns JWT token + user info including role.",
+    "params": [],
+    "security": null,
+    "operationId": "login_api_auth_login_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/setup-password",
+    "tags": [
+      "auth"
+    ],
+    "summary": "First-Login Password Setup",
+    "description": "Set password for a pending_setup account. Used on first login.",
+    "params": [],
+    "security": null,
+    "operationId": "setup_password_api_auth_setup_password_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/auth/me",
+    "tags": [
+      "auth"
+    ],
+    "summary": "Current User",
+    "description": "Returns the authenticated user's profile including role.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_me_api_auth_me_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/users",
+    "tags": [
+      "users"
+    ],
+    "summary": "List Users",
+    "description": "List all portal users. Superadmin only.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_users_api_users_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/users",
+    "tags": [
+      "users"
+    ],
+    "summary": "Create User",
+    "description": "Create a new user with pending_setup status. Superadmin only. User will set password on first login.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "create_user_api_users_post"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/users/{user_id}",
+    "tags": [
+      "users"
+    ],
+    "summary": "Update User",
+    "description": "Update a user's name or status. Superadmin only. (Role is fixed at superadmin.)",
+    "params": [
+      [
+        "user_id",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "update_user_api_users__user_id__patch"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/users/{user_id}",
+    "tags": [
+      "users"
+    ],
+    "summary": "Deactivate User",
+    "description": "Deactivate a user account. Superadmin only.",
+    "params": [
+      [
+        "user_id",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "deactivate_user_api_users__user_id__delete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/health",
+    "tags": [
+      "sync",
+      "sync"
+    ],
+    "summary": "Health Check",
+    "description": "Returns server health status. No auth required.",
+    "params": [],
+    "security": null,
+    "operationId": "health_api_health_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sync/status",
+    "tags": [
+      "sync"
+    ],
+    "summary": "Sync Status",
+    "description": "Get the current Darwinbox sync status, total employees, and last sync run details.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_sync_status_api_sync_status_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sync/start",
+    "tags": [
+      "sync"
+    ],
+    "summary": "Start Sync",
+    "description": "Initiate a Darwinbox data sync. Opens browser, logs in, and begins extraction. May return `awaiting_otp` if OTP is requi",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "start_sync_api_sync_start_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sync/otp",
+    "tags": [
+      "sync"
+    ],
+    "summary": "Submit OTP",
+    "description": "Submit the authenticator OTP to complete Darwinbox login. Only valid when sync status is `awaiting_otp`.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "submit_otp_api_sync_otp_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/session/clear",
+    "tags": [
+      "sync"
+    ],
+    "summary": "Clear Session",
+    "description": "Clear saved Darwinbox browser session. Next sync will require fresh login + OTP.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "clear_session_api_session_clear_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sync/checkpoint",
+    "tags": [
+      "sync"
+    ],
+    "summary": "Checkpoint Info",
+    "description": "Check if a sync checkpoint file exists and how many employees it contains.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "checkpoint_info_api_sync_checkpoint_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sync/checkpoint/clear",
+    "tags": [
+      "sync"
+    ],
+    "summary": "Clear Checkpoint",
+    "description": "Delete the sync checkpoint file so a fresh sync can start cleanly.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "clear_checkpoint_api_sync_checkpoint_clear_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sync/resume",
+    "tags": [
+      "sync"
+    ],
+    "summary": "Resume from Checkpoint",
+    "description": "Load the last checkpoint JSON (saved after Darwinbox extraction) and save to MongoDB. No Darwinbox calls needed \u2014 uses c",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "resume_sync_api_sync_resume_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employees",
+    "tags": [
+      "employees"
+    ],
+    "summary": "List Employees",
+    "description": "Paginated employee list with search and filter options. Returns summary fields.",
+    "params": [
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "department",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "location",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_employees_api_employees_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/employees/{user_id}",
+    "tags": [
+      "employees"
+    ],
+    "summary": "Get Employee Detail",
+    "description": "Full employee profile by user_id or employee_id, including direct reports and manager info.",
+    "params": [
+      [
+        "user_id",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_employee_api_employees__user_id__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/export/employees",
+    "tags": [
+      "employees"
+    ],
+    "summary": "Export All Employees",
+    "description": "Full JSON dump of all employees for data transfer.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "export_employees_api_export_employees_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/import/employees",
+    "tags": [
+      "employees"
+    ],
+    "summary": "Import Employees",
+    "description": "Import employees from a JSON dump. Used for production data transfer.",
+    "params": [],
+    "security": null,
+    "operationId": "import_employees_api_import_employees_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/transfer",
+    "tags": [
+      "employees"
+    ],
+    "summary": "Push to Production",
+    "description": "Export all employees and POST them to a target OrgLens instance.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "transfer_to_target_api_transfer_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/org-tree",
+    "tags": [
+      "employees"
+    ],
+    "summary": "Organization Tree",
+    "description": "Hierarchical org tree with reporting relationships. Supports status filter.",
+    "params": [
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_org_tree_api_org_tree_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/departments",
+    "tags": [
+      "stats"
+    ],
+    "summary": "List Departments",
+    "description": "All departments with employee counts.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_departments_api_departments_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/locations",
+    "tags": [
+      "stats"
+    ],
+    "summary": "List Locations",
+    "description": "All locations with employee counts.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_locations_api_locations_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/stats",
+    "tags": [
+      "stats"
+    ],
+    "summary": "Dashboard Statistics",
+    "description": "KPI stats: total employees, departments, locations, status breakdown, and last sync info.",
+    "params": [
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_stats_api_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/stats/insights",
+    "tags": [
+      "stats"
+    ],
+    "summary": "Dashboard Insights",
+    "description": "New joiners, recent exits, top managers by team size, employee type and designation breakdown.",
+    "params": [
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_insights_api_stats_insights_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/stats/trends",
+    "tags": [
+      "stats"
+    ],
+    "summary": "Time-Series Trends",
+    "description": "Monthly joiners/exits trends and headcount snapshots for dashboard charts.",
+    "params": [
+      [
+        "months",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_trends_api_stats_trends_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/upload/employee-master",
+    "tags": [
+      "csv"
+    ],
+    "summary": "Upload Employee CSV",
+    "description": "Upload an employee master CSV file (up to 127 columns). Upserts by employee_id to prevent duplication.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "upload_employee_master_api_upload_employee_master_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/permissions/available",
+    "tags": [
+      "api-keys"
+    ],
+    "summary": "List Available Permissions",
+    "description": "Returns all permission types that can be assigned to API keys.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_available_permissions_api_permissions_available_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/api-keys",
+    "tags": [
+      "api-keys"
+    ],
+    "summary": "List API Keys",
+    "description": "List all API keys with masked values, usage stats, rate limits, and permissions.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_api_keys_api_api_keys_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/api-keys",
+    "tags": [
+      "api-keys"
+    ],
+    "summary": "Create API Key",
+    "description": "Generate a new API key with specific permissions. The full key is shown only once.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "create_api_key_api_api_keys_post"
+  },
+  {
+    "method": "PATCH",
+    "path": "/api/api-keys/{key_id}",
+    "tags": [
+      "api-keys"
+    ],
+    "summary": "Update API Key",
+    "description": "Update name, rate limit, active status, or permissions.",
+    "params": [
+      [
+        "key_id",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "update_api_key_api_api_keys__key_id__patch"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/api-keys/{key_id}",
+    "tags": [
+      "api-keys"
+    ],
+    "summary": "Delete API Key",
+    "description": "Permanently delete an API key. Cannot delete the master key.",
+    "params": [
+      [
+        "key_id",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "delete_api_key_api_api_keys__key_id__delete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/employee/by-email/{email}",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "Lookup by Email",
+    "description": "Requires `employees:read`. PII/compensation fields require additional permissions.",
+    "params": [
+      [
+        "email",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "get_employee_by_email_api_v1_employee_by_email__email__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/employee/by-code/{employee_code}",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "Lookup by Employee Code",
+    "description": "Requires `employees:read`. PII/compensation fields require additional permissions.",
+    "params": [
+      [
+        "employee_code",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "get_employee_by_code_api_v1_employee_by_code__employee_code__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/employees",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "List / Search / Filter Employees",
+    "description": "Requires `employees:read`. Returns all non-restricted fields by default. PII fields need `employees:pii`, compensation f",
+    "params": [
+      [
+        "email",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "employee_id",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "name",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "department",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "location",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "designation",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "reports_to",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "list_employees_api_v1_employees_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/employees/{identifier}",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "Smart Lookup (Email or Code)",
+    "description": "Requires `employees:read`. Auto-detects email vs code by presence of `@`.",
+    "params": [
+      [
+        "identifier",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "get_employee_by_identifier_api_v1_employees__identifier__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/departments",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "List Departments",
+    "description": "Requires `departments:read`.",
+    "params": [
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "list_departments_api_v1_departments_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/locations",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "List Locations",
+    "description": "Requires `locations:read`.",
+    "params": [
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "list_locations_api_v1_locations_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/designations",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "List Designations",
+    "description": "Requires `designations:read`.",
+    "params": [
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "list_designations_api_v1_designations_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/stats",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "Organization Statistics",
+    "description": "Requires `stats:read`.",
+    "params": [],
+    "security": null,
+    "operationId": "get_stats_api_v1_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/org-tree",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "Organization Tree",
+    "description": "Requires `org_tree:read`.",
+    "params": [
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "get_org_tree_api_v1_org_tree_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/permissions",
+    "tags": [
+      "external-api"
+    ],
+    "summary": "List My Permissions",
+    "description": "Returns the permissions granted to the current API key.",
+    "params": [],
+    "security": null,
+    "operationId": "get_my_permissions_api_v1_permissions_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/client/by-ucc/{ucc}",
+    "tags": [
+      "client-external-api"
+    ],
+    "summary": "Lookup Client by UCC",
+    "description": "Requires `clients:read`. PII fields need `clients:pii`. Financial fields need `clients:financial`.",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "get_client_by_ucc_api_v1_client_by_ucc__ucc__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/client/by-pan/{pan}",
+    "tags": [
+      "client-external-api"
+    ],
+    "summary": "Lookup Client by PAN",
+    "description": "Requires `clients:read` + `clients:pii`. Returns the client matching the PAN number.",
+    "params": [
+      [
+        "pan",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "get_client_by_pan_api_v1_client_by_pan__pan__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/clients",
+    "tags": [
+      "client-external-api"
+    ],
+    "summary": "Search / Filter Clients",
+    "description": "Requires `clients:read`. Query by UCC, PAN, client_name, state, status, rm_name, risk_profile, branch_code. PII fields n",
+    "params": [
+      [
+        "ucc",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "pan",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "client_name",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "state",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "rm_name",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "risk_profile",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "branch_code",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "search_clients_api_v1_clients_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/clients/stats",
+    "tags": [
+      "client-external-api"
+    ],
+    "summary": "Client Statistics",
+    "description": "Requires `clients:read`. Aggregate counts by status, category, state, risk profile.",
+    "params": [],
+    "security": null,
+    "operationId": "client_stats_api_v1_clients_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/client/by-uid/{uid}",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "Lookup MF Client by UID",
+    "description": "",
+    "params": [
+      [
+        "uid",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_client_by_uid_api_v1_mf_client_by_uid__uid__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/client/by-pan/{pan}",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "Lookup MF Client by PAN",
+    "description": "",
+    "params": [
+      [
+        "pan",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_client_by_pan_api_v1_mf_client_by_pan__pan__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/clients",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "Search / Filter MF Clients",
+    "description": "",
+    "params": [
+      [
+        "uid",
+        "query",
+        false,
+        null
+      ],
+      [
+        "pan",
+        "query",
+        false,
+        null
+      ],
+      [
+        "name",
+        "query",
+        false,
+        null
+      ],
+      [
+        "rm_name",
+        "query",
+        false,
+        null
+      ],
+      [
+        "state",
+        "query",
+        false,
+        null
+      ],
+      [
+        "suspended",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_clients_search_api_v1_mf_clients_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/client/{uid}/folios",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "MF Folios for a Client",
+    "description": "",
+    "params": [
+      [
+        "uid",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_folios_for_client_api_v1_mf_client__uid__folios_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/folios",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "Search / Filter MF Folios",
+    "description": "",
+    "params": [
+      [
+        "uid",
+        "query",
+        false,
+        null
+      ],
+      [
+        "folio_no",
+        "query",
+        false,
+        null
+      ],
+      [
+        "scheme_name",
+        "query",
+        false,
+        null
+      ],
+      [
+        "asset_category",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_folios_search_api_v1_mf_folios_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/client/{uid}/transactions",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "MF Transactions for a Client",
+    "description": "",
+    "params": [
+      [
+        "uid",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "txn_type",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_txns_for_client_api_v1_mf_client__uid__transactions_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/client/{uid}/sips",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "SIPs for a Client",
+    "description": "",
+    "params": [
+      [
+        "uid",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_sips_for_client_api_v1_mf_client__uid__sips_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/funds",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "MF Funds Master",
+    "description": "",
+    "params": [
+      [
+        "name",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "mf_funds_list_api_v1_mf_funds_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/mf/stats",
+    "tags": [
+      "external-api-mf"
+    ],
+    "summary": "MF Stack Statistics",
+    "description": "",
+    "params": [],
+    "security": null,
+    "operationId": "mf_stats_api_v1_mf_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/by-ucc/{ucc}",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "BO Client Master by UCC",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_by_ucc_api_v1_bo_client_by_ucc__ucc__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/clients",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Search BO Client Master",
+    "description": "",
+    "params": [
+      [
+        "pan",
+        "query",
+        false,
+        null
+      ],
+      [
+        "name",
+        "query",
+        false,
+        null
+      ],
+      [
+        "branch_code",
+        "query",
+        false,
+        null
+      ],
+      [
+        "rm",
+        "query",
+        false,
+        null
+      ],
+      [
+        "sub_broker",
+        "query",
+        false,
+        null
+      ],
+      [
+        "trading_status",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_clients_search_api_v1_bo_clients_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/ledger",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Ledger Entries for a Client",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "from_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "to_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "exchange",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_ledger_api_v1_bo_client__ucc__ledger_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/ledger/balance",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Ledger running balance",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "as_of",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_ledger_balance_api_v1_bo_client__ucc__ledger_balance_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/trade-book",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Trade book (parsed from contract notes)",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "from_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "to_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "exchange",
+        "query",
+        false,
+        null
+      ],
+      [
+        "side",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_trade_book_api_v1_bo_client__ucc__trade_book_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/charges",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Charges breakdown per contract note",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "from_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "to_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_charges_api_v1_bo_client__ucc__charges_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/portfolio",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Cash-market portfolio holdings",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_portfolio_api_v1_bo_client__ucc__portfolio_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/deposits",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Deposits (money in)",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "from_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "to_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_deposits_api_v1_bo_client__ucc__deposits_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/withdrawals",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Withdrawals (money out)",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "from_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "to_date",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_withdrawals_api_v1_bo_client__ucc__withdrawals_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/fo-pl",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "F&O P&L per scrip",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fields",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_fo_pl_api_v1_bo_client__ucc__fo_pl_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/client/{ucc}/360",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Unified 360\u00b0 client snapshot",
+    "description": "One-shot snapshot \u2014 master, ledger balance, latest 5 trades, holdings count,",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_client_360_api_v1_bo_client__ucc__360_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/bo/stats",
+    "tags": [
+      "external-api-bo"
+    ],
+    "summary": "Back-Office stack statistics",
+    "description": "",
+    "params": [],
+    "security": null,
+    "operationId": "bo_stats_api_v1_bo_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/graphql",
+    "tags": [],
+    "summary": "Handle Http Get",
+    "description": "",
+    "params": [],
+    "security": null,
+    "operationId": "handle_http_get_api_v1_graphql_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/graphql",
+    "tags": [],
+    "summary": "Handle Http Post",
+    "description": "",
+    "params": [],
+    "security": null,
+    "operationId": "handle_http_post_api_v1_graphql_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/fields/explorer",
+    "tags": [
+      "fields"
+    ],
+    "summary": "Field Explorer",
+    "description": "Returns all available employee fields organized by category with sensitivity markers.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "field_explorer_api_fields_explorer_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/clients/upload",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Upload Client XLSX",
+    "description": "Upload the client master XLSX. Header-driven column mapping; rejects rows with invalid UCC. Pass ?dry_run=1 to preview w",
+    "params": [
+      [
+        "dry_run",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "upload_client_xlsx_api_clients_upload_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/clients/upload/preview",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Step 1 of 2 \u2014 Parse the XLSX, return columns + auto-mapping + 5-row sample. No DB writes.",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "upload_client_preview_api_clients_upload_preview_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/clients/upload/commit",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Step 2 of 2 \u2014 Commit a previewed upload using a (possibly user-edited) field-mapping.",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "upload_client_commit_api_clients_upload_commit_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/clients/delete",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Delete Clients",
+    "description": "Delete clients by UCC list. Superadmin only.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "delete_clients_api_clients_delete_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/clients/flush",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Flush Client Stack",
+    "description": "DESTRUCTIVE: deletes ALL clients. Superadmin only. Body must contain confirm='FLUSH'.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "flush_clients_api_clients_flush_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/clients",
+    "tags": [
+      "clients"
+    ],
+    "summary": "List Clients",
+    "description": "Paginated client list with search and filter. Served from RAM cache.",
+    "params": [
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "state",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "rm_name",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "risk_profile",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "branch_code",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_clients_api_clients_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/clients/stats",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Client Stats",
+    "description": "Aggregate stats for the client dashboard. Served from RAM cache.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "client_stats_api_clients_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/clients/filters",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Client Filter Options",
+    "description": "Distinct values for filter dropdowns. Served from RAM cache.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "client_filters_api_clients_filters_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/clients/{ucc}",
+    "tags": [
+      "clients"
+    ],
+    "summary": "Client Detail",
+    "description": "Full client profile by UCC. Served from RAM cache.",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_client_api_clients__ucc__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/audit/logs",
+    "tags": [
+      "audit"
+    ],
+    "summary": "View Audit Logs",
+    "description": "Paginated audit trail. Superadmin only. Filter by event type or actor.",
+    "params": [
+      [
+        "event",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "actor",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_audit_logs_api_audit_logs_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/audit/events",
+    "tags": [
+      "audit"
+    ],
+    "summary": "Audit Event Types",
+    "description": "List distinct event types in the audit log.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_event_types_api_audit_events_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/api-usage/overview",
+    "tags": [
+      "api-usage"
+    ],
+    "summary": "Usage Overview",
+    "description": "Aggregate usage stats across all API keys.",
+    "params": [
+      [
+        "days",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "usage_overview_api_api_usage_overview_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/api-usage/key/{key_id}",
+    "tags": [
+      "api-usage"
+    ],
+    "summary": "Per-Key Usage Analytics",
+    "description": "Detailed usage analytics for a specific API key.",
+    "params": [
+      [
+        "key_id",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "days",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "key_usage_api_api_usage_key__key_id__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/api-usage/logs",
+    "tags": [
+      "api-usage"
+    ],
+    "summary": "Raw Access Logs",
+    "description": "Paginated raw access logs with optional filters.",
+    "params": [
+      [
+        "key_id",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "domain",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "status_code",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "days",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "usage_logs_api_api_usage_logs_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/credentials/status",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Check if InvestWell credentials are configured",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "credentials_status_api_mf_credentials_status_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/mf/credentials",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Save InvestWell credentials",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "set_credentials_api_mf_credentials_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/sync/status",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Get MF sync status",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "sync_status_api_mf_sync_status_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/sync/history",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Sync run history with detailed reports",
+    "description": "",
+    "params": [
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "sync_history_api_mf_sync_history_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/mf/sync/start",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Start MF data sync from InvestWell",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "start_sync_api_mf_sync_start_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/dashboard",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "MF Dashboard stats",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "dashboard_api_mf_dashboard_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/clients",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "MF Client Directory with search and filters",
+    "description": "",
+    "params": [
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "rm",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "sub_broker",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "min_aum",
+        "query",
+        false,
+        "number"
+      ],
+      [
+        "max_aum",
+        "query",
+        false,
+        "number"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "sort_by",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "sort_desc",
+        "query",
+        false,
+        "boolean"
+      ],
+      [
+        "mf_only",
+        "query",
+        false,
+        "boolean"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_clients_api_mf_clients_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/clients/{uid}",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Get full MF client detail by UID",
+    "description": "",
+    "params": [
+      [
+        "uid",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "client_detail_api_mf_clients__uid__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/filters",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Get available filter values for MF clients",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_filters_api_mf_filters_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/transactions",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "MF Transaction list with search and filters",
+    "description": "",
+    "params": [
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "investor",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "scheme",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "txn_type",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "start_date",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "end_date",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "sort_by",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "sort_desc",
+        "query",
+        false,
+        "boolean"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_transactions_api_mf_transactions_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/transactions/stats",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Transaction statistics",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "transaction_stats_api_mf_transactions_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/sips",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "MF SIP registrations with filters",
+    "description": "",
+    "params": [
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "status",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "frequency",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "sort_by",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "sort_desc",
+        "query",
+        false,
+        "boolean"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_sips_api_mf_sips_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/sips/stats",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "SIP registration statistics",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "sips_stats_api_mf_sips_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/funds",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "List synced AMC/Fund houses",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_funds_api_mf_funds_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/holdings",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Per-client MF holdings (folios) \u2014 which schemes each client holds and current value",
+    "description": "",
+    "params": [
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "client",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "scheme",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "min_aum",
+        "query",
+        false,
+        "number"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "sort_by",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "sort_desc",
+        "query",
+        false,
+        "boolean"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_holdings_api_mf_holdings_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/holdings/summary",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "AUM summary and top holders",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "holdings_summary_api_mf_holdings_summary_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/mf/insights",
+    "tags": [
+      "mutual-funds"
+    ],
+    "summary": "Business insights from InvestWell dashboard",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "business_insights_api_mf_insights_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/ingest/raw-html",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Ingest Raw Html",
+    "description": "Accept a raw HTML page from the VPS scraper; store in object storage.",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "ingest_raw_html_api_bo_ingest_raw_html_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/ingest/client-master",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Ingest Client Master",
+    "description": "Upsert one client master row.",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "ingest_client_master_api_bo_ingest_client_master_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/ingest/client-master-bulk",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Ingest Client Master Bulk",
+    "description": "Bulk upsert client master rows (up to 500 per request). Used for fast full scrapes.",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "ingest_client_master_bulk_api_bo_ingest_client_master_bulk_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/ingest/sync-run",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Ingest Sync Run",
+    "description": "Upsert a sync run row (scraper progress tracking).",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "ingest_sync_run_api_bo_ingest_sync_run_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/clients",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "List Bo Clients",
+    "description": "",
+    "params": [
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "client_type",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "branch_code",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "sort_by",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "sort_desc",
+        "query",
+        false,
+        "boolean"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_bo_clients_api_bo_clients_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/clients/{code}",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Bo Client Detail",
+    "description": "",
+    "params": [
+      [
+        "code",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "bo_client_detail_api_bo_clients__code__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/sync/status",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Bo Sync Status",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "bo_sync_status_api_bo_sync_status_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/sync/trigger",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Bo Trigger Sync",
+    "description": "Records a 'trigger' marker; the VPS scraper polls this collection",
+    "params": [
+      [
+        "module",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "bo_trigger_sync_api_bo_sync_trigger_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/sync/pending",
+    "tags": [
+      "backoffice"
+    ],
+    "summary": "Bo Sync Pending",
+    "description": "Called by VPS scraper \u2014 returns pending triggers to process.",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "bo_sync_pending_api_bo_sync_pending_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/client/{code}/pnl",
+    "tags": [
+      "bo-crm"
+    ],
+    "summary": "Get Client Pnl",
+    "description": "",
+    "params": [
+      [
+        "code",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "days",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_client_pnl_api_bo_client__code__pnl_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/crm/branches",
+    "tags": [
+      "bo-crm"
+    ],
+    "summary": "Get Branch Overview",
+    "description": "Branch-grouped CRM overview: client counts + aggregate trading/holding metrics.",
+    "params": [
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_branch_overview_api_bo_crm_branches_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/crm/branch-economics",
+    "tags": [
+      "bo-crm"
+    ],
+    "summary": "Get Branch Economics",
+    "description": "Branch-level revenue / cost-to-serve / concentration risk metrics.",
+    "params": [
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "active_days",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_branch_economics_api_bo_crm_branch_economics_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/crm/branch/{branch_code}",
+    "tags": [
+      "bo-crm"
+    ],
+    "summary": "Get Branch Drilldown",
+    "description": "Clients within a branch + per-client KPIs (cards).",
+    "params": [
+      [
+        "branch_code",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_branch_drilldown_api_bo_crm_branch__branch_code__get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/raw-reports/ingest",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "Ingest Raw Reports",
+    "description": "",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "ingest_raw_reports_api_bo_raw_reports_ingest_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/sweep/checkpoint",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "Sweep Checkpoint",
+    "description": "",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "sweep_checkpoint_api_bo_sweep_checkpoint_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/sweep/dashboard",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "Sweep Dashboard",
+    "description": "Aggregated sweep progress for the UI dashboard.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "sweep_dashboard_api_bo_sweep_dashboard_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/sweep/retry",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "Sweep Retry",
+    "description": "Reset failed chunks back to pending so workers re-try them.",
+    "params": [
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ],
+      [
+        "report_code",
+        "query",
+        false,
+        null
+      ],
+      [
+        "pk",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "sweep_retry_api_bo_sweep_retry_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/sweep/progress",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "Sweep Progress",
+    "description": "",
+    "params": [
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ],
+      [
+        "report_code",
+        "query",
+        false,
+        null
+      ],
+      [
+        "status",
+        "query",
+        false,
+        null
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "sweep_progress_api_bo_sweep_progress_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/raw-reports/reports",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "List Report Codes",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_report_codes_api_bo_raw_reports_reports_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/raw-reports",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "Query Raw Reports",
+    "description": "",
+    "params": [
+      [
+        "report_code",
+        "query",
+        true,
+        "string"
+      ],
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ],
+      [
+        "client_code",
+        "query",
+        false,
+        null
+      ],
+      [
+        "date_from",
+        "query",
+        false,
+        null
+      ],
+      [
+        "date_to",
+        "query",
+        false,
+        null
+      ],
+      [
+        "search",
+        "query",
+        false,
+        null
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "offset",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "query_raw_reports_api_bo_raw_reports_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/raw-reports/export.csv",
+    "tags": [
+      "backoffice-raw"
+    ],
+    "summary": "Export Raw Reports Csv",
+    "description": "",
+    "params": [
+      [
+        "report_code",
+        "query",
+        true,
+        "string"
+      ],
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ],
+      [
+        "client_code",
+        "query",
+        false,
+        null
+      ],
+      [
+        "date_from",
+        "query",
+        false,
+        null
+      ],
+      [
+        "date_to",
+        "query",
+        false,
+        null
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "export_raw_reports_csv_api_bo_raw_reports_export_csv_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/raw-reports/backfill-client-code",
+    "tags": [
+      "backoffice-raw-backfill"
+    ],
+    "summary": "Backfill Client Code",
+    "description": "Run one batch of client-code backfill. Returns stats.",
+    "params": [
+      [
+        "report_code",
+        "query",
+        false,
+        null
+      ],
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "backfill_client_code_api_bo_raw_reports_backfill_client_code_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/raw-reports/backfill-client-code/stats",
+    "tags": [
+      "backoffice-raw-backfill"
+    ],
+    "summary": "Backfill Stats",
+    "description": "Overall completeness of client_code across bo_raw_reports per (report_code, fy).",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "backfill_stats_api_bo_raw_reports_backfill_client_code_stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/dashboard",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Dashboard",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "dashboard_api_sharepro_dashboard_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/clients",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "List Clients",
+    "description": "",
+    "params": [
+      [
+        "q",
+        "query",
+        false,
+        null
+      ],
+      [
+        "branch",
+        "query",
+        false,
+        null
+      ],
+      [
+        "rm_code",
+        "query",
+        false,
+        null
+      ],
+      [
+        "status",
+        "query",
+        false,
+        null
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "offset",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_clients_api_sharepro_clients_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/client/{ucc}",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Client 360",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "nocache",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "client_360_api_sharepro_client__ucc__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/client/{ucc}/unified-ledger",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Unified Ledger",
+    "description": "Unified chronological ledger for one UCC, filtered to a single Indian FY.",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "unified_ledger_api_sharepro_client__ucc__unified_ledger_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/trade-book/ingest",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Trade Book Ingest",
+    "description": "HMAC-protected bulk ingest for parsed contract-note trades + parse-log rows.",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "trade_book_ingest_api_sharepro_trade_book_ingest_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/cn-charges/ingest",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Cn Charges Ingest",
+    "description": "HMAC bulk upsert for parsed contract-note settlement-charge rows.",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "cn_charges_ingest_api_sharepro_cn_charges_ingest_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/client/{ucc}/charges-analysis",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Client Charges Analysis",
+    "description": "Client-wise Brokerage & Charges analysis aggregated from parsed contract",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "client_charges_analysis_api_sharepro_client__ucc__charges_analysis_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/client/{ucc}/trade-book",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Client Trade Book",
+    "description": "Per-client, FY-filtered trade book aggregated from parsed contract notes.",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "fy",
+        "query",
+        false,
+        null
+      ],
+      [
+        "exchange",
+        "query",
+        false,
+        null
+      ],
+      [
+        "side",
+        "query",
+        false,
+        null
+      ],
+      [
+        "search",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "client_trade_book_api_sharepro_client__ucc__trade_book_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/reports",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "List Reports",
+    "description": "List the 7 report ids and metadata (used by the frontend menu).",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_reports_api_sharepro_reports_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/report/{report_id}",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Report Listing",
+    "description": "",
+    "params": [
+      [
+        "report_id",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "q",
+        "query",
+        false,
+        null
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "offset",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "report_listing_api_sharepro_report__report_id__get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/queue/full",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Queue Full",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "queue_full_api_sharepro_queue_full_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/queue/reset-failed",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Reset Failed",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "reset_failed_api_sharepro_queue_reset_failed_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/clients/merge",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Merge Client Stack",
+    "description": "Manual button trigger (admin JWT). See _merge_client_stack_core.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "merge_client_stack_api_sharepro_clients_merge_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/eod/nightly-trigger",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Eod Nightly Trigger",
+    "description": "HMAC-protected EOD bootstrap (called from VPS night script at 22:00 IST).",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "eod_nightly_trigger_api_sharepro_eod_nightly_trigger_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/sync-config",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "List Sync Config",
+    "description": "List endpoint sync config + live queue stats (admin).",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_sync_config_api_sharepro_sync_config_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/sync-config/activity",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Activity Probe Summary",
+    "description": "Activity probe runs (last 7) + anchor table snapshot.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "activity_probe_summary_api_sharepro_sync_config_activity_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/client/{ucc}/refresh-ledger",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Refresh Ledger",
+    "description": "Synchronously refresh GetLedgerData / ClientLedgerData /",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "refresh_ledger_api_sharepro_client__ucc__refresh_ledger_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/sync-config/update",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Update Sync Config",
+    "description": "Update tier / ttl_hours / force_refresh / cascade_skip for one endpoint.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "update_sync_config_api_sharepro_sync_config_update_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/backfill/branches",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "List all branches with client + queue counts and current backfill flag",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_backfill_branches_api_sharepro_backfill_branches_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/backfill/branches/toggle",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Enable/disable backfill for ONE branch (admin)",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "toggle_backfill_branch_api_sharepro_backfill_branches_toggle_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/backfill/branches/bulk",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Bulk enable/disable backfill for multiple branches (admin)",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "bulk_toggle_backfill_branch_api_sharepro_backfill_branches_bulk_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/brokerage",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Brokerage by Branch and RM (current FY)",
+    "description": "",
+    "params": [
+      [
+        "accyear",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "get_brokerage_api_sharepro_brokerage_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/brokerage/fy-history",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Brokerage totals across all available FYs (multi-year view)",
+    "description": "Returns one row per FY snapshot we have in the daily-sync tables. Used for",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "brokerage_fy_history_api_sharepro_brokerage_fy_history_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/sharepro/brokerage/analysis",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Live date-range brokerage analysis (Branch + RM) \u2014 Postgres-cached + submit-and-poll",
+    "description": "Tries the Postgres cache first (instant <50 ms). On miss, kicks off the",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "brokerage_analysis_api_sharepro_brokerage_analysis_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/brokerage/analysis/{job_id}",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Poll brokerage analysis job result",
+    "description": "",
+    "params": [
+      [
+        "job_id",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "brokerage_analysis_poll_api_sharepro_brokerage_analysis__job_id__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/brokerage/cache/stats",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Brokerage cache stats (admin diagnostics)",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "brokerage_cache_stats_api_sharepro_brokerage_cache_stats_get"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/sharepro/brokerage/cache",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Invalidate brokerage cache entries (admin)",
+    "description": "",
+    "params": [
+      [
+        "accyear",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "brokerage_cache_invalidate_api_sharepro_brokerage_cache_delete"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/client/{ucc}/documents",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "List on-demand documents (CONTRACT|KYC) for a UCC",
+    "description": "Returns metadata only (no base64 payloads). The /file endpoint serves the PDF blob.",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "type",
+        "query",
+        true,
+        "string"
+      ],
+      [
+        "date_from",
+        "query",
+        false,
+        null
+      ],
+      [
+        "date_to",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_documents_api_sharepro_client__ucc__documents_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/sharepro/client/{ucc}/document/file",
+    "tags": [
+      "sharepro-api"
+    ],
+    "summary": "Stream a single PDF (CONTRACT|KYC)",
+    "description": "",
+    "params": [
+      [
+        "ucc",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "type",
+        "query",
+        true,
+        "string"
+      ],
+      [
+        "file_name",
+        "query",
+        true,
+        "string"
+      ],
+      [
+        "date_from",
+        "query",
+        false,
+        null
+      ],
+      [
+        "date_to",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "fetch_document_api_sharepro_client__ucc__document_file_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/gateway/probe-ingest",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Probe Ingest",
+    "description": "Single probe ingest. Detects up\u2194down transitions and fires notifications.",
+    "params": [
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "probe_ingest_api_gateway_probe_ingest_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/gateway/health",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Gateway Health",
+    "description": "Current state + uptime % over rolling windows + open outage if any (single layer).",
+    "params": [
+      [
+        "target",
+        "query",
+        false,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "gateway_health_api_gateway_health_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/gateway/health-all",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Gateway Health All",
+    "description": "Combined snapshot of every monitored layer in one round-trip.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "gateway_health_all_api_gateway_health_all_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/gateway/probes",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Gateway Probes",
+    "description": "",
+    "params": [
+      [
+        "target",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "gateway_probes_api_gateway_probes_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/gateway/outages",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Gateway Outages",
+    "description": "",
+    "params": [
+      [
+        "target",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "gateway_outages_api_gateway_outages_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/gateway/subscribers",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "List Subscribers",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_subscribers_api_gateway_subscribers_get"
+  },
+  {
+    "method": "POST",
+    "path": "/api/gateway/subscribers",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Add Subscriber",
+    "description": "",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "add_subscriber_api_gateway_subscribers_post"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/gateway/subscribers/{sub_id}",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Delete Subscriber",
+    "description": "",
+    "params": [
+      [
+        "sub_id",
+        "path",
+        true,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "delete_subscriber_api_gateway_subscribers__sub_id__delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/gateway/subscribers/{sub_id}/test",
+    "tags": [
+      "gateway-health"
+    ],
+    "summary": "Test Subscriber",
+    "description": "Fire a synthetic alert through this subscriber so the user can confirm it works.",
+    "params": [
+      [
+        "sub_id",
+        "path",
+        true,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "test_subscriber_api_gateway_subscribers__sub_id__test_post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/ingest/{module}",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "Ingest Single",
+    "description": "",
+    "params": [
+      [
+        "module",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "ingest_single_api_bo_ingest__module__post"
+  },
+  {
+    "method": "POST",
+    "path": "/api/bo/ingest/{module}/bulk",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "Ingest Bulk",
+    "description": "",
+    "params": [
+      [
+        "module",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "X-API-Key",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Timestamp",
+        "header",
+        true,
+        "string"
+      ],
+      [
+        "X-Signature",
+        "header",
+        true,
+        "string"
+      ]
+    ],
+    "security": null,
+    "operationId": "ingest_bulk_api_bo_ingest__module__bulk_post"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/modules",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "List Modules",
+    "description": "List all registered BO modules + their row count + latest scrape timestamp.",
+    "params": [],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_modules_api_bo_modules_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/{module}/stats",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "Module Stats",
+    "description": "",
+    "params": [
+      [
+        "module",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "module_stats_api_bo__module__stats_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/{module}/by-client/{code}",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "Module By Client",
+    "description": "",
+    "params": [
+      [
+        "module",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "code",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "module_by_client_api_bo__module__by_client__code__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/client/{code}/360",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "Client 360",
+    "description": "Cross-module footprint for one client \u2014 summary counts + recent activity.",
+    "params": [
+      [
+        "code",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "client_360_api_bo_client__code__360_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/{module}",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "List Module",
+    "description": "",
+    "params": [
+      [
+        "module",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "search",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "start_date",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "end_date",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "sort_by",
+        "query",
+        false,
+        "string"
+      ],
+      [
+        "sort_desc",
+        "query",
+        false,
+        "boolean"
+      ],
+      [
+        "client_code",
+        "query",
+        false,
+        null
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "list_module_api_bo__module__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/bo/{module}/{pk_value}",
+    "tags": [
+      "backoffice-modules"
+    ],
+    "summary": "Module Detail",
+    "description": "",
+    "params": [
+      [
+        "module",
+        "path",
+        true,
+        "string"
+      ],
+      [
+        "pk_value",
+        "path",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "module_detail_api_bo__module___pk_value__get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/entity/resolve",
+    "tags": [
+      "entity-resolver"
+    ],
+    "summary": "Resolve Entity",
+    "description": "",
+    "params": [
+      [
+        "q",
+        "query",
+        true,
+        "string"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "resolve_entity_api_entity_resolve_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/entity/search",
+    "tags": [
+      "entity-resolver"
+    ],
+    "summary": "Search Entities",
+    "description": "Lightweight autocomplete \u2014 returns up to `limit` candidates from each stack.",
+    "params": [
+      [
+        "q",
+        "query",
+        true,
+        "string"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "search_entities_api_entity_search_get"
+  },
+  {
+    "method": "GET",
+    "path": "/api/entity/directory",
+    "tags": [
+      "entity-resolver"
+    ],
+    "summary": "Cross Ref Directory",
+    "description": "Returns the full cross-reference directory with combo histogram.",
+    "params": [
+      [
+        "combo",
+        "query",
+        false,
+        null
+      ],
+      [
+        "min_stacks",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "search",
+        "query",
+        false,
+        null
+      ],
+      [
+        "skip",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "limit",
+        "query",
+        false,
+        "integer"
+      ],
+      [
+        "refresh",
+        "query",
+        false,
+        "boolean"
+      ]
+    ],
+    "security": [
+      {
+        "HTTPBearer": []
+      }
+    ],
+    "operationId": "cross_ref_directory_api_entity_directory_get"
+  }
+]
