@@ -7,24 +7,38 @@ export default function ToolsTab({ api }) {
   const [registry, setRegistry] = useState(null);
   const [recent, setRecent] = useState([]);
   const [analyzer, setAnalyzer] = useState(null);
+  const [bmia, setBmia] = useState(null);
   const [loading, setLoading] = useState(true);
   const [flagBusy, setFlagBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [{ data: reg }, { data: rec }, { data: ana }] = await Promise.all([
+      const [{ data: reg }, { data: rec }, { data: ana }, bmiaRes] = await Promise.all([
         api.get("/admin/tools/registry"),
         api.get("/admin/tools/recent?limit=30"),
         api.get("/admin/tools/analyzer_stats"),
+        api.get("/admin/bmia/summary").catch(() => ({ data: null })),
       ]);
       setRegistry(reg);
       setRecent(rec.items || []);
       setAnalyzer(ana);
+      setBmia(bmiaRes.data);
     } catch (e) { /* non-fatal */ }
     setLoading(false);
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    load();
+    // Phase 24c — poll BMIA tile every 30s for live counter updates.
+    const id = setInterval(async () => {
+      try {
+        const { data } = await api.get("/admin/bmia/summary");
+        setBmia(data);
+      } catch (_) { /* swallow */ }
+    }, 30000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line
+  }, []);
 
   const toggleFlag = async () => {
     if (!registry) return;
@@ -86,6 +100,45 @@ export default function ToolsTab({ api }) {
                 <span className="smifs-kb-count-value">{analyzer?.avg_latency_ms || 0}ms</span>
               </div>
             </div>
+          </section>
+
+          <section className="smifs-kb-api-panel" style={{ marginTop: 12 }} data-testid="bmia-tile">
+            <header className="smifs-kb-api-head">
+              <div>
+                <h3 className="smifs-kb-api-title">BMIA · live regulator + market intelligence</h3>
+                <p className="smifs-kb-api-sub">
+                  {(() => {
+                    const eps = (bmia && bmia.endpoints) || {};
+                    const totalCalls = Object.values(eps).reduce((a, e) => a + (e.calls || 0), 0);
+                    const totalOk = Object.values(eps).reduce((a, e) => a + (e.ok || 0), 0);
+                    const totalCache = Object.values(eps).reduce((a, e) => a + (e.cache_hit || 0), 0);
+                    const hitRate = totalCalls > 0 ? Math.round((totalCache / totalCalls) * 100) : 0;
+                    return `${totalCalls} calls · ${totalOk} ok · cache hit ${hitRate}% · rate cap ${bmia?.rate_per_min || 30}/min`;
+                  })()}
+                </p>
+              </div>
+            </header>
+            <div className="smifs-kb-api-counters">
+              {Object.entries((bmia && bmia.endpoints) || {}).map(([ep, c]) => (
+                <div className="smifs-kb-count" key={ep} data-testid={`bmia-ep-${ep}`}>
+                  <span className="smifs-kb-count-label" title={ep}>{ep.split("/").pop() || ep}</span>
+                  <span className="smifs-kb-count-value">{c.calls || 0}</span>
+                </div>
+              ))}
+              {!Object.keys((bmia && bmia.endpoints) || {}).length ? (
+                <div className="smifs-kb-count"><span className="smifs-kb-count-label">No calls yet</span><span className="smifs-kb-count-value">—</span></div>
+              ) : null}
+            </div>
+            {(bmia?.recent_errors || []).length ? (
+              <div style={{ marginTop: 10, padding: "8px 12px", background: "rgba(220,38,38,0.06)", borderRadius: 8, border: "1px solid rgba(220,38,38,0.18)" }}>
+                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#b91c1c" }}>Recent errors</p>
+                <ul style={{ margin: "4px 0 0", padding: 0, listStyle: "none", fontSize: 12, color: "#7f1d1d" }}>
+                  {(bmia.recent_errors || []).slice(0, 5).map((er, i) => (
+                    <li key={i}>· {er.endpoint} — {(er.error || "").slice(0, 80)}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
 
           <section className="smifs-kb-api-panel" style={{ marginTop: 12 }} data-testid="tools-registry-table">

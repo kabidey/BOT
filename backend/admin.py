@@ -1052,11 +1052,29 @@ def build_admin_router(db) -> APIRouter:
     # ---------------- Phase 20 — Tools admin observability ----------------
     @router.get("/tools/registry")
     async def tools_registry():
-        """Returns every tool in the manifest with metadata + 7-day stats."""
+        """Returns every tool in the manifest with metadata + 7-day stats.
+        Phase 24c — also surfaces the 4 BMIA tools so they appear in the
+        admin tool console alongside OrgLens tools."""
         from orglens_tools import registry as _reg
         from datetime import datetime as _dt, timezone as _tz, timedelta as _td
         since_iso = (_dt.now(_tz.utc) - _td(days=7)).isoformat()
-        tools = _reg.all_tools()
+        tools = list(_reg.all_tools())
+        # Append BMIA tool stubs — same shape as OrgLens manifest entries.
+        try:
+            from agents import bmia_client as _bmia_admin
+            for ts in _bmia_admin.TOOL_SCHEMAS:
+                fn = ts.get("function") or {}
+                tools.append({
+                    "name": fn.get("name"),
+                    "description": (fn.get("description") or "")[:240],
+                    "category": "bmia",
+                    "endpoint": "https://bmia.in/api/public/v1/*",
+                    "auth": "required",
+                    "params": list((fn.get("parameters") or {}).get("properties", {}).keys()),
+                    "allowed_roles": ["visitor", "client", "employee"],
+                })
+        except Exception:
+            pass
         out: List[Dict[str, Any]] = []
         for t in tools:
             stats = {"calls_7d": 0, "ok_7d": 0, "cache_hits_7d": 0,

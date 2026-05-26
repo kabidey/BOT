@@ -166,6 +166,85 @@ INTENT_TOOLS: List[Dict[str, Any]] = [
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
+    # ---------------- Phase 24c — BMIA-backed intents ----------------
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_compliance_research",
+            "description": (
+                "Use this WHENEVER the user asks about Indian financial-market regulators, "
+                "regulatory rules, circulars, disclosures, compliance, KYC, insider trading "
+                "(PIT — Prohibition of Insider Trading), takeover code, AML, listing obligations, "
+                "mutual-fund regulations, derivatives segment rules, RBI/MCA actions, etc. "
+                "Examples: 'SEBI insider trading disclosure timelines', 'PIT regulations', "
+                "'RBI master circular on KYC', 'IRDAI norms for ULIPs'. Prefer this OVER "
+                "answer_from_knowledge_base for any regulator-named or compliance-named query."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Natural-language compliance question."},
+                    "sources": {"type": "array",
+                                 "items": {"type": "string", "enum": ["sebi", "rbi", "mca", "nse", "bse", "irdai"]},
+                                 "description": "Optional regulator filter. Omit to search all."},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_fundamentals_lookup",
+            "description": (
+                "Use this WHEN the user asks about a specific listed Indian stock (NSE-listed) — "
+                "fundamentals, P/E, EPS, profit & loss, balance sheet, cash flow, ratios, or "
+                "quarterly trends. Examples: 'Tell me about Reliance fundamentals', "
+                "'What is HDFCBANK P/E?', 'How is TCS doing?', 'Reliance Industries financials'. "
+                "Extract the NSE ticker (e.g. 'Reliance Industries' → 'RELIANCE', 'HDFC Bank' → "
+                "'HDFCBANK', 'Infosys' → 'INFY', 'State Bank' → 'SBIN') and pass it as `symbol`. "
+                "Prefer this OVER fetch_market_data when the user asks about fundamentals (not "
+                "just price). If you can't confidently resolve the ticker, still call this tool "
+                "with your best guess — the branch handler will reply asking the user to confirm."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string", "description": "NSE ticker uppercase (e.g. RELIANCE)."},
+                    "slice": {"type": "string",
+                              "enum": ["profile", "quarterly", "trends", "ratios", "full"],
+                              "default": "profile"},
+                },
+                "required": ["symbol"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_daily_briefing",
+            "description": (
+                "Use this WHEN the user asks about today's market events: board-meeting "
+                "intimations, critical regulatory filings, or insider-trading disclosures "
+                "across NSE/BSE-listed companies. Examples: 'What's happening in the market "
+                "today?', 'Any critical filings this morning?', 'Today's announcements', "
+                "'Show me today's market briefing'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string",
+                             "description": "Optional YYYY-MM-DD. Omit for today's briefing."},
+                    "sections": {
+                        "type": "array",
+                        "items": {"type": "string",
+                                   "enum": ["board_meetings", "critical_filings", "insider_activity"]},
+                        "description": "Optional filter."
+                    },
+                },
+            },
+        },
+    },
 ]
 
 TOOL_TO_INTENT: Dict[str, str] = {
@@ -176,6 +255,10 @@ TOOL_TO_INTENT: Dict[str, str] = {
     "request_callback": "CALLBACK_REQUEST",
     "escalate": "ESCALATION",
     "chitchat": "SMALL_TALK",
+    # Phase 24c — BMIA-backed intents
+    "bmia_compliance_research": "BMIA_COMPLIANCE",
+    "bmia_fundamentals_lookup": "BMIA_FUNDAMENTALS",
+    "bmia_daily_briefing": "BMIA_BRIEFING",
 }
 # Phase 8 — all directory_* tools map to a single intent carrying tool_name + args.
 for _t in DIRECTORY_TOOLS:

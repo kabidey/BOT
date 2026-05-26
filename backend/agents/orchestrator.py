@@ -705,6 +705,9 @@ async def run_turn(db, session_id: Optional[str], message: str,
             label_for = {
                 "KNOWLEDGE": "Consulting the Research Assistant",
                 "MARKET_DATA": "Pulling market data",
+                "BMIA_COMPLIANCE": "Searching SEBI / RBI / MCA corpus",
+                "BMIA_FUNDAMENTALS": "Fetching NSE fundamentals",
+                "BMIA_BRIEFING": "Fetching today's market briefing",
                 "CLIENT_LOOKUP": "Looking up your record",
                 "LEAD_CAPTURE": "Preparing your form",
                 "CALLBACK_REQUEST": "Preparing callback details",
@@ -850,6 +853,28 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 )
             elif out is None and intent == "ESCALATION":
                 out = await _branch_escalation(message)
+            # ---------------- Phase 24c — BMIA intents ----------------
+            elif out is None and intent == "BMIA_COMPLIANCE":
+                from agents import bmia_branches as _bb
+                tool_args = routing.get("tool_args") or {}
+                out = await _bb.branch_compliance(
+                    message, sources=tool_args.get("sources"),
+                    top_k=int(tool_args.get("top_k") or 5),
+                )
+            elif out is None and intent == "BMIA_FUNDAMENTALS":
+                from agents import bmia_branches as _bb
+                tool_args = routing.get("tool_args") or {}
+                out = await _bb.branch_fundamentals(
+                    message, symbol_hint=tool_args.get("symbol"),
+                    slice_kind=tool_args.get("slice") or "profile",
+                )
+            elif out is None and intent == "BMIA_BRIEFING":
+                from agents import bmia_branches as _bb
+                tool_args = routing.get("tool_args") or {}
+                out = await _bb.branch_briefing(
+                    message, date=tool_args.get("date"),
+                    sections=tool_args.get("sections"),
+                )
             elif out is None:  # SMALL_TALK fallback
                 out = await _branch_small_talk(
                     message, history, identity_obj, emit_token=emit_token,
