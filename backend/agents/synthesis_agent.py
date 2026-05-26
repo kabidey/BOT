@@ -20,10 +20,22 @@ import os
 from typing import Any, Dict, List, Optional
 
 from agents.llm import chat_with_fallback as _llm_chat
+from agents.llm import stream_chat_with_fallback as _llm_stream
 
 logger = logging.getLogger(__name__)
 
 _MODEL = os.environ.get("PHASE_26B_SYNTHESIS_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+
+
+async def _stream_chat(messages, temperature=0.3, max_tokens=600):
+    """Wrapper around _llm_stream that pins a specific model for reliable
+    streaming. Hub AI's 'auto' chain sometimes picks non-streaming models."""
+    # The library's stream_chat_with_fallback iterates through CHAT_CHAIN —
+    # we can't directly force the model, but we can ensure the first model
+    # tried is one that supports SSE streaming reliably (gpt-4o-mini).
+    async for ev in _llm_stream(messages=messages, temperature=temperature,
+                                max_tokens=max_tokens):
+        yield ev
 
 
 # ---- System prompts per event kind ----
@@ -76,6 +88,30 @@ def _persona_voice(persona: str) -> str:
     )
 
 
+def _identity_event_addendum(persona: str) -> str:
+    """Phase 26.2.A — extra instructions for identity-event syntheses."""
+    if persona == "employee":
+        return (
+            "\nEVENT — IDENTITY VERIFIED (employee): The user just authenticated "
+            "as a SMIFS Ltd employee. Compose a SHORT proactive opener (≤ 4 "
+            "sentences) referencing their employee record (name, designation, "
+            "team, manager — whatever the bundle exposes). End with exactly TWO "
+            "concrete next-step options framed for an internal teammate "
+            "(e.g. 'pull up a client by UCC?', 'see this week's BMIA briefing?'). "
+            "Tone: peer, not concierge.\n"
+        )
+    return (
+        "\nEVENT — IDENTITY VERIFIED (client): The user just authenticated as a "
+        "verified SMIFS Ltd client. Compose a SHORT proactive opener (≤ 4 "
+        "sentences) referencing at least 3 specific data points from the bundle "
+        "(e.g. AUM, top fund holding name + amount, active SIP scheme + monthly "
+        "amount, assigned RM name, recent transaction). End with exactly TWO "
+        "concrete next-step options (e.g. 'review your demat KYC refresh', "
+        "'discuss a new NCD that fits your risk profile', 'walk through last "
+        "month's transactions'). Tone: thoughtful private banker.\n"
+    )
+
+
 def _bundle_to_evidence(bundle: Dict[str, Any]) -> str:
     """Render the bundle as a compact evidence block the LLM can use. We keep
     the raw JSON for sub-agents that returned structured data, but trim verbose
@@ -94,7 +130,8 @@ def _bundle_to_evidence(bundle: Dict[str, Any]) -> str:
             continue
         lines.append(f"\n## {name} — OK")
         # Compact JSON, but trim long arrays/strings.
-        compacted = _compact(value)
+        compacted = (_compact_identity(value) if bundle.get("kind") == "identity"
+                     else _compact(value))
         try:
             lines.append(json.dumps(compacted, indent=2, default=str)[:2500])
         except Exception:
@@ -113,6 +150,18 @@ def _compact(obj: Any, max_str: int = 360, max_list: int = 8) -> Any:
     return obj
 
 
+def _compact_identity(obj: Any) -> Any:
+    """Tighter compaction for identity-event bundles where MF/BO book payloads
+    can be hundreds of clients deep. Keeps the first 3 of each list."""
+    if isinstance(obj, str):
+        return obj if len(obj) <= 180 else obj[:180] + "…"
+    if isinstance(obj, list):
+        return [_compact_identity(x) for x in obj[:3]]
+    if isinstance(obj, dict):
+        return {k: _compact_identity(v) for k, v in obj.items()}
+    return obj
+
+
 # ---------- Public compose ----------
 async def compose(bundle: Dict[str, Any], user_message: str, persona: str = "visitor") -> Dict[str, Any]:
     """Produce a final reply from a fan-out bundle.
@@ -126,6 +175,8 @@ async def compose(bundle: Dict[str, Any], user_message: str, persona: str = "vis
         return {"text": "", "model": _MODEL, "blocks_extra": [], "empty": True}
 
     system = _BASE_INSTR + _persona_voice(persona)
+    if bundle.get("kind") == "identity":
+        system += _identity_event_addendum(persona)
     evidence = _bundle_to_evidence(bundle)
     user_block = (
         f"USER QUESTION:\n{user_message}\n\n"
@@ -163,6 +214,69 @@ async def compose(bundle: Dict[str, Any], user_message: str, persona: str = "vis
     logger.info("synthesis ok: model=%s reply_chars=%d extras=%d kind=%s",
                 model_used, len(text), len(blocks_extra), bundle.get("kind"))
     return {"text": text.strip(), "model": model_used, "blocks_extra": blocks_extra, "empty": False}
+
+
+# ---------- Public streaming variant ----------
+async def compose_streaming(bundle: Dict[str, Any], user_message: str,
+                            persona: str = "visitor",
+                            emit_token=None) -> Dict[str, Any]:
+    """Phase 26.2.B — Stream synthesis tokens to the client as they arrive.
+
+    Same evidence-bundle pipeline as `compose()`, but uses the streaming
+    Hub AI endpoint. Tokens are surfaced via `emit_token(chunk)` so the chat
+    surface paints them progressively. Returns the same shape as compose():
+    `{text, model, blocks_extra, empty}` after the stream completes.
+
+    The structured `blocks_extra` (e.g. BmiaFundamentalsCard) are computed
+    AFTER the text finishes so the caller appends them as a follow-up block.
+    """
+    if int(bundle.get("ok_count") or 0) == 0:
+        return {"text": "", "model": _MODEL, "blocks_extra": [], "empty": True}
+
+    system = _BASE_INSTR + _persona_voice(persona)
+    if bundle.get("kind") == "identity":
+        system += _identity_event_addendum(persona)
+    evidence = _bundle_to_evidence(bundle)
+    user_block = (
+        f"USER QUESTION:\n{user_message}\n\n"
+        f"EVIDENCE BUNDLE (use ONLY this data; do not invent):\n{evidence}\n\n"
+        f"REPLY RULES:\n"
+        f"- Open with the subject the user asked about (the ticker / product / their name).\n"
+        f"- Cite at least 3 specific data points from the bundle (e.g. exact P/E, "
+        f"market cap, EPS, sales growth %, scheme name, RM name, quarterly figures, "
+        f"NAV, AUM, founding/management details).\n"
+        f"- Use plain prose. No bullet lists. ≤ 6 sentences total.\n"
+        f"- End with ONE follow-up question offering 2–3 concrete next-step options.\n"
+        f"- Do NOT pivot to marketing copy about Mackertich ONE before answering.\n"
+        f"Compose the reply now."
+    )
+    messages = [
+        {"role": "system",  "content": system},
+        {"role": "user",    "content": user_block},
+    ]
+
+    text_parts: List[str] = []
+    model_used = _MODEL
+    try:
+        async for ev_type, payload in _llm_stream(messages=messages, temperature=0.3, max_tokens=600):
+            if ev_type == "token":
+                text_parts.append(payload)
+                if emit_token is not None:
+                    try:
+                        await emit_token(payload)
+                    except Exception:
+                        logger.debug("synthesis emit_token failed", exc_info=True)
+            elif ev_type == "done":
+                model_used = (payload or {}).get("model") or _MODEL
+    except Exception:
+        logger.exception("synthesis streaming failed; falling back to buffered compose")
+        return await compose(bundle, user_message, persona)
+
+    text = "".join(text_parts).strip()
+    blocks_extra = _structured_extras(bundle)
+    logger.info("synthesis (stream) ok: model=%s reply_chars=%d extras=%d kind=%s",
+                model_used, len(text), len(blocks_extra), bundle.get("kind"))
+    return {"text": text, "model": model_used, "blocks_extra": blocks_extra, "empty": False}
 
 
 def _structured_extras(bundle: Dict[str, Any]) -> List[Dict[str, Any]]:

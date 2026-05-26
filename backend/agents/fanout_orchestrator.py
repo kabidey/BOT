@@ -248,27 +248,84 @@ async def fanout_for_product(product: str) -> Dict[str, Any]:
     return await _gather_bundle(kind="product", subject=product, tasks=tasks)
 
 
-async def fanout_for_identity(identity: Dict[str, Any]) -> Dict[str, Any]:
-    """Event A fan-out — minimal client identity bundle.
-    Uses OrgLens MF + SIP + 360 via existing adapter where available;
-    falls back to a stub when adapters aren't wired."""
-    # Import the orglens adapter lazily; some envs may not have it ready.
-    async def _orglens_lookup() -> Dict[str, Any]:
-        try:
-            from orglens_tools import adapter as _ad
-            # Best-effort surface: stats + employee/client by id.
-            ucc = identity.get("ucc") or identity.get("client_code") or ""
-            name = identity.get("name") or identity.get("display_name") or ""
-            return {"ucc": ucc, "name": name, "raw_identity": identity}
-        except Exception as e:
-            return {"error": str(e)}
+async def fanout_for_identity(identity: Dict[str, Any],
+                              session_row: Optional[Dict[str, Any]] = None,
+                              db=None) -> Dict[str, Any]:
+    """Event A fan-out — proactive client/employee opener.
+    Parallel pulls from the OrgLens tool adapter for MF holdings, 360 profile,
+    active SIPs, recent transactions, assigned RM. Each call is role-gated
+    by the adapter itself; failures are tolerated and contribute to the bundle
+    with status='error'."""
+    from orglens_tools import adapter as _ad
 
-    tasks = [
-        _run_with_timeout("identity_snapshot",
-                          _orglens_lookup(),
-                          FANOUT_PER_TASK_TIMEOUT_S),
-    ]
-    return await _gather_bundle(kind="identity", subject="client", tasks=tasks)
+    ucc = identity.get("ucc") or identity.get("client_code") or ""
+    pan = identity.get("pan_last4") or identity.get("pan") or ""
+    employee_code = (identity.get("employee_id") or identity.get("employee_code")
+                     or identity.get("smwm_id") or identity.get("user_id") or "")
+    session = session_row or {}
+
+    async def _tool(name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        if db is None:
+            return {"ok": False, "error": "no_db"}
+        try:
+            return await _ad.execute(db, tool_name=name, params=params, session=session)
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    # Build the parallel sub-agent list dynamically based on what identifiers
+    # we have. Each call is wrapped in _run_with_timeout for tolerance.
+    tasks = []
+    if ucc:
+        tasks.append(_run_with_timeout(
+            f"client_360_{ucc}", _tool("bo_client_360", {"ucc": ucc}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+        tasks.append(_run_with_timeout(
+            f"client_portfolio_{ucc}", _tool("bo_client_portfolio", {"ucc": ucc}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+        tasks.append(_run_with_timeout(
+            f"client_trades_{ucc}", _tool("bo_client_trade_book", {"ucc": ucc, "days": 30}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+        tasks.append(_run_with_timeout(
+            f"client_ledger_{ucc}", _tool("bo_client_ledger_balance", {"ucc": ucc}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+    if pan:
+        tasks.append(_run_with_timeout(
+            f"mf_folios_{pan}",
+            _tool("mf_client_folios", {"pan": pan} if len(pan) > 4 else {"pan_last4": pan}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+        tasks.append(_run_with_timeout(
+            f"mf_sips_{pan}",
+            _tool("mf_client_sips", {"pan": pan} if len(pan) > 4 else {"pan_last4": pan}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+        tasks.append(_run_with_timeout(
+            f"mf_txns_{pan}",
+            _tool("mf_client_transactions",
+                  ({"pan": pan} if len(pan) > 4 else {"pan_last4": pan}) | {"days": 30}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+    if employee_code:
+        tasks.append(_run_with_timeout(
+            f"employee_{employee_code}",
+            _tool("employee_by_code", {"code": employee_code}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+        # Employee book — best-effort fetch of clients assigned to this RM.
+        tasks.append(_run_with_timeout(
+            f"book_bo_{employee_code}",
+            _tool("bo_clients_by_rm", {"rm_code": employee_code}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+        tasks.append(_run_with_timeout(
+            f"book_mf_{employee_code}",
+            _tool("mf_clients_by_rm", {"rm_code": employee_code}),
+            FANOUT_PER_TASK_TIMEOUT_S))
+
+    if not tasks:
+        # No identifiers — return an empty bundle so caller falls through.
+        return {"kind": "identity", "subject": "client",
+                "elapsed_ms": 0, "results": {}, "ok_count": 0,
+                "timeout_count": 0, "error_count": 0,
+                "fetched_at": datetime.now(timezone.utc).isoformat()}
+
+    subject = ucc or employee_code or pan or "client"
+    return await _gather_bundle(kind="identity", subject=subject, tasks=tasks)
 
 
 async def _gather_bundle(kind: str, subject: str, tasks: List) -> Dict[str, Any]:
@@ -300,7 +357,8 @@ async def _gather_bundle(kind: str, subject: str, tasks: List) -> Dict[str, Any]
 
 
 # ---------- Public entry point ----------
-async def fanout(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+async def fanout(event: Dict[str, Any], session_row: Optional[Dict[str, Any]] = None,
+                 db=None) -> Optional[Dict[str, Any]]:
     """Dispatch to the right fan-out for the detected event kind.
     Returns IntelligenceBundle (always a dict), or None if no fan-out exists."""
     kind = event.get("kind")
@@ -310,7 +368,8 @@ async def fanout(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if kind == "product":
         return await fanout_for_product(payload.get("product", ""))
     if kind == "identity":
-        return await fanout_for_identity(payload.get("identity") or {})
+        return await fanout_for_identity(payload.get("identity") or {},
+                                         session_row=session_row, db=db)
     return None
 
 

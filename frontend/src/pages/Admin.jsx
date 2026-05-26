@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive, TrendingDown, Briefcase, Mail, Wrench, ShieldAlert, Globe2 } from "lucide-react";
+import { LayoutDashboard, Inbox, Wallet, BarChart3, FileStack, LogOut, Lock, ShieldCheck, AlertCircle, MessageSquareCode, Archive, TrendingDown, Briefcase, Mail, Wrench, ShieldAlert, Globe2, ClipboardList } from "lucide-react";
 
 import OverviewTab from "@/components/admin/OverviewTab";
 import LeadsTab from "@/components/admin/LeadsTab";
@@ -15,6 +15,7 @@ import EmailRelayTab from "@/components/admin/EmailRelayTab";
 import ToolsTab from "@/components/admin/ToolsTab";
 import FraudWatchTab from "@/components/admin/FraudWatchTab";
 import IngestionTab from "@/components/admin/IngestionTab";
+import FormSubmissionsTab from "@/components/admin/FormSubmissionsTab";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -30,6 +31,7 @@ const TABS = [
   { id: "kb", label: "Knowledge Base", icon: FileStack },
   { id: "tools", label: "Tools", icon: Wrench },
   { id: "ingestion", label: "Knowledge Ingestion", icon: Globe2 },
+  { id: "forms", label: "Form Submissions", icon: ClipboardList },
   { id: "fraud", label: "Fraud Watch", icon: ShieldAlert },
   { id: "archives", label: "Archives", icon: Archive },
   { id: "email_relay", label: "SMTP / Email Relay", icon: Mail },
@@ -141,6 +143,7 @@ export default function Admin() {
     activeTab === "archives" ? ArchivesTab :
     activeTab === "tools"    ? ToolsTab :
     activeTab === "ingestion" ? IngestionTab :
+    activeTab === "forms"    ? FormSubmissionsTab :
     activeTab === "fraud"    ? FraudWatchTab :
     activeTab === "email_relay" ? EmailRelayTab :
     KnowledgeBaseTab;

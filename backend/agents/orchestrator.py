@@ -107,7 +107,8 @@ async def _emit(emit: "StatusEmitter", event: Dict[str, Any]) -> None:
 async def _maybe_fanout(db, session_id: str, message: str,
                         session_context: Dict[str, Any],
                         identity_obj: Optional[Dict[str, Any]],
-                        emit_status: "StatusEmitter" = None) -> Optional[Dict[str, Any]]:
+                        emit_status: "StatusEmitter" = None,
+                        emit_token: "TokenEmitter" = None) -> Optional[Dict[str, Any]]:
     """If the user's message triggers a fan-out event AND the persona is
     eligible AND we're under the per-session cap, run the parallel fan-out
     + synthesis and return the synthesised reply. Otherwise return None
@@ -119,11 +120,22 @@ async def _maybe_fanout(db, session_id: str, message: str,
 
     persona = (session_context or {}).get("session_type") or "visitor"
 
+    # Phase 26.2.A — proactive opener trigger.
+    sess_doc = await db.sessions.find_one({"_id": session_id}, {"_id": 0}) or {}
+    identity_fired = bool(sess_doc.get("identity_fanout_fired"))
+    auth_verified = (sess_doc.get("auth_state") in ("client_verified",
+                                                     "employee_verified", "verified"))
+    identity_just_verified = (auth_verified and not identity_fired
+                              and bool(identity_obj))
+    logger.info("fanout: persona=%s auth_state=%s identity_fired=%s identity_obj=%s identity_just_verified=%s",
+                persona, sess_doc.get("auth_state"), identity_fired,
+                bool(identity_obj), identity_just_verified)
+
     event = _fo.detect_event(
         message=message,
         persona=persona,
         identity=identity_obj,
-        identity_just_verified=False,  # caller-side bookkeeping for Event A is TODO
+        identity_just_verified=identity_just_verified,
     )
     if not event:
         return None
@@ -145,7 +157,7 @@ async def _maybe_fanout(db, session_id: str, message: str,
     }.get(kind, "Running multi-agent fan-out…")
     await _emit(emit_status, {"step": "fanout", "label": label, "kind": kind})
 
-    bundle = await _fo.fanout(event)
+    bundle = await _fo.fanout(event, session_row=sess_doc, db=db)
     if not bundle or int(bundle.get("ok_count") or 0) == 0:
         # All sub-agents failed — fall through to reactive path. Do NOT
         # trigger anti-bluff just because fan-out failed (per spec).
@@ -154,7 +166,8 @@ async def _maybe_fanout(db, session_id: str, message: str,
                     bundle.get("error_count", 0))
         return None
 
-    syn = await _syn.compose(bundle=bundle, user_message=message, persona=persona)
+    syn = await _syn.compose_streaming(bundle=bundle, user_message=message,
+                                       persona=persona, emit_token=emit_token)
     text = syn.get("text") or ""
     if not text:
         return None
@@ -166,6 +179,17 @@ async def _maybe_fanout(db, session_id: str, message: str,
 
     # Record fan-out usage on the session for the cap + admin telemetry.
     await _fo.session_record_fanout(db, session_id, kind, bundle)
+
+    # Phase 26.2.A — flip the one-shot identity flag so subsequent turns
+    # fall back to the reactive specialist path.
+    if kind == "identity":
+        try:
+            await db.sessions.update_one(
+                {"_id": session_id},
+                {"$set": {"identity_fanout_fired": True}},
+            )
+        except Exception:
+            logger.exception("identity_fanout_fired flag update failed")
 
     # Cost-ledger best-effort log (use existing cost ledger if present).
     try:
@@ -905,6 +929,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 session_context=session_context,
                 identity_obj=await auth_agent.get_verified_identity(db, sid),
                 emit_status=emit_status,
+                emit_token=emit_token,
             )
             if fanout_out is not None:
                 out = fanout_out["out"]

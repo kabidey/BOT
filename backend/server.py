@@ -12,7 +12,7 @@ import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # Load env BEFORE importing agent modules (they read env at module level).
 ROOT_DIR = Path(__file__).parent
@@ -704,6 +704,139 @@ async def admin_retry_form_email(submission_id: str, request: Request):
             {"$set": {"email_status": "failed", "email_detail": str(e)}},
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------- Phase 26.2.D — Cost ledger + insights ----------------
+@api_router.get("/admin/cost_ledger")
+async def admin_cost_ledger(
+    request: Request,
+    kind: Optional[str] = None,
+    event_type: Optional[str] = None,
+    since: Optional[str] = None,
+    limit: int = 50,
+):
+    """Phase 26.2.D — unified cost-ledger feed.
+
+    Returns rows from BOTH collections in a single shape:
+      - `db.llm_calls`  (every Hub AI completion — task = router/chat/etc.)
+      - `db.cost_ledger` (fan-out synthesis events with event_type)
+
+    Query params:
+      kind         — filter by row kind (e.g. 'fanout_synthesis', 'llm_compose', 'router')
+      event_type   — for fan-out rows: 'ticker' | 'product' | 'identity'
+      since        — ISO timestamp (rows newer than this)
+      limit        — 1..500, default 50
+    """
+    _check_admin_request(request)
+    limit = max(1, min(int(limit or 50), 500))
+
+    rows: List[Dict[str, Any]] = []
+
+    # ---- Pull fan-out rows ----
+    if kind in (None, "fanout_synthesis"):
+        q: Dict[str, Any] = {}
+        if event_type:
+            q["event_type"] = event_type
+        if since:
+            q["ts"] = {"$gte": since}
+        cur = db.cost_ledger.find(q, {"_id": 0}).sort("ts", -1).limit(limit)
+        async for r in cur:
+            rows.append({
+                "ts":          r.get("ts"),
+                "kind":        "fanout_synthesis",
+                "event_type":  r.get("event_type"),
+                "model":       r.get("model"),
+                "tokens":      None,
+                "usd":         None,
+                "subject":     r.get("subject"),
+                "elapsed_ms":  r.get("elapsed_ms"),
+                "ok":          r.get("ok"),
+                "timeout":     r.get("timeout"),
+                "error":       r.get("error"),
+                "session_id":  r.get("session_id"),
+            })
+
+    # ---- Pull llm_calls rows ----
+    if kind in (None, "llm_compose", "router") or (kind and kind not in {"fanout_synthesis"}):
+        q2: Dict[str, Any] = {}
+        if since:
+            q2["created_at"] = {"$gte": since}
+        # Map admin 'kind' → llm_calls.task
+        if kind == "router":
+            q2["task"] = "router"
+        elif kind == "llm_compose":
+            q2["task"] = "chat"
+        elif kind and kind not in {"fanout_synthesis", "llm_compose", "router"}:
+            q2["task"] = kind
+        cur = db.llm_calls.find(q2, {"_id": 0}).sort("created_at", -1).limit(limit)
+        async for r in cur:
+            t = r.get("task")
+            mapped_kind = "router" if t == "router" else "llm_compose"
+            rows.append({
+                "ts":         r.get("created_at"),
+                "kind":       mapped_kind,
+                "event_type": None,
+                "model":      r.get("model_resolved") or r.get("model_requested"),
+                "tokens":     r.get("total_tokens"),
+                "input_tokens":  r.get("input_tokens"),
+                "output_tokens": r.get("output_tokens"),
+                "usd":         None,
+                "inr":         r.get("cost_inr"),
+                "latency_ms":  r.get("latency_ms"),
+                "session_id":  r.get("session_id"),
+                "intent":      r.get("intent"),
+            })
+
+    # Sort by ts desc, trim to limit
+    rows.sort(key=lambda r: r.get("ts") or "", reverse=True)
+    rows = rows[:limit]
+
+    counts = {
+        "llm_calls_total":   await db.llm_calls.estimated_document_count(),
+        "fanout_total":      await db.cost_ledger.count_documents({"kind": "fanout_synthesis"}),
+    }
+    # Cumulative INR cost (best-effort, only what's in llm_calls)
+    pipeline = [{"$group": {"_id": None, "total_inr": {"$sum": "$cost_inr"}}}]
+    total_inr = 0.0
+    async for doc in db.llm_calls.aggregate(pipeline):
+        total_inr = float(doc.get("total_inr") or 0.0)
+    return {"rows": rows, "counts": counts, "total_inr": round(total_inr, 4)}
+
+
+@api_router.get("/admin/insight/top_asks")
+async def admin_top_asks(request: Request, days: int = 7, limit: int = 10):
+    """Phase 26.2.D — weekly aggregate of the most-asked tickers + products,
+    surfaced from the fan-out cost-ledger rows."""
+    _check_admin_request(request)
+    limit = max(1, min(int(limit or 10), 50))
+    days = max(1, min(int(days or 7), 90))
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    async def _top(event_type: str) -> List[Dict[str, Any]]:
+        pipeline = [
+            {"$match": {"kind": "fanout_synthesis",
+                        "event_type": event_type,
+                        "ts": {"$gte": cutoff}}},
+            {"$group": {"_id": "$subject",
+                        "count": {"$sum": 1},
+                        "last_at": {"$max": "$ts"}}},
+            {"$sort": {"count": -1, "last_at": -1}},
+            {"$limit": limit},
+        ]
+        out: List[Dict[str, Any]] = []
+        async for doc in db.cost_ledger.aggregate(pipeline):
+            out.append({"subject": doc.get("_id"),
+                        "count": doc.get("count"),
+                        "last_at": doc.get("last_at")})
+        return out
+
+    return {
+        "since": cutoff,
+        "days": days,
+        "tickers":  await _top("ticker"),
+        "products": await _top("product"),
+        "identity": await _top("identity"),
+    }
 
 
 # --- Phase 11: one-tap WhatsApp / Email handoff ---

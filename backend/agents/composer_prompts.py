@@ -102,7 +102,7 @@ def threshold_for(session_type: Optional[str], form_id: str) -> float:
 FANOUT_ELIGIBILITY = {
     "visitor":  {"ticker", "product"},
     "client":   {"identity", "ticker", "product"},
-    "employee": {"identity_client_lookup", "ticker", "product"},
+    "employee": {"identity", "identity_client_lookup", "ticker", "product"},
 }
 
 

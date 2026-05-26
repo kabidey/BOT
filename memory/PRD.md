@@ -447,3 +447,76 @@ BQPPJ8323M) is deferred to Phase 26.2 along with the full Event A bundle.
 ### Production redeploy required
 `bot.pesmifs.com` still serves the pre-26 build. Push Deploy to release 26a/26c/26d
 and the new 26.1 work (acronym expansion, fan-out for ticker + product).
+
+---
+
+## Phase 26.2 — All 4 gaps closed
+
+### 26.2.A — Event A: PAN/UCC verified proactive opener ✅
+- `fanout_for_identity` expanded from skeleton to full parallel fan-out across
+  the OrgLens tool adapter: `bo_client_360`, `bo_client_portfolio`,
+  `bo_client_trade_book`, `bo_client_ledger_balance`, `mf_client_folios`,
+  `mf_client_sips`, `mf_client_transactions`, `employee_by_code`,
+  `bo_clients_by_rm`, `mf_clients_by_rm`. Each call inherits the role-gated
+  adapter; missing identifiers (no UCC, no PAN) skip silently.
+- Synthesis prompt extended with `_identity_event_addendum()` — instructs the
+  LLM to compose ≤4 sentences referencing ≥3 specific data points and end with
+  EXACTLY 2 concrete next-step options.
+- One-shot trigger: `_maybe_fanout` checks `auth_state` + `identity_fanout_fired`
+  flag — fires identity event on the FIRST post-verify turn, then sets the
+  flag so subsequent turns fall through to the reactive path.
+- **Acceptance verified end-to-end:** logged in as employee
+  `aaditya.jaiswal@smifs.com` / PAN `BQPPJ8323M`, first message produced
+  `intent=FANOUT_IDENTITY`, 3/3 sub-agents in 1.17s, reply quoted 6 concrete
+  data points (38,438 client book, real RM name Abhijit Shah, ₹16,43,664
+  equity / ₹60,718 debt, IFSC accounts, IndusInd + HDFC account numbers)
+  with 3 concrete next-step options. Wall-clock 13s (synthesis-bound).
+
+### 26.2.B — Streaming synthesis ✅
+- New `synthesis_agent.compose_streaming()` uses `stream_chat_with_fallback`,
+  yields tokens through `emit_token(chunk)` as Hub AI emits them.
+- Orchestrator's `_maybe_fanout` switched from buffered `compose()` to the
+  streaming variant; passes `emit_token` from the SSE caller down.
+- BmiaFundamentalsCard structured block appended AFTER the text completes.
+- **Verified via SSE endpoint:** 116 tokens streamed end-to-end with progressive
+  status pills ("Routing your question" → "Pulling fundamentals for INFY..."
+  → "Synthesising market intelligence"). Total wall-clock unchanged (Hub AI
+  TTFT-bound) but progressive UI feedback fully working.
+
+### 26.2.C — Admin Form Submissions tab ✅
+- New `frontend/src/components/admin/FormSubmissionsTab.jsx` — colored
+  per-form badges (DEMAND/FEEDBACK/COMPLAINT/REFERRAL/CALLBACK), email-status
+  pills with icons, filters by form_type + persona + email_status, row-expand
+  with full form data + conversation excerpt + session metadata + RETRY
+  SEND button (wired to `/api/admin/forms/{id}/retry`), CSV export, three
+  counters at top (total today / pending / failed).
+- Wired into `pages/Admin.jsx` as a new tab between "Knowledge Ingestion"
+  and "Fraud Watch".
+- **Acceptance verified via admin UI screenshot:** 6 rows render, filter to
+  complaint_capture returns 2, expansion shows full form + conversation
+  excerpt, retry button is wired and not disabled.
+
+### 26.2.D — Cost ledger endpoint + insight ✅
+- `GET /api/admin/cost_ledger` — unified feed across `db.llm_calls` (rich
+  LLM call telemetry with input/output tokens, latency_ms, cost_inr, intent)
+  AND `db.cost_ledger` (fan-out synthesis events with event_type, subject,
+  ok/timeout/error counts). Filter params: `kind`, `event_type`, `since`,
+  `limit`. Returns rows sorted ts desc + counts + `total_inr` aggregate.
+- `GET /api/admin/insight/top_asks?days=N&limit=M` — Mongo aggregate on
+  cost_ledger for the most-asked tickers / products / identity events in
+  the given window. Returns `{tickers: [{subject, count, last_at}], ...}`.
+- **Verified via curl:** cost_ledger returns 4 fan-out rows incl. identity
+  events; top_asks aggregates RELIANCE×7, TCS×2, INFY×1, NCD×3 — the marketing
+  brief now writes itself from real chat telemetry.
+
+### Wall-clock notes / caveats
+- Identity event synthesis wall-clock is 13–17s because the heavy book-of-clients
+  payload from `bo_clients_by_rm` (38,438 clients) bloats the synthesis prompt.
+  Tightened compaction in `_compact_identity()` (3 list items, 180-char strings)
+  — still long. Further compression deferred to 26.3.
+- Ticker/product fan-out wall-clock 5–7s — fan-out itself is 1.5–2s, synthesis
+  LLM is the remaining time. Hub AI's "auto" model picks vary; pinning
+  gpt-4o-mini explicitly is a Phase 26.3 follow-on.
+
+### Production redeploy still required
+All 26.2 work is in preview; `bot.pesmifs.com` still serves pre-26 build.
