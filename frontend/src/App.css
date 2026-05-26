@@ -660,21 +660,26 @@ body {
   height: 100dvh;
   min-height: 0;
   padding: 0;
-  background: var(--smifs-bg-paper, #FFFFFF);
+  /* Phase 23.4 — restore the rich dark-green palette of the main `/` route. */
+  background: radial-gradient(1200px 700px at 85% -10%, #0e624a 0%, transparent 55%),
+              radial-gradient(900px 600px at -10% 110%, #032a1d 0%, transparent 60%),
+              var(--navy-900);
+  color: var(--ink);
   border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 18px 50px rgba(11, 27, 43, 0.18);
+  box-shadow: 0 18px 50px rgba(2, 55, 38, 0.45);
   /* Fluid base font: 14px on narrow phones → 16px on wider screens. */
   font-size: clamp(14px, 0.875rem + 0.25vw, 16px);
   --smifs-kb-h: 0px;
-  /* Safe-area padding handled per-section below so backgrounds still span edge-to-edge. */
 }
 .smifs-shell--embed .smifs-header {
   padding: 14px 18px;
   padding-top: max(14px, env(safe-area-inset-top, 14px));
-  background: var(--smifs-header-bg, var(--smifs-bg-primary));
-  color: var(--smifs-header-text, #FFFFFF);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(2, 42, 29, 0.85) 0%, rgba(2, 55, 38, 0.55) 100%);
+  color: #ffffff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .smifs-shell--embed .smifs-title { font-size: 1.05rem; }
 .smifs-shell--embed .smifs-subtitle { font-size: 0.7rem; opacity: 0.7; }
@@ -686,8 +691,9 @@ body {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-.smifs-shell--embed .smifs-bg-blob,
-.smifs-shell--embed .smifs-grain { display: none; }
+/* Phase 23.4 — keep the ambient bg blobs visible on the embed too so the
+ * surface gets the same depth/glow as the main route. (Was hidden in Phase
+ * 23.1 because the embed was a flat white card; no longer applies.) */
 
 /* Sticky composer above keyboard. The runtime `--smifs-kb-h` is pushed in
  * by the visualViewport listener; when no keyboard is open it's 0px and the
@@ -696,7 +702,10 @@ body {
 .smifs-shell--embed .smifs-composer {
   position: sticky;
   bottom: 0;
-  background: var(--smifs-bg-paper, #FFFFFF);
+  /* Phase 23.4 — translucent dark-green glass instead of white card. */
+  background: linear-gradient(180deg, rgba(2, 42, 29, 0.0) 0%, rgba(2, 42, 29, 0.78) 38%, rgba(2, 42, 29, 0.92) 100%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .smifs-shell--embed .smifs-composer-wrap {
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--smifs-kb-h, 0px));
@@ -765,112 +774,99 @@ body {
 }
 .smifs-embed-close:hover { background: rgba(255, 255, 255, 0.18); }
 
-/* ---------------- Phase 23.2 — Light-mode contrast pass on `.smifs-shell--embed` ---------------
- * The base `:root` ink tokens (`--ink: #ecf3ef`, `--ink-muted: #a4c4b4`,
- * `--ink-dim: #6e8b7c`) are calibrated for the deep-green dark surface on `/`.
- * Inheriting them into the LIGHT embed body (#FFFFFF) produces ghost-pale
- * text that fails WCAG AA. Phase 23.2 introduces a complete light-mode token
- * override scoped exclusively to `.smifs-shell--embed` — the dark main `/`
- * route is untouched.
+/* ---------------- Phase 23.4 — Rich dark-green theme parity with `/` route ----------------
+ * Replaces the Phase 23.2 light-mode contrast pass. The embed must look like
+ * the main route, just sized to the iframe. We INHERIT the base `:root` ink
+ * tokens (`--ink: #ecf3ef`, `--ink-muted: #a4c4b4`, `--ink-dim: #6e8b7c`)
+ * which are calibrated for the deep-green dark surface — no override needed.
  *
- * Contrast guarantees on white (#FFFFFF):
- *   --ink        #0f172a   slate-900 → 19.6 : 1   (AAA)
- *   --ink-muted  #475569   slate-600 →  7.5 : 1   (AAA)
- *   --ink-dim    #64748b   slate-500 →  4.9 : 1   (AA — placeholder / disclaimer floor)
+ * Contrast on the dark gradient (~`#023726`):
+ *   --ink        #ecf3ef → ~12.5 : 1   (AAA)
+ *   --ink-muted  #a4c4b4 →  ~5.6 : 1   (AA)
+ *   --ink-dim    #6e8b7c →   ~3.2 : 1  (large-text / non-essential UI only)
  *
- * The dark header retains its existing green surface; we re-light the text
- * for elements *inside* `.smifs-header` so they stay bright on dark. */
-.smifs-shell--embed {
-  --ink:         #0f172a;
-  --ink-muted:   #475569;
-  --ink-dim:     #64748b;
-  --muted:       #64748b;
-  --line:        #e2e8f0;
-  --line-strong: #cbd5e1;
-  color: var(--ink);
-}
+ * Only the bubbles, composer, locale pills, vehicle CTAs and inline forms
+ * need scoped re-styling — their base styles assume a white surface from the
+ * earlier 23.2 pass. Everything else inherits the dark theme automatically. */
 
-/* Header lives on the dark-green panel — restore bright tokens locally. */
-.smifs-shell--embed .smifs-header {
-  /* Re-establish the dark-surface tokens just for header descendants so the
-   * brand title / subtitle / icon buttons stay readable on green. */
-  --ink:       #ffffff;
-  --ink-muted: rgba(255, 255, 255, 0.82);
-  --ink-dim:   rgba(255, 255, 255, 0.66);
-  color: #ffffff;
-}
-.smifs-shell--embed .smifs-header .smifs-title,
-.smifs-shell--embed .smifs-header h1 { color: #ffffff; }
-.smifs-shell--embed .smifs-header .smifs-subtitle { color: rgba(255, 255, 255, 0.82); }
-
-/* Bot message bubble — explicit light surface so the agent reply is readable.
- * Base rule uses `background: rgba(255,255,255,0.025)` (invisible on white). */
+/* Bot bubble — subtle white-on-dark glass, light ink text. */
 .smifs-shell--embed .smifs-msg--bot .smifs-msg-bubble,
 .smifs-shell--embed .smifs-msg-bubble {
-  background: #f1f5f9;            /* slate-100 */
-  border-color: #e2e8f0;
-  color: #0f172a;                  /* slate-900 */
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .smifs-shell--embed .smifs-msg--bot .smifs-msg-bubble * { color: inherit; }
 
-/* User bubble — keep the green-accent tint but readable text on it. */
+/* User bubble — green-tint glass on dark, light ink text. */
 .smifs-shell--embed .smifs-msg--user .smifs-msg-bubble {
-  background: linear-gradient(180deg, rgba(9, 140, 98, 0.10), rgba(9, 140, 98, 0.05));
-  border-color: rgba(9, 140, 98, 0.35);
-  color: #0f172a;
+  background: linear-gradient(180deg, rgba(9, 140, 98, 0.22), rgba(9, 140, 98, 0.10));
+  border: 1px solid rgba(9, 140, 98, 0.42);
+  color: var(--ink);
 }
 .smifs-shell--embed .smifs-msg--user .smifs-msg-bubble * { color: inherit; }
 
-/* "ADVISOR" / "YOU" speaker pill above each bubble. */
+/* Speaker pill above each bubble. */
 .smifs-shell--embed .smifs-msg-meta { color: var(--ink-muted); }
-.smifs-shell--embed .smifs-msg--user .smifs-msg-meta { color: var(--smifs-green); }
+.smifs-shell--embed .smifs-msg--user .smifs-msg-meta { color: var(--gold-soft); }
 .smifs-shell--embed .smifs-msg-model { color: var(--ink-dim); }
 
-/* Error bubble — keep red, but darken text for readability. */
+/* Error bubble — keep red but on a dark transparent glass. */
 .smifs-shell--embed .smifs-msg--error .smifs-msg-bubble {
-  background: #fef2f2;
-  border-color: rgba(220, 38, 38, 0.35);
-  color: #7f1d1d;
+  background: rgba(127, 29, 29, 0.22);
+  border: 1px solid rgba(220, 38, 38, 0.40);
+  color: #fecaca;
 }
 
-/* Composer placeholder — was pale-green-on-white, now slate-500 (AA on white). */
+/* Composer input — dark glass, light text, muted-green placeholder. */
 .smifs-shell--embed .smifs-input,
 .smifs-shell--embed textarea.smifs-input {
-  color: #0f172a;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.smifs-shell--embed .smifs-input:focus,
+.smifs-shell--embed textarea.smifs-input:focus {
+  border-color: var(--gold-soft);
+  background: rgba(255, 255, 255, 0.06);
 }
 .smifs-shell--embed .smifs-input::placeholder,
 .smifs-shell--embed textarea.smifs-input::placeholder {
-  color: #64748b;
-  opacity: 1;                     /* Firefox dims placeholders by default */
+  color: var(--ink-muted);
+  opacity: 1;
 }
 
-/* Footer disclaimer + Markdown link text in chat surface. */
-.smifs-shell--embed .smifs-footer { color: var(--ink-dim); }
-.smifs-shell--embed .smifs-link   { color: var(--smifs-green-deep, #066b4a); }
+/* Footer disclaimer + chat-surface Markdown links. */
+.smifs-shell--embed .smifs-footer { color: var(--ink-muted); }
+.smifs-shell--embed .smifs-link   { color: var(--gold-soft); }
 
-/* LocaleChoiceBlock — light card surface + readable unselected chips. */
+/* LocaleChoiceBlock — green-glass card on dark. */
 .smifs-shell--embed .smifs-locale-choice {
-  background: #f8fafc;
-  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .smifs-shell--embed .smifs-locale-choice__head { color: var(--ink); }
 .smifs-shell--embed .smifs-locale-choice__chip {
-  color: #0f172a;
-  border-color: #cbd5e1;
-  background: #ffffff;
+  color: var(--ink);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
 }
 .smifs-shell--embed .smifs-locale-choice__chip:hover {
   border-color: var(--smifs-green);
-  background: rgba(9, 140, 98, 0.06);
+  background: rgba(9, 140, 98, 0.18);
 }
 .smifs-shell--embed .smifs-locale-choice__chip.is-picked {
   background: var(--smifs-green);
   color: #ffffff;
   border-color: var(--smifs-green);
 }
-.smifs-shell--embed .smifs-locale-choice__foot { color: var(--ink-dim); }
+.smifs-shell--embed .smifs-locale-choice__foot { color: var(--ink-muted); }
 
-/* Header inline locale globe trigger (dark header) stays bright. */
+/* Header inline locale globe trigger — bright on dark. */
 .smifs-shell--embed .smifs-locale-trigger {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.18);
@@ -886,38 +882,135 @@ body {
 .smifs-shell--embed .smifs-cite-sec { color: var(--ink-muted); }
 .smifs-shell--embed .smifs-grounded--off { color: var(--ink-dim); }
 
-/* Form inputs that appear inside chat (PAN/UCC/email forms). */
+/* Inline forms (PAN/UCC/email/sale forms) — dark glass to match the route. */
 .smifs-shell--embed .smifs-form-input,
 .smifs-shell--embed input.smifs-form-input,
-.smifs-shell--embed select.smifs-form-input {
-  background: #ffffff;
+.smifs-shell--embed select.smifs-form-input,
+.smifs-shell--embed .smifs-sale-form__input {
+  background: rgba(0, 0, 0, 0.28);
   color: var(--ink);
-  border-color: var(--line-strong);
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
-.smifs-shell--embed .smifs-form-input::placeholder { color: var(--ink-dim); opacity: 1; }
+.smifs-shell--embed .smifs-form-input:focus,
+.smifs-shell--embed .smifs-sale-form__input:focus {
+  border-color: var(--smifs-green);
+  background: rgba(0, 0, 0, 0.32);
+}
+.smifs-shell--embed .smifs-form-input::placeholder,
+.smifs-shell--embed .smifs-sale-form__input::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
 .smifs-shell--embed select.smifs-form-input option {
-  background: #ffffff;
+  background: var(--navy-900);
   color: var(--ink);
 }
 
-/* "Start new conversation" pill in footer — was using --ink-muted on dark,
- * needs an outline-style dark version for the light embed surface. */
+/* "Start new conversation" pill in footer — dark glass with green border. */
 .smifs-shell--embed .smifs-new-conv {
-  color: var(--smifs-green-deep, #066b4a);
-  border-color: var(--smifs-green);
-  background: rgba(9, 140, 98, 0.06);
+  color: var(--ink);
+  border: 1px solid rgba(9, 140, 98, 0.55);
+  background: rgba(9, 140, 98, 0.10);
 }
 .smifs-shell--embed .smifs-new-conv:hover {
-  background: rgba(9, 140, 98, 0.12);
+  background: rgba(9, 140, 98, 0.20);
+  border-color: var(--smifs-green);
 }
 
-/* Header button row safety — guarantee no overlap on narrow phones. The
- * three icon buttons (+, language globe, X) sit inside the header bar. */
+/* Role-gate cards — green-glass on dark. */
+.smifs-shell--embed .smifs-role-choice__btn,
+.smifs-shell--embed .smifs-role-choice__card {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.smifs-shell--embed .smifs-role-choice__btn:hover,
+.smifs-shell--embed .smifs-role-choice__card:hover {
+  border-color: var(--smifs-green);
+  background: rgba(9, 140, 98, 0.10);
+}
+.smifs-shell--embed .smifs-role-choice__btn.is-primary {
+  background: var(--smifs-green);
+  color: #ffffff;
+  border-color: var(--smifs-green);
+}
+
+/* Vehicle-CTA card row — keep dark-route styling. */
+.smifs-shell--embed .smifs-vehicle-cta {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.10);
+  color: var(--ink);
+}
+.smifs-shell--embed .smifs-vehicle-cta__name { color: var(--ink); }
+.smifs-shell--embed .smifs-vehicle-cta__meta { color: var(--ink-muted); }
+
+/* Header button row safety on narrow phones. */
 .smifs-shell--embed .smifs-header { column-gap: 8px; }
 @media (max-width: 380px) {
   .smifs-shell--embed .smifs-header .smifs-locale-trigger { padding: 0 8px; }
   .smifs-shell--embed .smifs-header .smifs-locale-trigger .smifs-locale-trigger-label { display: none; }
 }
+
+/* ---------------- Phase 23.4 — Horizontal overflow defenses (embed) ----------------
+ * The widget surface must NEVER expand the iframe width: tables, long URLs,
+ * SVGs, code blocks etc. all stay inside the iframe, scrolling INTERNALLY
+ * when they need to. The whole shell is locked at viewport width. */
+.smifs-shell--embed {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+.smifs-shell--embed .smifs-thread,
+.smifs-shell--embed .smifs-main { max-width: 100%; overflow-x: hidden; }
+
+/* Long-token wrapping inside any chat bubble or thread descendant. */
+.smifs-shell--embed .smifs-msg-bubble,
+.smifs-shell--embed .smifs-thread p,
+.smifs-shell--embed .smifs-thread li,
+.smifs-shell--embed .smifs-thread span,
+.smifs-shell--embed .smifs-thread a,
+.smifs-shell--embed .smifs-thread div {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Tables — scroll horizontally INSIDE their own container, never the page. */
+.smifs-shell--embed table,
+.smifs-shell--embed .smifs-bmia-table-wrap,
+.smifs-shell--embed .smifs-bmia-statements-body,
+.smifs-shell--embed .smifs-popover {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Citation chip strip — wrap to next line on narrow viewports. */
+.smifs-shell--embed .smifs-cite-strip,
+.smifs-shell--embed .smifs-citations {
+  flex-wrap: wrap;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Code & pre — wrap soft on whitespace, scroll on overflow as a fallback. */
+.smifs-shell--embed pre,
+.smifs-shell--embed code {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* SVGs (sparklines, icons inside cards) — never push the card wider. */
+.smifs-shell--embed svg,
+.smifs-shell--embed .smifs-bmia-spark {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Images inline in chat. */
+.smifs-shell--embed img { max-width: 100%; height: auto; }
 
 /* ---------------- /Phase 23.2 ---------------- */
 
@@ -3244,6 +3337,16 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   color: var(--ink-muted);
   margin-left: 6px;
 }
+.smifs-admin-arn-toggle input[type="checkbox"] { accent-color: var(--smifs-green, #156c46); }
+.smifs-admin-arn-toggle select {
+  font-size: 12.5px;
+  padding: 2px 6px;
+  border: 1px solid var(--smifs-hairline);
+  border-radius: 4px;
+  background: var(--smifs-canvas);
+  color: var(--smifs-ink);
+}
+.smifs-sale-form__arn-toggle.is-aprn strong { color: var(--smifs-ink-muted); }
 .smifs-admin-arn-toggle input[type="checkbox"] { accent-color: var(--smifs-green, #156c46); }
 .smifs-admin-arn-toggle select {
   font-size: 12.5px;
