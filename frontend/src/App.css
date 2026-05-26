@@ -1235,6 +1235,47 @@ select.smifs-form-input option { background: var(--navy-800); color: var(--ink);
   border-color: rgba(140, 196, 138, 0.45);
   background: rgba(140, 196, 138, 0.05);
 }
+
+/* Phase 26c — Dynamic form additions: textarea, rating, urgent variant. */
+.smifs-form-textarea {
+  min-height: 84px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.smifs-form-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.smifs-form-star {
+  background: none;
+  border: 0;
+  padding: 4px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 180ms ease, transform 180ms ease;
+}
+.smifs-form-star:hover { transform: translateY(-1px); }
+.smifs-form-star--on { color: var(--gold); }
+
+.smifs-form-card--urgent {
+  border-color: rgba(224, 122, 110, 0.55);
+  background: rgba(224, 122, 110, 0.06);
+}
+.smifs-form-card--urgent .smifs-form-eyebrow {
+  color: #e07a6e;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.smifs-form-submit--urgent {
+  background: #c04444;
+  color: #fff;
+  border-color: #c04444;
+}
+.smifs-form-submit--urgent:hover:not(:disabled) { background: #a83838; }
+
 .smifs-form-success {
   display: flex;
   align-items: flex-start;

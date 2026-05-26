@@ -533,6 +533,179 @@ async def submit_lead(req: LeadSubmitRequest, request: Request):
     )
 
 
+# ---------------- Phase 26c — Dynamic forms ----------------
+def _check_admin_request(request: Request) -> None:
+    """Phase 26c — bearer + legacy header tolerance (mirrors admin.require_admin)."""
+    bearer = ""
+    auth = request.headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        bearer = auth.split(" ", 1)[1].strip()
+    legacy = request.headers.get("x-admin-token") or ""
+    presented = bearer or legacy
+    if not ADMIN_TOKEN or presented != ADMIN_TOKEN:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing admin token. Send 'Authorization: Bearer <token>' or 'X-Admin-Token: <token>'.",
+        )
+
+
+class FormSubmitRequest(BaseModel):
+    form_id: str = Field(..., min_length=1)
+    form_data: Dict[str, Any]
+    session_id: Optional[str] = None
+    context: Dict[str, Any] = {}
+
+
+class FormSubmitResponse(BaseModel):
+    submission_id: str
+    message: str
+    email_status: str
+
+
+_VALID_FORM_IDS = {
+    "demand_capture", "referral_capture", "feedback_capture",
+    "complaint_capture", "callback_request",
+}
+
+
+@api_router.post("/forms/submit", response_model=FormSubmitResponse)
+async def submit_dynamic_form(req: FormSubmitRequest, request: Request):
+    """Phase 26c — receive a dynamic form submission, persist, fire email."""
+    _enforce_leads_rate_limit(request)
+    if req.form_id not in _VALID_FORM_IDS:
+        raise HTTPException(status_code=400, detail=f"Unknown form_id: {req.form_id}")
+
+    submission_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Pull last 8 conversation turns for excerpt (best-effort).
+    excerpt: List[Dict[str, Any]] = []
+    if req.session_id:
+        try:
+            conv = await db.conversations.find_one(
+                {"session_id": req.session_id},
+                {"_id": 0, "messages": {"$slice": -8}},
+            )
+            for m in (conv or {}).get("messages", []) or []:
+                excerpt.append({
+                    "role": m.get("role"),
+                    "content": (m.get("content") or "")[:800],
+                })
+        except Exception:
+            logger.exception("forms/submit: conversation excerpt fetch failed")
+
+    sess = await db.sessions.find_one({"_id": req.session_id}, {"_id": 0}) if req.session_id else None
+    persona = (sess or {}).get("session_type") or req.context.get("persona") or "visitor"
+
+    doc = {
+        "_id": submission_id,
+        "submission_id": submission_id,
+        "form_id": req.form_id,
+        "form_data": req.form_data,
+        "context": req.context or {},
+        "session_id": req.session_id,
+        "persona": persona,
+        "conversation_excerpt": excerpt,
+        "submitted_at": now,
+        "email_status": "pending",
+        "email_detail": None,
+        "priority": "high" if req.form_id == "complaint_capture" else "normal",
+    }
+    await db.forms_submissions.insert_one(doc)
+
+    # Mark cooldown bookkeeping on the session.
+    if req.session_id:
+        try:
+            from agents.dynamic_forms import mark_form_seen
+            await mark_form_seen(db, req.session_id, req.form_id)
+        except Exception:
+            logger.exception("forms/submit: mark_form_seen failed")
+
+    # Fire-and-forget email (do it inline so admin sees status immediately, but
+    # don't bubble up errors to the user — submission already persisted).
+    email_status = "pending"
+    email_detail = None
+    try:
+        import forms_email
+        result = forms_email.send(doc)
+        email_status = result.get("status") or "pending"
+        email_detail = result.get("detail")
+        await db.forms_submissions.update_one(
+            {"_id": submission_id},
+            {"$set": {"email_status": email_status, "email_detail": email_detail}},
+        )
+    except Exception as e:
+        logger.exception("forms/submit: email dispatch crashed")
+        email_status = "failed"
+        email_detail = f"{type(e).__name__}: {e}"
+        await db.forms_submissions.update_one(
+            {"_id": submission_id},
+            {"$set": {"email_status": "failed", "email_detail": email_detail}},
+        )
+
+    # Success message — prefer the schema's own copy if it travelled in `context`.
+    msg_map = {
+        "demand_capture":   "Submitted. Our research desk will get back to you within 24h.",
+        "referral_capture": "Thank you for trusting us with their future. We'll reach out gently and reference your introduction.",
+        "feedback_capture": "Thank you — your feedback shapes how we serve.",
+        "complaint_capture": "We take this seriously. A senior advisor will personally reach out within 4 business hours.",
+        "callback_request": "Got it — a senior advisor will reach out at your preferred time.",
+    }
+    return FormSubmitResponse(
+        submission_id=submission_id,
+        message=msg_map.get(req.form_id, "Submitted."),
+        email_status=email_status,
+    )
+
+
+@api_router.get("/admin/forms/submissions")
+async def admin_list_form_submissions(
+    request: Request,
+    form_id: Optional[str] = None,
+    persona: Optional[str] = None,
+    email_status: Optional[str] = None,
+    limit: int = 100,
+):
+    """Phase 26e — list form submissions for the admin Forms tab."""
+    _check_admin_request(request)
+    q: Dict[str, Any] = {}
+    if form_id: q["form_id"] = form_id
+    if persona: q["persona"] = persona
+    if email_status: q["email_status"] = email_status
+    limit = max(1, min(int(limit or 100), 500))
+    cur = db.forms_submissions.find(q, {"_id": 0}).sort("submitted_at", -1).limit(limit)
+    rows = await cur.to_list(length=limit)
+    counts = {
+        "total":   await db.forms_submissions.estimated_document_count(),
+        "pending": await db.forms_submissions.count_documents({"email_status": "pending"}),
+        "failed":  await db.forms_submissions.count_documents({"email_status": "failed"}),
+    }
+    return {"rows": rows, "counts": counts}
+
+
+@api_router.post("/admin/forms/{submission_id}/retry")
+async def admin_retry_form_email(submission_id: str, request: Request):
+    """Phase 26e — retry sending the email for a previously failed submission."""
+    _check_admin_request(request)
+    doc = await db.forms_submissions.find_one({"_id": submission_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    try:
+        import forms_email
+        result = forms_email.send(doc)
+        await db.forms_submissions.update_one(
+            {"_id": submission_id},
+            {"$set": {"email_status": result.get("status"), "email_detail": result.get("detail")}},
+        )
+        return {"ok": result.get("ok"), "status": result.get("status"), "detail": result.get("detail")}
+    except Exception as e:
+        await db.forms_submissions.update_one(
+            {"_id": submission_id},
+            {"$set": {"email_status": "failed", "email_detail": str(e)}},
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # --- Phase 11: one-tap WhatsApp / Email handoff ---
 @api_router.post("/handoff", response_model=HandoffResponse)
 async def create_handoff(req: HandoffRequest):

@@ -60,7 +60,7 @@ function formatUpdatedAt(iso) {
   }
 }
 
-export default function TextBlock({ block, citations, onCitationClick, msgIdx, activeCitationKey }) {
+export default function TextBlock({ block, citations, onCitationClick, msgIdx, activeCitationKey, showCitations = true }) {
   const grounded = block.grounded;
   const stopped = !!block.stopped;
   return (
@@ -71,7 +71,7 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
           (stopped)
         </span>
       )}
-      {citations && citations.length > 0 && (
+      {showCitations && citations && citations.length > 0 && (
         <div className="smifs-cites smifs-cites--inline" data-testid={`citations-${msgIdx}`}>
           {citations.map((c, ci) => {
             const key = `${msgIdx}-${ci}`;
@@ -128,7 +128,7 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
           })}
         </div>
       )}
-      {grounded !== undefined && (
+      {grounded !== undefined && showCitations && (
         <div
           className={`smifs-grounded ${grounded ? "smifs-grounded--on" : "smifs-grounded--off"}`}
           data-testid={grounded ? `grounded-on-${msgIdx}` : `grounded-off-${msgIdx}`}

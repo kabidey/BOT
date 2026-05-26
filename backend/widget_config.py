@@ -72,12 +72,19 @@ def _theme_version(cfg: Dict[str, Any]) -> str:
 
 def _public_view(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """The shape /api/widget/config returns — strips internal/admin fields."""
+    import os
     out = _strip_id(cfg).copy()
     # Don't leak the allowlist or admin metadata to public widget consumers.
     out.pop("allowed_origins", None)
     out.pop("updated_at", None)
     out.pop("updated_by", None)
     out["theme_version"] = _theme_version(cfg)
+    # Phase 26a — citation chip visibility is server-driven (env flag).
+    # Default false: hide chips from end users. Admin trace/Conversations view
+    # ignores this flag and always shows citations.
+    out["show_citations_to_user"] = (
+        os.environ.get("CHAT_SHOW_CITATIONS_TO_USER", "false").lower() == "true"
+    )
     return out
 
 

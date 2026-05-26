@@ -5,6 +5,7 @@ import { Send, ShieldCheck, AlertCircle, Sparkles, LogOut, User, Lock, Briefcase
 import TextBlock from "@/components/blocks/TextBlock";
 import VehicleCtaBlock from "@/components/blocks/VehicleCtaBlock";
 import FormBlock from "@/components/blocks/FormBlock";
+import DynamicFormBlock from "@/components/blocks/DynamicFormBlock";
 import MarketCardBlock from "@/components/blocks/MarketCardBlock";
 import ClientCardBlock from "@/components/blocks/ClientCardBlock";
 import EmployeeCardBlock from "@/components/blocks/EmployeeCardBlock";
@@ -703,10 +704,13 @@ export default function Chat({ embedded = false }) {
             msgIdx={msgIdx}
             activeCitationKey={activeCitation ? `${activeCitation.msgIdx}-${activeCitation.citIdx}` : null}
             authState={authState}
+            showCitations={widgetCfg?.show_citations_to_user !== false ? !!widgetCfg?.show_citations_to_user : false}
           />
         );
       case "form":
         return <FormBlock key={key} block={block} sessionId={sessionId} msgIdx={msgIdx} />;
+      case "dynamic_form":
+        return <DynamicFormBlock key={key} block={block} sessionId={sessionId} msgIdx={msgIdx} />;
       case "vehicle_cta":
         return (
           <VehicleCtaBlock
@@ -728,7 +732,7 @@ export default function Chat({ embedded = false }) {
       case "employee_card":
         return <EmployeeCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "bmia_fundamentals_card":
-        return <BmiaFundamentalsCard key={key} data={block.data || block} />;
+        return <BmiaFundamentalsCard key={key} data={block.data || block} showSource={!!widgetCfg?.show_citations_to_user} />;
       case "low_confidence_escalation":
         return <LowConfidenceEscalation key={key} block={block} />;
       case "table":

@@ -173,7 +173,10 @@ def _build_messages(message: str, history: List[Dict[str, Any]],
                     grounded: bool, client_context: Optional[Dict[str, Any]],
                     session_type: Optional[str] = None,
                     locale: Optional[str] = None) -> List[Dict[str, str]]:
-    system_content = BASE_PROMPT + (GROUNDED_INSTR if grounded else UNGROUNDED_INSTR)
+    # Phase 26d — persona preamble (client / employee / visitor) sets the
+    # relational frame BEFORE the base prompt's content rules kick in.
+    from .composer_prompts import persona_preamble
+    system_content = persona_preamble(session_type) + BASE_PROMPT + (GROUNDED_INSTR if grounded else UNGROUNDED_INSTR)
     if client_context:
         from .auth_agent import context_block_for
         block = context_block_for(client_context)

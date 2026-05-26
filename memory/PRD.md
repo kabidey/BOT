@@ -295,3 +295,51 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 - Re-runs on `resize` + `orientationchange` + every `open()` call so device rotations during a closed-panel session still resolve correctly.
 - 9/9 emulated device profiles pass (iPhone 12 portrait, Pixel 5, Samsung Galaxy 360px, Galaxy Fold 280px, iPhone landscape, iPad portrait, iPad landscape, Desktop 1440, Desktop 1920).
 - Preview widget.js has 43 Phase 23.3 markers; production widget.js has 0 — user must redeploy to bot.pesmifs.com to push the fix live.
+
+---
+
+## Phase 26 — Multi-Agent + Forms + Persona (partial)
+
+### Landed in this session (verified end-to-end on chat surface)
+
+**26a — User-facing citations hidden** ✅
+- `CHAT_SHOW_CITATIONS_TO_USER=false` env flag wired into `/api/widget/config`
+- `TextBlock.jsx` + `BmiaFundamentalsCard.jsx` gate chip strip + "Source: BMIA" footer + grounded badge behind the flag
+- Citations still emitted in `/api/agent/turn` payload so admin tools see them
+- Verified via screenshot: KYC reply shows 0 chip elements, 0 grounded badges; API payload retains 3 citations
+
+**26d — Persona-aware composer** ✅
+- New `agents/composer_prompts.py` exposing `CLIENT_PREAMBLE`, `EMPLOYEE_PREAMBLE`, `VISITOR_PREAMBLE`
+- `persona_preamble(session_type)` prepended onto `BASE_PROMPT` in `rag_agent._build_messages` and onto `SMALL_TALK_PROMPT` in `orchestrator._branch_small_talk`
+- Per-persona form thresholds (`FORM_THRESHOLDS`) and per-persona fan-out eligibility (`FANOUT_ELIGIBILITY`) wired
+
+**26c — Dynamic forms** ✅
+- New `agents/dynamic_forms.py` — 5 schemas (demand / referral / feedback / complaint / callback) + deterministic regex trigger detection with confidence scoring
+- New `forms_email.py` — dedicated SMTP sender to `FORMS_INBOX_EMAIL` (default brand@smifs.com) with priority-aware subject prefix `[URGENT-COMPLAINT]`
+- 5 email templates in `backend/templates/forms/*.html`
+- Backend endpoints: `POST /api/forms/submit`, `GET /api/admin/forms/submissions`, `POST /api/admin/forms/{id}/retry` (bearer + legacy header tolerant)
+- New `forms_submissions` MongoDB collection with conversation excerpt (last 8 turns), persona, email_status, priority
+- Frontend `components/blocks/DynamicFormBlock.jsx` — handles text, email, tel, select, textarea, rating (1–5 stars), urgent variant
+- Orchestrator post-turn hook `_maybe_attach_dynamic_form` appends a `dynamic_form` block when trigger ≥ persona-threshold; respects cooldowns (referral 7d, feedback 1/session, demand 1-per-3-turns)
+- **Acceptance tests passed (visitor persona):**
+  - Test 5 (demand_capture): unknown question → anti-bluff → form rendered with 5 fields → submit → success card with reference id; SMTP relay returned `status: sent` to brand@smifs.com
+  - Test 6 (complaint_capture): "This is ridiculous, I want to file a complaint" → 6-field complaint form with `priority: high` and urgent CSS variant; submit dispatched with `[URGENT-COMPLAINT]` subject
+  - Test 7 (feedback_capture): substantive turn + "thanks!" → 4-field feedback form including 1–5 star rating widget
+
+### Deferred to Phase 26.1 (out of this session)
+
+**26b — Multi-agent parallel fan-out** ⏳
+- Not built. The reactive Phase 20 path remains. Persona eligibility hooks (`composer_prompts.fanout_allowed`) are in place for when the fanout_orchestrator module is wired.
+- Suggested next-build order: Event 2 (ticker fan-out) first — easiest to verify as visitor since BMIA + RAG already exist as building blocks. Then Event 3 (product fan-out), then Event 1 (PAN/UCC verified bundle).
+
+**26e — Admin Forms tab UI** ⏳
+- Backend endpoint `GET /api/admin/forms/submissions` is live and tested via curl (returns `{rows, counts}` with bearer auth). The retry endpoint is also wired.
+- Frontend `FormSubmissionsTab.jsx` not yet built; should mirror `LeadsTab.jsx` pattern.
+- Extension of `ArchivesTab` ("Conversations" view) to show which forms fired + which fan-out events fired is also pending.
+
+### Known regressions / caveats
+- The form-trigger classifier is regex-only (deterministic). The brief mentioned a gpt-4o-mini classifier — that's deferred for a follow-on if false-positives become an issue in production telemetry. The regex layer is fast, free, and easy to debug.
+- For employee persona, lead-capture forms (demand, callback, referral) are disabled via threshold=1.01 in `FORM_THRESHOLDS`. Complaint + feedback remain enabled.
+
+### Production redeploy required
+- `bot.pesmifs.com` still serves the pre-26 build. User must redeploy from preview to push 26a/26c/26d live.

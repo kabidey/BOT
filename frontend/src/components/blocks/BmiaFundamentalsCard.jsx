@@ -88,7 +88,7 @@ function StatementTable({ title, table }) {
   );
 }
 
-export default function BmiaFundamentalsCard({ data }) {
+export default function BmiaFundamentalsCard({ data, showSource = true }) {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [statementsOpen, setStatementsOpen] = useState(false);
   const d = data || {};
@@ -204,8 +204,9 @@ export default function BmiaFundamentalsCard({ data }) {
 
       <footer className="smifs-bmia-card-foot">
         <Info size={11} strokeWidth={2.4} />
-        Source: BMIA (Bharat Market Intelligence Aggregator)
-        {d.last_fetched ? ` · refreshed ${fmtAsOf(d.last_fetched)}` : ""}
+        {showSource
+          ? <>Source: BMIA (Bharat Market Intelligence Aggregator){d.last_fetched ? ` · refreshed ${fmtAsOf(d.last_fetched)}` : ""}</>
+          : (d.last_fetched ? `Refreshed ${fmtAsOf(d.last_fetched)}` : "")}
       </footer>
     </div>
   );

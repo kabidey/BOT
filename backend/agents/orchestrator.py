@@ -84,12 +84,104 @@ def _redact_block(b: Dict[str, Any]) -> Dict[str, Any]:
     return b
 
 
-async def _emit(emit: StatusEmitter, event: Dict[str, Any]) -> None:
+def _flatten_text(blocks: List[Dict[str, Any]]) -> str:
+    """Best-effort plain-text extraction for conversations.messages persistence."""
+    out = []
+    for b in blocks or []:
+        if not isinstance(b, dict):
+            continue
+        if b.get("type") == "text" and isinstance(b.get("text"), str):
+            out.append(b["text"])
+    return "\n".join(out).strip()
+
+
+async def _emit(emit: "StatusEmitter", event: Dict[str, Any]) -> None:
     if emit is not None:
         try:
             await emit(event)
         except Exception:
             logger.exception("status emit failed")
+
+
+# ---------- Phase 26c — dynamic form trigger ----------
+async def _maybe_attach_dynamic_form(db, session_id: str, user_message: str,
+                                     out: Dict[str, Any],
+                                     session_context: Dict[str, Any],
+                                     auth_row: Dict[str, Any]) -> Dict[str, Any]:
+    """Inspect the just-rendered assistant blocks + the user's last message
+    and, if a form-trigger fires above the persona threshold, append a
+    `dynamic_form` block to `out['blocks']`."""
+    from . import dynamic_forms as _df
+    from . import composer_prompts as _cp
+
+    persona = (session_context.get("session_type") or "visitor").lower()
+    blocks = out.get("blocks") or []
+    # Anti-bluff / escalation detection: any low-confidence or escalation block.
+    anti_bluff_fired = any(b.get("type") == "low_confidence_escalation" for b in blocks)
+    escalation_fired = any(
+        b.get("type") in {"escalation_card", "low_confidence_escalation"}
+        for b in blocks
+    )
+
+    # Session bookkeeping.
+    sess = await db.sessions.find_one({"_id": session_id}, {"_id": 0}) or {}
+    forms_seen = sess.get("forms_seen") or {}
+    conv = await db.conversations.find_one(
+        {"session_id": session_id}, {"_id": 0, "messages": {"$slice": -50}},
+    ) or {}
+    turn_idx = len((conv.get("messages") or [])) // 2  # rough turn index
+
+    decision = _df.detect_trigger(
+        message=user_message or "",
+        persona=persona,
+        conv_turns_count=turn_idx,
+        anti_bluff_fired=anti_bluff_fired,
+        escalation_fired=escalation_fired,
+        forms_seen=forms_seen,
+    )
+    if not decision:
+        return out
+    form_id = decision["trigger"]
+    confidence = float(decision.get("confidence") or 0)
+    threshold = _cp.threshold_for(persona, form_id)
+    if confidence < threshold:
+        return out
+
+    # Identity-driven pre-fill (best effort)
+    referrer_name = ""
+    affected_rm = ""
+    try:
+        client = (auth_row or {}).get("client") or {}
+        referrer_name = (client.get("name") or "").strip()
+        affected_rm = (client.get("assigned_rm") or "").strip()
+    except Exception:
+        pass
+
+    block = _df.build_form_block(
+        form_id=form_id,
+        session_id=session_id,
+        persona=persona,
+        intent_text=user_message or "",
+        referrer_name=referrer_name,
+        affected_rm=affected_rm,
+        topic=user_message or "",
+    )
+    if not block:
+        return out
+
+    # Append the form, leaving the bot's textual answer intact.
+    out["blocks"] = list(blocks) + [block]
+    out.setdefault("trace_extra", []).append({
+        "step": "form_trigger",
+        "form_id": form_id,
+        "confidence": confidence,
+        "threshold": threshold,
+        "reason": decision.get("reason"),
+    })
+    logger.info("dynamic_form attached: session=%s persona=%s form=%s conf=%.2f reason=%s",
+                session_id[:8], persona, form_id, confidence, decision.get("reason"))
+    return out
+
 
 
 # ---------- Phase 13 short-circuit persistence helpers ----------
@@ -193,8 +285,12 @@ def locale_instruction(locale: Optional[str]) -> str:
 async def _branch_small_talk(message: str, history: List[Dict[str, Any]],
                              identity_obj: Optional[Dict[str, Any]],
                              emit_token: TokenEmitter = None,
-                             locale: Optional[str] = None) -> Dict[str, Any]:
-    msgs = [{"role": "system", "content": _maybe_inject_context(SMALL_TALK_PROMPT, identity_obj, locale=locale)}]
+                             locale: Optional[str] = None,
+                             session_type: Optional[str] = None) -> Dict[str, Any]:
+    # Phase 26d — persona preamble in front of the small-talk system prompt.
+    from .composer_prompts import persona_preamble
+    persona_prompt = persona_preamble(session_type) + SMALL_TALK_PROMPT
+    msgs = [{"role": "system", "content": _maybe_inject_context(persona_prompt, identity_obj, locale=locale)}]
     msgs += [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
     msgs.append({"role": "user", "content": message})
     if emit_token is not None:
@@ -885,6 +981,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 out = await _branch_small_talk(
                     message, history, identity_obj, emit_token=emit_token,
                     locale=session_context.get("locale"),
+                    session_type=session_context.get("session_type"),
                 )
             trace.append({"step": "specialist", "intent": intent, "status": "ok"})
 
@@ -895,6 +992,15 @@ async def run_turn(db, session_id: Optional[str], message: str,
     # Phase 13 — append the too-long notice if we trimmed the input.
     if too_long_notice_appended:
         _append_too_long_notice(out)
+
+    # Phase 26c — dynamic form trigger detection. After the specialist branch
+    # has run, peek at the user's message + the assistant blocks and decide
+    # whether to surface a dynamic_form block as an addendum.
+    try:
+        out = await _maybe_attach_dynamic_form(db, sid, message, out,
+                                               session_context, auth_row)
+    except Exception:
+        logger.exception("dynamic_form trigger detection failed (non-fatal)")
 
     payload = {
         "session_id": sid,
