@@ -102,7 +102,7 @@ $ curl -s https://wealth-chat-4.preview.emergentagent.com/ | grep -ic emergent
 
 $ curl -s https://wealth-chat-4.preview.emergentagent.com/ | grep -E '<title>|<meta name="description"'
         <title>Mackertich ONE Advisor — SMIFS Ltd</title>
-        <meta name="description" content="Mackertich ONE Advisor — SMIFS Management Services Ltd. Sophisticated wealth-management assistant." />
+        <meta name="description" content="Mackertich ONE Advisor — SMIFS Ltd. Sophisticated wealth-management assistant." />
 ```
 
 Headless browser DOM probe (returned `[]` for every selector):
