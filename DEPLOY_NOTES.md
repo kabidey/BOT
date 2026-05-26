@@ -479,3 +479,38 @@ admin UI's Sales Pipeline drawer shows the "SMTP auth disabled" badge in red.
 ### Regression posture
 Phase 16-22 chat surface logic (locale picker, vehicle CTA, sales-ops, fraud-fingerprint headers, silent-block) all unchanged — Phase 23 is pure CSS + iframe sizing + listener wiring.
 
+
+## Phase 24 Wave 1 — Bot Intelligence Pack
+
+### 24a.1 — Composer model (env-tunable)
+* Default: `PHASE_20_SYNTHESIS_MODEL=gpt-4o` (Hub AI proxy's Anthropic route currently fails-over to `gemma-4-e4b` on our key — keep on gpt-4o until that's fixed).
+* Once Hub-side Anthropic credential is enabled, flip to `claude-sonnet-4-6-20260205` with no code change.
+
+### 24a.2 — Reranker
+* Primary: `claude-haiku-4-5-20251001` (Hub) — JSON-strict rerank, 8s timeout.
+* Fallback: local `sentence-transformers/cross-encoder/ms-marco-MiniLM-L-6-v2`.
+* Env: `RERANKER_ENABLED=true` (default), `RERANKER_OFFLINE=false` (set to true to skip Haiku and go straight to local).
+* Wire via `rag.search_weighted(query, top_k=K, rerank_top_k=5)` — opt-in per call. Caller code at `backend/rag.py` (Phase 24a.2 line) takes a wider candidate pool, reranks, trims.
+
+### 24a.3 — Re-embed migration
+```bash
+cd /app/backend && python -m scripts.reembed_doc_chunks --dry-run         # estimate cost
+cd /app/backend && python -m scripts.reembed_doc_chunks --confirm         # actually migrate
+cd /app/backend && python -m scripts.reembed_doc_chunks --confirm --purge-legacy   # after verification, drop 1536-dim chunks
+```
+* Idempotent + resumable via `reembed_progress` Mongo collection.
+* Cost estimate (verified live): **2036 chunks · ~318K tokens · $0.04 USD** on `text-embedding-3-large`.
+* `HUB_EMBED_MODEL` env tracks the active embedding model. Default flipped to `text-embedding-3-large`.
+* `RAG_DIM_FILTER=3072` env var (optional) — when set, retrieval ONLY uses chunks at that embedding_dim. Use AFTER migration to enforce a clean cutover.
+
+### 24c — BMIA live integration
+* Env: `BMIA_API_KEY`, `BMIA_API_BASE=https://bmia.in/api/public/v1`.
+* 30 calls/min self-throttle, 60s LRU cache, 3-retry exponential backoff on 5xx.
+* 4 tools registered in orchestrator (auto-routed by name prefix `bmia_`):
+  * `bmia_compliance_research` — SEBI/RBI/MCA/NSE/BSE/IRDAI corpus search with citation chips
+  * `bmia_fundamentals_lookup` — NSE ticker fundamentals (5 slices: profile/quarterly/trends/ratios/full)
+  * `bmia_quarterly` — convenience wrapper for last 4 quarters
+  * `bmia_daily_briefing` — board meetings + critical filings + insider activity for today/given date
+* Admin telemetry tile: `GET /api/admin/bmia/summary` (counts by endpoint, cache size, recent errors).
+* Frontend: new block `bmia_fundamentals_card` rendered by `components/blocks/BmiaFundamentalsCard.jsx`. CSS-only SVG sparklines for EPS + Sales trend.
+* Citation badge colors per regulator: SEBI=navy, RBI=blue, MCA=purple, IRDAI=teal, NSE=red, BSE=orange.

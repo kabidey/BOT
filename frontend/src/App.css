@@ -903,6 +903,56 @@ body {
 
 .smifs-msg--streaming .smifs-msg-meta { opacity: 0.85; }
 
+/* ---------------- Phase 24c — BMIA citation badge colors (per regulator) ---------------- */
+.smifs-cite-badge--sebi  { background: rgba(11, 27, 43, 0.10);  color: #0B1B2B; border-color: rgba(11, 27, 43, 0.30); }
+.smifs-cite-badge--rbi   { background: rgba(30, 64, 175, 0.10); color: #1e40af; border-color: rgba(30, 64, 175, 0.30); }
+.smifs-cite-badge--mca   { background: rgba(124, 58, 237, 0.10); color: #6d28d9; border-color: rgba(124, 58, 237, 0.30); }
+.smifs-cite-badge--irdai { background: rgba(13, 148, 136, 0.10); color: #0f766e; border-color: rgba(13, 148, 136, 0.30); }
+.smifs-cite-badge--nse   { background: rgba(220, 38, 38, 0.10); color: #b91c1c; border-color: rgba(220, 38, 38, 0.30); }
+.smifs-cite-badge--bse   { background: rgba(234, 88, 12, 0.10); color: #c2410c; border-color: rgba(234, 88, 12, 0.30); }
+
+/* ---------------- Phase 24c.4 — BMIA fundamentals card ---------------- */
+.smifs-bmia-card {
+  background: #ffffff;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 8px 0;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+.smifs-bmia-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.smifs-bmia-card-eyebrow { font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase; color: #64748b; margin: 0; }
+.smifs-bmia-card-symbol { font-size: 1.25rem; margin: 2px 0 0; font-weight: 700; color: #0f172a; letter-spacing: 0.02em; }
+.smifs-bmia-asof { font-size: 0.7rem; padding: 4px 10px; background: #f1f5f9; color: #475569; border-radius: 999px; border: 1px solid #e2e8f0; white-space: nowrap; }
+
+.smifs-bmia-about { font-size: 0.86rem; line-height: 1.55; color: #334155; margin: 4px 0 12px; }
+.smifs-bmia-toggle { display: inline; margin-left: 6px; background: none; border: 0; color: var(--smifs-green-deep, #066b4a); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
+
+.smifs-bmia-prcons { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 6px 0 12px; }
+@media (max-width: 480px) { .smifs-bmia-prcons { grid-template-columns: 1fr; } }
+.smifs-bmia-prcons-col h6 { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b; margin: 0 0 6px; }
+.smifs-bmia-prcons-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.smifs-bmia-chip { font-size: 0.78rem; padding: 6px 10px; border-radius: 10px; line-height: 1.35; }
+.smifs-bmia-chip--ok   { background: rgba(9, 140, 98, 0.08);  border: 1px solid rgba(9, 140, 98, 0.28);  color: #066b4a; }
+.smifs-bmia-chip--warn { background: rgba(192, 138, 46, 0.08); border: 1px solid rgba(192, 138, 46, 0.32); color: #92400e; }
+
+.smifs-bmia-sparks { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 14px; }
+.smifs-bmia-spark { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.smifs-bmia-spark-label { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; margin: 0; display: flex; align-items: center; gap: 4px; }
+
+.smifs-bmia-statements-toggle { background: none; border: 0; color: var(--smifs-green-deep, #066b4a); cursor: pointer; padding: 4px 0; font: inherit; display: inline-flex; align-items: center; gap: 4px; text-decoration: underline; }
+.smifs-bmia-statements-body { margin-top: 12px; display: flex; flex-direction: column; gap: 16px; }
+.smifs-bmia-table h5 { font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: #475569; margin: 0 0 4px; }
+.smifs-bmia-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line, #e2e8f0); border-radius: 8px; }
+.smifs-bmia-table table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.smifs-bmia-table th, .smifs-bmia-table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+.smifs-bmia-table th:first-child, .smifs-bmia-table td:first-child { text-align: left; position: sticky; left: 0; background: #fff; }
+.smifs-bmia-table thead th { background: #f8fafc; color: #475569; font-weight: 600; }
+
+.smifs-bmia-card-foot { margin-top: 12px; font-size: 0.7rem; color: #64748b; display: flex; align-items: center; gap: 4px; }
+/* ---------------- /Phase 24c.4 ---------------- */
+
 
 /* ---------- Form block ---------- */
 .smifs-form-card {

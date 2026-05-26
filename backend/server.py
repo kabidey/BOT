@@ -807,6 +807,12 @@ app.include_router(api_router)
 app.include_router(build_admin_router(db))
 bind_llm_db(db)
 widget_config.bind_db(db)
+# Phase 24c — let BMIA client log errors to Mongo.
+try:
+    from agents import bmia_client as _bmia_init
+    _bmia_init.bind_db(db)
+except Exception:
+    pass
 # Phase 22 — Silent device-fingerprint guard. MUST be added AFTER the routers
 # include, but the middleware itself is order-independent of CORS (added next).
 import fingerprint_middleware as _fp_mw

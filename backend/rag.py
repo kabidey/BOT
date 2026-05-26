@@ -33,8 +33,13 @@ CHUNK_CHAR_OVERLAP = APPROX_OVERLAP_TOKENS * CHARS_PER_TOKEN
 
 LLMHUB_API_KEY = os.environ.get("LLMHUB_API_KEY", "")
 LLMHUB_BASE_URL = os.environ.get("LLMHUB_BASE_URL", "").rstrip("/")
-HUB_EMBED_MODEL = os.environ.get("HUB_EMBED_MODEL", "text-embedding-3-small")
+# Phase 24a.3 — upgrade default embedding model. New chunks embed at 3072-dim.
+# Legacy 1536-dim chunks remain queryable until the migration purges them.
+HUB_EMBED_MODEL = os.environ.get("HUB_EMBED_MODEL", "text-embedding-3-large")
+HUB_EMBED_MODEL_LEGACY = "text-embedding-3-small"
 HUB_EMBED_BATCH = int(os.environ.get("HUB_EMBED_BATCH", "32"))
+# When set, retrieval ONLY uses chunks with this embedding_dim (post-migration).
+RAG_DIM_FILTER = int(os.environ.get("RAG_DIM_FILTER", "0")) or None
 
 # Module-level state populated by ingest()
 EMBEDDER_KIND: Optional[str] = None  # "hub_ai" or "local"
@@ -242,7 +247,12 @@ async def _persist_chunks(db, chunks: List[Dict[str, Any]], embeddings: np.ndarr
 
 
 async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, Any]]]:
-    cursor = db.doc_chunks.find({}, {
+    # Phase 24a.3 — optionally restrict the index to chunks at a specific
+    # embedding dim (post-migration safety net).
+    query_filter: Dict[str, Any] = {}
+    if RAG_DIM_FILTER:
+        query_filter["embedding_dim"] = RAG_DIM_FILTER
+    cursor = db.doc_chunks.find(query_filter, {
         "embedding": 1, "doc_id": 1, "doc_title": 1, "section": 1, "text": 1,
         "source": 1, "subsource": 1, "smifs_metadata": 1, "smifs_id": 1,
         # Phase 16 — projected metadata
@@ -454,8 +464,9 @@ def _phase16_proxy_bonus(m: Dict[str, Any]) -> float:
 async def search_weighted(query: str, top_k: int = 8,
                           restrict_sources: Optional[List[str]] = None,
                           restrict_audiences: Optional[List[str]] = None,
+                          rerank_top_k: Optional[int] = None,
                           ) -> List[Dict[str, Any]]:
-    """Phase 9 + Phase 16 retrieval.
+    """Phase 9 + Phase 16 + Phase 24a.2 retrieval.
 
     1. Cosine over the full in-memory index (cheap).
     2. Multiply each score by SOURCE_WEIGHTS[source] (SMIFS official wins ties).
@@ -467,6 +478,11 @@ async def search_weighted(query: str, top_k: int = 8,
        - if `restrict_audiences` is given, drop chunks whose `audience`
          is not in the allow-list (Phase 16 employee-only gating).
     5. Return top_k with both `score` (post-weight) and `raw_score` (cosine).
+
+    Phase 24a.2 — when `rerank_top_k` is set, retrieve a wider candidate pool
+    (top_k * 4 capped at 24), then call the Haiku/local cross-encoder reranker
+    and trim to `rerank_top_k`. Graceful degradation: if the reranker is
+    disabled or fails, the cosine ordering is returned unchanged.
     """
     if _index_matrix is None or not _index_meta:
         return []
@@ -488,13 +504,25 @@ async def search_weighted(query: str, top_k: int = 8,
 
     order = np.argsort(-weighted)
     out: List[Dict[str, Any]] = []
+    # Phase 24a.2 — when rerank requested, gather a wider candidate pool to
+    # give the reranker enough signal to work with.
+    retrieval_target = max(top_k, (rerank_top_k or 0) * 4) if rerank_top_k else top_k
+    retrieval_target = min(retrieval_target, 24)
     for i in order:
         if weighted[int(i)] < 0:
             continue
         m = _index_meta[int(i)]
         out.append({**m, "score": float(weighted[int(i)]), "raw_score": float(raw[int(i)])})
-        if len(out) >= top_k:
+        if len(out) >= retrieval_target:
             break
+
+    if rerank_top_k and out:
+        try:
+            from agents import reranker as _rr
+            out = await _rr.rerank(query, out, top_k=rerank_top_k)
+        except Exception as e:
+            logger.info("reranker unavailable (non-fatal): %s", e)
+            out = out[:rerank_top_k]
     return out
 
 

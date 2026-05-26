@@ -1143,6 +1143,15 @@ def build_admin_router(db) -> APIRouter:
         os.environ["PHASE_20_TOOLS_ENABLED"] = "true" if on else "false"
         return {"ok": True, "flag_enabled": on}
 
+    @router.get("/bmia/summary")
+    async def bmia_summary():
+        """Phase 24c — BMIA telemetry tile for the Admin diagnostics view."""
+        try:
+            from agents import bmia_client as _bmia_admin
+            return _bmia_admin.summary()
+        except Exception as e:
+            return {"endpoints": {}, "error": str(e)[:200]}
+
     # ---------------- Phase 22 — Fraud Watch (device fingerprint) ----------------
     import hashlib as _hashlib
 

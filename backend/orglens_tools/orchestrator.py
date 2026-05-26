@@ -26,6 +26,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from agents import llm as _llm
+try:
+    from agents import bmia_client as _bmia
+except Exception:
+    _bmia = None  # type: ignore[assignment]
 
 from . import adapter as _adapter
 from . import question_analyzer as _qa
@@ -36,8 +40,18 @@ logger = logging.getLogger(__name__)
 
 _MAX_TOOL_ROUNDS = 4  # hard cap on sequential tool-call rounds per turn
 import os as _os
+# Phase 24a.1 — composer model: env-tunable via PHASE_20_SYNTHESIS_MODEL.
+# Sonnet 4.6 is the preferred target but Hub AI's Anthropic route on the
+# current LLMHUB_API_KEY currently fails-over to gemma-4-e4b (broken tool
+# calling) — see Phase 24a.1 notes. Default stays on gpt-4o until the
+# Hub-side Anthropic credential is enabled; ops can flip via env without
+# a code change.
 _MAIN_MODEL = _os.environ.get("PHASE_20_SYNTHESIS_MODEL", "gpt-4o").strip() or "gpt-4o"
 _FINAL_JSON_FALLBACK_MODEL = "gpt-4o-mini"  # cheaper for the post-tool JSON synthesis
+
+# Phase 24c — tools prefixed with `bmia_` are NOT OrgLens; they route through
+# `bmia_tools.execute` instead of `_adapter.execute`.
+_BMIA_TOOL_PREFIX = "bmia_"
 
 
 def _system_prompt(role: str, output_hint: str, language: str) -> str:
@@ -166,8 +180,13 @@ async def _execute_tool_calls(db, sid: str, session: Dict[str, Any], turn_id: st
                                         "hint": "You already called this tool with the same arguments in a previous round. Use the prior result and compose your final answer, or call a DIFFERENT tool."}),
             }
         prior_signatures.add(sig)
-        res = await _adapter.execute(db, tool_name=name, params=args, session=session,
-                                       session_id=sid, turn_id=turn_id)
+        # Phase 24c — BMIA tools route through a separate dispatcher.
+        if _bmia is not None and name.startswith(_BMIA_TOOL_PREFIX):
+            res = await _bmia.execute(name, args)
+            res["tool_name"] = name
+        else:
+            res = await _adapter.execute(db, tool_name=name, params=args, session=session,
+                                           session_id=sid, turn_id=turn_id)
         return {
             "role": "tool",
             "tool_call_id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
@@ -251,7 +270,13 @@ async def run(db, session_id: str, user_message: str,
                 "classification": classification}
 
     function_schemas = _reg.function_schemas(tools)
-    trace.append({"step": "registry_select", "tools": [t["name"] for t in tools]})
+    # Phase 24c — expose BMIA tools to the LLM alongside OrgLens tools. Every
+    # role can call these (public regulator data / market data — no PII), so
+    # we don't filter by role here.
+    if _bmia is not None:
+        function_schemas = function_schemas + _bmia.TOOL_SCHEMAS
+    trace.append({"step": "registry_select", "tools": [t["name"] for t in tools]
+                   + [s["function"]["name"] for s in (_bmia.TOOL_SCHEMAS if _bmia else [])]})
 
     # 3. Multi-round function-calling loop
     messages: List[Dict[str, Any]] = [
