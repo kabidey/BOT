@@ -1108,10 +1108,15 @@ export default function Chat({ embedded = false }) {
             <aside className="smifs-popover" data-testid="citation-popover" role="dialog">
               <div className="smifs-popover-head">
                 <div>
-                  <p className="smifs-popover-eyebrow">Knowledge base passage</p>
+                  <p className="smifs-popover-eyebrow">
+                    {c.badge ? `${c.badge} · regulator citation` : "Knowledge base passage"}
+                  </p>
                   <h3 className="smifs-popover-title">{c.doc_title}</h3>
-                  <p className="smifs-popover-section">§{c.section} · relevance {c.score.toFixed(2)}</p>
-                  {(c.vehicle_name || c.updated_at || c.version_no != null || c.doc_type) && (
+                  <p className="smifs-popover-section">
+                    §{c.section}
+                    {typeof c.score === "number" ? ` · relevance ${c.score.toFixed(2)}` : ""}
+                  </p>
+                  {(c.vehicle_name || c.updated_at || c.version_no != null || c.doc_type || c.date_pill) && (
                     <p className="smifs-popover-meta" data-testid="citation-popover-meta">
                       {c.vehicle_name && (
                         <span data-testid="popover-vehicle">
@@ -1120,6 +1125,9 @@ export default function Chat({ embedded = false }) {
                       )}
                       {c.updated_at && (
                         <span data-testid="popover-updated"> · Updated {(c.updated_at || "").slice(0, 10)}</span>
+                      )}
+                      {c.date_pill && !c.updated_at && (
+                        <span data-testid="popover-datepill"> · {c.date_pill}</span>
                       )}
                       {c.version_no != null && (
                         <span data-testid="popover-version"> · v{c.version_no}</span>
@@ -1138,7 +1146,22 @@ export default function Chat({ embedded = false }) {
                   aria-label="Close passage"
                 >×</button>
               </div>
-              <div className="smifs-popover-body">{c.text}</div>
+              <div className="smifs-popover-body" data-testid="citation-popover-body">
+                {c.text || c.expand_text || "No passage text available."}
+              </div>
+              {c.url && (
+                <div className="smifs-popover-foot" data-testid="citation-popover-foot">
+                  <a
+                    href={c.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="smifs-popover-link"
+                    data-testid="citation-popover-source-link"
+                  >
+                    View official source ↗
+                  </a>
+                </div>
+              )}
             </aside>
           </>
         );

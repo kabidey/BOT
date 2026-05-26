@@ -96,7 +96,7 @@ export default function TextBlock({ block, citations, onCitationClick, msgIdx, a
                 className={`smifs-cite ${activeCitationKey === key ? "smifs-cite--active" : ""} ${isOfficial ? "smifs-cite--official" : ""} ${isFullDocScan ? "smifs-cite--scan" : ""}`}
                 onClick={() => onCitationClick(msgIdx, ci)}
                 data-testid={`citation-${msgIdx}-${ci}`}
-                title={`${isOfficial ? "SMIFS Official · " : ""}${isFullDocScan ? "Source: broad document scan — may be less focused than curated content. · " : ""}Score ${c.score.toFixed(2)}${updatedLabel ? ` · Updated ${updatedLabel}` : ""}${versionLabel ? ` · ${versionLabel}` : ""} — click to view passage`}
+                title={`${isOfficial ? "SMIFS Official · " : ""}${c.badge ? `${c.badge} · ` : ""}${isFullDocScan ? "Source: broad document scan — may be less focused than curated content. · " : ""}${typeof c.score === "number" ? `Score ${c.score.toFixed(2)}` : ""}${updatedLabel ? ` · Updated ${updatedLabel}` : ""}${versionLabel ? ` · ${versionLabel}` : ""} — click to view passage`}
               >
                 {isOfficial && (
                   <span className="smifs-cite-official-dot" aria-hidden data-testid={`citation-official-${msgIdx}-${ci}`} />
