@@ -539,14 +539,75 @@ _query_cache: "Dict[str, np.ndarray]" = {}
 _QUERY_CACHE_MAX = 256
 
 
+# Phase 26.1 — Acronym expansion for terse queries.
+# When a short query (≤ 6 tokens) contains a bare acronym, append the full term
+# so the embedding picks up the semantic signal of the expanded form. This
+# rescues queries like "What are NCDs?" (top score 0.527 → low confidence) by
+# rewriting them as "What are NCDs Non-Convertible Debentures?" (top score 0.77).
+_ACRONYM_MAP: "Dict[str, str]" = {
+    "NCD":  "Non-Convertible Debentures",
+    "NCDS": "Non-Convertible Debentures",
+    "AIF":  "Alternative Investment Fund",
+    "AIFS": "Alternative Investment Funds",
+    "PMS":  "Portfolio Management Services",
+    "SIF":  "Specialised Investment Fund",
+    "MF":   "Mutual Fund",
+    "MFS":  "Mutual Funds",
+    "SIP":  "Systematic Investment Plan",
+    "SWP":  "Systematic Withdrawal Plan",
+    "STP":  "Systematic Transfer Plan",
+    "ELSS": "Equity-Linked Savings Scheme",
+    "ULIP": "Unit-Linked Insurance Plan",
+    "KYC":  "Know Your Customer",
+    "CKYC": "Central KYC",
+    "EKYC": "Electronic KYC",
+    "UCC":  "Unique Client Code",
+    "PAN":  "Permanent Account Number",
+    "ASBA": "Application Supported by Blocked Amount",
+    "IPO":  "Initial Public Offering",
+    "FPO":  "Follow-on Public Offer",
+    "OFS":  "Offer For Sale",
+    "NAV":  "Net Asset Value",
+    "ARN":  "AMFI Registration Number",
+    "DEMAT": "Dematerialised account",
+    "RM":   "Relationship Manager",
+}
+_ACRONYM_RE = re.compile(r"\b([A-Z]{2,6})s?\b")
+
+
+def _expand_acronyms(query: str) -> str:
+    """For short queries (≤ 6 tokens), append expansions for any acronyms
+    we recognise. Leaves longer queries untouched (they already carry
+    enough semantic context)."""
+    if not query:
+        return query
+    if len(query.split()) > 6:
+        return query
+    matches = _ACRONYM_RE.findall(query)
+    if not matches:
+        return query
+    expansions: List[str] = []
+    seen: set = set()
+    for tok in matches:
+        key = tok.upper()
+        exp = _ACRONYM_MAP.get(key)
+        if exp and key not in seen:
+            expansions.append(exp)
+            seen.add(key)
+    if not expansions:
+        return query
+    return f"{query} ({' / '.join(expansions)})"
+
+
 async def _embed_query_cached(query: str) -> np.ndarray:
-    cached = _query_cache.get(query)
+    expanded = _expand_acronyms(query)
+    cached = _query_cache.get(expanded)
     if cached is not None:
         return cached
-    vecs, _ = await embed_texts([query])
+    vecs, _ = await embed_texts([expanded])
     q = _normalize(vecs)[0]
     if len(_query_cache) >= _QUERY_CACHE_MAX:
         # Drop oldest insertion (FIFO is fine for our scale)
         _query_cache.pop(next(iter(_query_cache)))
-    _query_cache[query] = q
+    _query_cache[expanded] = q
     return q

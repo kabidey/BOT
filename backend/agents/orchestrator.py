@@ -103,6 +103,98 @@ async def _emit(emit: "StatusEmitter", event: Dict[str, Any]) -> None:
             logger.exception("status emit failed")
 
 
+# ---------- Phase 26b — fan-out intercept ----------
+async def _maybe_fanout(db, session_id: str, message: str,
+                        session_context: Dict[str, Any],
+                        identity_obj: Optional[Dict[str, Any]],
+                        emit_status: "StatusEmitter" = None) -> Optional[Dict[str, Any]]:
+    """If the user's message triggers a fan-out event AND the persona is
+    eligible AND we're under the per-session cap, run the parallel fan-out
+    + synthesis and return the synthesised reply. Otherwise return None
+    so the orchestrator falls through to the reactive specialist path.
+    """
+    from agents import fanout_orchestrator as _fo
+    from agents import synthesis_agent as _syn
+    from agents import composer_prompts as _cp
+
+    persona = (session_context or {}).get("session_type") or "visitor"
+
+    event = _fo.detect_event(
+        message=message,
+        persona=persona,
+        identity=identity_obj,
+        identity_just_verified=False,  # caller-side bookkeeping for Event A is TODO
+    )
+    if not event:
+        return None
+    kind = event["kind"]
+
+    # Persona eligibility map (visitor: ticker+product, client: all, employee: ticker+product+identity_client_lookup)
+    if not _cp.fanout_allowed(persona, kind):
+        return None
+
+    # Session cap
+    if not await _fo.session_can_fanout(db, session_id):
+        logger.info("fanout cap exhausted for session %s — falling through", (session_id or '')[:8])
+        return None
+
+    label = {
+        "ticker":   f"Pulling fundamentals for {event['payload'].get('symbol','')}…",
+        "product":  f"Pulling {event['payload'].get('product','')} brief…",
+        "identity": "Pulling your portfolio snapshot…",
+    }.get(kind, "Running multi-agent fan-out…")
+    await _emit(emit_status, {"step": "fanout", "label": label, "kind": kind})
+
+    bundle = await _fo.fanout(event)
+    if not bundle or int(bundle.get("ok_count") or 0) == 0:
+        # All sub-agents failed — fall through to reactive path. Do NOT
+        # trigger anti-bluff just because fan-out failed (per spec).
+        logger.info("fanout %s/%s returned empty bundle (timeout=%d, error=%d) — falling through",
+                    kind, bundle.get("subject"), bundle.get("timeout_count", 0),
+                    bundle.get("error_count", 0))
+        return None
+
+    syn = await _syn.compose(bundle=bundle, user_message=message, persona=persona)
+    text = syn.get("text") or ""
+    if not text:
+        return None
+
+    blocks: List[Dict[str, Any]] = [{"type": "text", "text": text, "grounded": True}]
+    blocks.extend(syn.get("blocks_extra") or [])
+    logger.info("fanout intercept: out blocks=%s persona=%s kind=%s",
+                [b.get("type") for b in blocks], persona, kind)
+
+    # Record fan-out usage on the session for the cap + admin telemetry.
+    await _fo.session_record_fanout(db, session_id, kind, bundle)
+
+    # Cost-ledger best-effort log (use existing cost ledger if present).
+    try:
+        await db.cost_ledger.insert_one({
+            "session_id": session_id,
+            "kind": "fanout_synthesis",
+            "event_type": kind,
+            "subject": bundle.get("subject"),
+            "elapsed_ms": bundle.get("elapsed_ms"),
+            "ok": bundle.get("ok_count"),
+            "timeout": bundle.get("timeout_count"),
+            "error": bundle.get("error_count"),
+            "model": syn.get("model"),
+            "ts": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception:
+        pass
+
+    return {
+        "out": {"blocks": blocks, "citations": [], "model": syn.get("model")},
+        "intent": f"FANOUT_{kind.upper()}",
+        "kind": kind,
+        "subject": bundle.get("subject"),
+        "ok": bundle.get("ok_count"),
+        "timeout": bundle.get("timeout_count"),
+        "elapsed_ms": bundle.get("elapsed_ms"),
+    }
+
+
 # ---------- Phase 26c — dynamic form trigger ----------
 async def _maybe_attach_dynamic_form(db, session_id: str, user_message: str,
                                      out: Dict[str, Any],
@@ -798,6 +890,30 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 "rationale": routing["rationale"], "subject": subject,
                 "tool_name": routing.get("tool_name"),
             })
+
+            # Phase 26b — initialize `out` so downstream code can safely check
+            # whether the fan-out intercept (below) has set it.
+            out = None
+
+            # ---- Phase 26b — Multi-Agent Fan-Out (proactive intercept) ----
+            # Fires AFTER the router so we keep the router's intent + subject
+            # in the trace, but BEFORE the specialist branches so the fan-out's
+            # synthesis output replaces the reactive answer. Eligibility +
+            # event detection happen inside `_maybe_fanout`.
+            fanout_out = await _maybe_fanout(
+                db=db, session_id=sid, message=message,
+                session_context=session_context,
+                identity_obj=await auth_agent.get_verified_identity(db, sid),
+                emit_status=emit_status,
+            )
+            if fanout_out is not None:
+                out = fanout_out["out"]
+                intent = fanout_out["intent"]
+                trace.append({"step": "fanout", "kind": fanout_out["kind"],
+                              "subject": fanout_out["subject"],
+                              "ok": fanout_out["ok"],
+                              "timeout": fanout_out.get("timeout"),
+                              "elapsed_ms": fanout_out["elapsed_ms"]})
             label_for = {
                 "KNOWLEDGE": "Consulting the Research Assistant",
                 "MARKET_DATA": "Pulling market data",
@@ -811,6 +927,9 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 "SMALL_TALK": "Drafting a reply",
                 "DIRECTORY_QUERY": "Querying the SMIFS directory",
                 "CLIENT_QUERY": "Reading your account from the back-office",
+                "FANOUT_TICKER": "Synthesising market intelligence",
+                "FANOUT_PRODUCT": "Synthesising product brief",
+                "FANOUT_IDENTITY": "Synthesising your portfolio snapshot",
             }
             await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
             identity_obj = await auth_agent.get_verified_identity(db, sid)
@@ -919,7 +1038,10 @@ async def run_turn(db, session_id: Optional[str], message: str,
                     logger.exception("Phase 20 pipeline failed; falling through")
                     out = None
             else:
-                out = None
+                # Phase 26b — preserve a pre-existing `out` (set by the fan-out
+                # intercept above). Only zero out if nothing has been produced yet.
+                if not out:
+                    out = None
 
             if out is None and intent == "KNOWLEDGE":
                 out = await _branch_knowledge(
@@ -996,9 +1118,13 @@ async def run_turn(db, session_id: Optional[str], message: str,
     # Phase 26c — dynamic form trigger detection. After the specialist branch
     # has run, peek at the user's message + the assistant blocks and decide
     # whether to surface a dynamic_form block as an addendum.
+    # `session_context` + `auth_row` are only defined in the auth-required
+    # branch (else: above) — if we took the auth-handled path, those locals
+    # don't exist, so guard with .get from `locals()`.
     try:
-        out = await _maybe_attach_dynamic_form(db, sid, message, out,
-                                               session_context, auth_row)
+        _sc = locals().get("session_context") or {}
+        _ar = locals().get("auth_row") or {}
+        out = await _maybe_attach_dynamic_form(db, sid, message, out, _sc, _ar)
     except Exception:
         logger.exception("dynamic_form trigger detection failed (non-fatal)")
 

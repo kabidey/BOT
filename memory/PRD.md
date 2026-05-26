@@ -343,3 +343,107 @@ Phase 16/17/18/19 untouched. SMTP relay still healthy. No router-vocabulary chan
 
 ### Production redeploy required
 - `bot.pesmifs.com` still serves the pre-26 build. User must redeploy from preview to push 26a/26c/26d live.
+
+---
+
+## Phase 26.1 — Fix-Investigate-Build (this session)
+
+### FIX #1 — Feedback trigger (P0)
+**Result:** Couldn't reproduce — confirmed `feedback_capture` fires correctly for
+all variants ("thanks", "thanks!", "great", "thank you", "great, thanks!") in
+both clean sessions and after-an-escalation-turn sessions via curl-driven chat
+tests. Defensively loosened:
+- Regex broadened from `\b...\b!?\.?\s*$` (end-anchored) to `(?:^|\s|,)(...)\b`
+  so multi-word gratitude like "thanks for that", "thanks a lot" also matches.
+- Turn-count gate lowered from `>=2` to `>=1` so feedback surfaces after a
+  single substantive reply, not two.
+
+### INVESTIGATION #2 — NCD retrieval (P0)
+**Findings (all 4 checks ran):**
+- (a) Phase 25 purge did NOT remove NCD content. `doc_chunks` count = **175**
+  NCD-mentioning chunks (incl. `ncds_overview`, `pms_overview`, `compliance_kyc`,
+  Phase 25 unbrand artefacts, deep-corpus PSLR / NSE / SEBI references).
+- (b) 3072-dim re-embed is intact — content is queryable directly via
+  `/api/rag/search` with verbose phrasing.
+- (c) **ROOT CAUSE** — anti-bluff thresholds (HIGH=0.60 / MED=0.55) are
+  calibrated for verbose queries. Terse acronym queries score in 0.45–0.55
+  band, falling into the escalation rail.
+  - `"What are NCDs?"` → top score **0.527** → low → escalation
+  - `"Non-Convertible Debentures NCD overview"` → top score **0.767** → high
+- (d) Content gap: NO. NCD content is rich and intact.
+
+**Fix applied:** acronym expansion at the query-embedding step in `rag.py`.
+For queries ≤ 6 tokens containing a known financial acronym (NCD, AIF, PMS,
+SIF, ELSS, IPO, SIP, KYC, UCC, PAN, ASBA, NAV, ARN, etc.), the expanded form
+is appended before embedding. The query string itself isn't rewritten in the
+trace — only the embedding vector benefits.
+- Verified: `"What are NCDs?"` top score now **0.788** (was 0.527).
+- Verified: visitor chat for "What are NCDs?" now returns intent=KNOWLEDGE
+  with 3 citations grounded, NOT low-confidence escalation.
+- Thresholds left at 0.60/0.55 — no global change, surgical fix only.
+
+### BUILD #3 — 26b Multi-Agent Fan-Out (P0) ✅
+**Three event kinds wired and tested via chat surface:**
+
+| Event | Trigger | Sub-agents (parallel) | Status |
+|-------|---------|----------------------|--------|
+| B (ticker) | message contains NSE ticker OR known company name | `bmia.fundamentals(profile)` + `bmia.fundamentals(quarterly)` + `bmia.daily_briefing` + `rag.search(thesis)` | ✅ verified visitor |
+| C (product) | message contains NCD/AIF/PMS/SIF/MF/SIP/ELSS/IPO | `rag.search(overview)` + `rag.search(KYC/tax)` + `bmia.compliance_research` | ✅ verified visitor |
+| A (identity) | client identity just verified | `orglens` light snapshot (extension point for full bundle) | wired; full PAN/UCC bundle deferred |
+
+**Architecture:**
+- `backend/agents/fanout_orchestrator.py` — event detection (known-tickers
+  whitelist, company-name map, product keyword regex) + parallel sub-agent
+  runner with per-task timeout (3.0s default) AND global wall budget (3.5s
+  default). Per-session cap of 10 fan-out events via `sessions.fanout_event_count`.
+- `backend/agents/synthesis_agent.py` — Hub AI composer (model=auto via Hub
+  routing, defaults to gpt-4o-mini) with strict tool-grounded system prompt:
+  "Quote at least 3 specific data points from the bundle. Never invent."
+  Also surfaces a `bmia_fundamentals_card` block alongside the text for
+  ticker events via `_structured_extras`.
+- Orchestrator wiring — early intercept AFTER router classification (so
+  router intent + subject still appear in trace), BEFORE the specialist
+  dispatch tree. Sets `intent=FANOUT_<KIND>`. Persona eligibility honoured
+  via `composer_prompts.fanout_allowed` (visitor=ticker+product, client=all,
+  employee=ticker+product+identity_client_lookup).
+- Cost-ledger row written per fan-out: `{kind:"fanout_synthesis", event_type,
+  subject, elapsed_ms, ok, timeout, error, model}`.
+- Failure mode: if `ok_count == 0`, fan-out returns None → orchestrator falls
+  through to reactive specialist path. Does NOT trigger anti-bluff just
+  because fan-out failed.
+
+**Verified acceptance test results:**
+1. Visitor / "Tell me about RELIANCE" → **intent=FANOUT_TICKER**, 4/4 sub-agents
+   succeeded in 1.7s fan-out + ~7s synthesis. Reply quoted **5 specific data
+   points** (sales ₹899,041cr → ₹1,057,219cr, 8.91% RoE, 10.2% payout, Mar 2026
+   net profit ₹95,754cr, EPS ₹59.69). BMIA fundamentals card surfaced inline
+   with PROS/CONS, EPS sparkline, Sales sparkline. SSE status pill `"Pulling
+   fundamentals for RELIANCE…"` fires immediately while fan-out runs.
+2. Visitor / "What are NCDs?" → **intent=FANOUT_PRODUCT**, 3/3 sub-agents in
+   1.7s, wall-clock 5.9s. Reply quoted a specific RAG-retrieved document
+   ("PSLR KYI Sheet - NCDs.xlsx") and concrete content. Acronym expansion
+   from Inv#2 also active so the underlying retrieval is now ground-truth.
+
+**Wall-clock note:** Hub AI gpt-4o-mini synthesis takes ~5-7s. Total turn
+budget is ~9s — over the 5s spec but unavoidable without changing the
+synthesis model or streaming the synthesis output (the latter is the spec's
+preferred fix and is a Phase 26.2 follow-on).
+
+**Event A (PAN/UCC) status:** the eligibility hook + the fan-out skeleton
+are in place. `fanout_for_identity` calls a single OrgLens lookup currently;
+expanding to the full bundle (`get_mf_holdings`, `get_360`, `get_sip_active`,
+`get_recent_transactions`, `get_assigned_rm`, `bmia.fundamentals(top_holding)`)
+requires wiring the OrgLens tool adapters to specific tool names — straightforward
+follow-on. The acceptance check #3 (employee `aaditya.jaiswal@smifs.com` / PAN
+BQPPJ8323M) is deferred to Phase 26.2 along with the full Event A bundle.
+
+### Out of scope (still)
+- 26e Admin Forms tab UI — endpoints exist; UI deferred to 26.2.
+- 26b Event A full bundle (PAN/UCC verified) — skeleton wired, full sub-agents
+  deferred to 26.2.
+- Synthesis output streaming — currently buffered then dispatched; streaming
+  would cut perceived latency to <2s.
+
+### Production redeploy required
+`bot.pesmifs.com` still serves the pre-26 build. Push Deploy to release 26a/26c/26d
+and the new 26.1 work (acronym expansion, fan-out for ticker + product).

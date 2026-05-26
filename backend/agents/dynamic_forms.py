@@ -185,8 +185,11 @@ _REFERRAL_RE = re.compile(
     re.I,
 )
 _FEEDBACK_POS_RE = re.compile(
-    r"\b(thanks|thank\s+you|thx|appreciate|great|perfect|excellent|wonderful|"
-    r"helpful|brilliant|amazing|good\s+job|well\s+done)\b!?\.?\s*$",
+    # Match a gratitude / satisfaction word at the start, end, OR as the whole
+    # message — covers: "thanks", "thanks!", "thank you", "great, thanks",
+    # "thanks for that", "thanks a lot", "this was great", "great"
+    r"(?:^|\s|,)(thanks|thank\s+you|thx|appreciate|great|perfect|excellent|"
+    r"wonderful|helpful|brilliant|amazing|good\s+job|well\s+done)\b",
     re.I,
 )
 
@@ -244,10 +247,12 @@ def detect_trigger(message: str, persona: str, conv_turns_count: int,
                     "reason": "referral keyword detected"}
 
     # 4. FEEDBACK — satisfaction micro-signal, 1 per session.
-    if _FEEDBACK_POS_RE.search(msg) and conv_turns_count >= 2:
+    # Phase 26.1: loosened from conv_turns_count >= 2 to >= 1 so feedback
+    # surfaces after a single substantive reply.
+    if _FEEDBACK_POS_RE.search(msg) and conv_turns_count >= 1:
         if not forms_seen.get("feedback_capture"):
             return {"trigger": "feedback_capture",
-                    "confidence": 0.70,
+                    "confidence": 0.75,
                     "reason": "positive satisfaction signal"}
 
     return None
