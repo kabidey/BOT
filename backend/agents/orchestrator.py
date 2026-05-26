@@ -15,6 +15,7 @@ Per-turn flow:
 from __future__ import annotations
 import logging
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -157,7 +158,9 @@ async def _maybe_fanout(db, session_id: str, message: str,
     }.get(kind, "Running multi-agent fan-out…")
     await _emit(emit_status, {"step": "fanout", "label": label, "kind": kind})
 
+    _t0 = time.monotonic()
     bundle = await _fo.fanout(event, session_row=sess_doc, db=db)
+    _t_fanout_ms = int((time.monotonic() - _t0) * 1000)
     if not bundle or int(bundle.get("ok_count") or 0) == 0:
         # All sub-agents failed — fall through to reactive path. Do NOT
         # trigger anti-bluff just because fan-out failed (per spec).
@@ -166,8 +169,12 @@ async def _maybe_fanout(db, session_id: str, message: str,
                     bundle.get("error_count", 0))
         return None
 
+    _t_syn0 = time.monotonic()
     syn = await _syn.compose_streaming(bundle=bundle, user_message=message,
                                        persona=persona, emit_token=emit_token)
+    _t_syn_ms = int((time.monotonic() - _t_syn0) * 1000)
+    logger.info("phase26.3 timing: fanout_kind=%s fanout_ms=%d synthesis_ms=%d total_ms=%d",
+                kind, _t_fanout_ms, _t_syn_ms, _t_fanout_ms + _t_syn_ms)
     text = syn.get("text") or ""
     if not text:
         return None
@@ -203,6 +210,12 @@ async def _maybe_fanout(db, session_id: str, message: str,
             "timeout": bundle.get("timeout_count"),
             "error": bundle.get("error_count"),
             "model": syn.get("model"),
+            "prompt_tokens": syn.get("prompt_tokens"),
+            "completion_tokens": syn.get("completion_tokens"),
+            "tokens": syn.get("total_tokens"),
+            "usd": syn.get("usd"),
+            "fanout_ms": _t_fanout_ms,
+            "synthesis_ms": _t_syn_ms,
             "ts": datetime.now(timezone.utc).isoformat(),
         })
     except Exception:
@@ -898,26 +911,53 @@ async def run_turn(db, session_id: Optional[str], message: str,
             intent = "AUTH_CHALLENGE"
             trace.append({"step": "auth", "trigger": "verify_hint", "to": "awaiting_role"})
         else:
-            # ---- 2) Router → specialist ----
-            await _emit(emit_status, {"step": "router", "label": "Routing your question"})
+            # ---- Phase 26.3.A — pre-router identity fan-out short-circuit ----
+            # If identity was just verified, fire Event A BEFORE the router LLM
+            # call so we save ~1-2s of routing latency on the proactive opener.
             auth_row = await db.sessions.find_one({"_id": sid}, {"_id": 0}) or {}
             session_context = {
                 "session_type": auth_row.get("session_type", "visitor"),
                 "auth_state": auth_row.get("auth_state"),
                 "locale": (auth_row.get("locale") or "en"),
             }
-            routing = await classify(message, history, session_context=session_context)
-            intent = routing["intent"]
-            subject = routing.get("subject")
-            trace.append({
-                "step": "router", "intent": intent, "confidence": routing["confidence"],
-                "rationale": routing["rationale"], "subject": subject,
-                "tool_name": routing.get("tool_name"),
-            })
-
-            # Phase 26b — initialize `out` so downstream code can safely check
-            # whether the fan-out intercept (below) has set it.
             out = None
+            _t_pre = time.monotonic()
+            _identity_verified = (auth_row.get("auth_state") in
+                                  ("client_verified", "employee_verified", "verified"))
+            _identity_fired = bool(auth_row.get("identity_fanout_fired"))
+            if _identity_verified and not _identity_fired:
+                identity_obj_early = await auth_agent.get_verified_identity(db, sid)
+                if identity_obj_early:
+                    logger.info("phase26.3.A timing: identity pre-router dispatch start")
+                    fanout_out = await _maybe_fanout(
+                        db=db, session_id=sid, message=message,
+                        session_context=session_context,
+                        identity_obj=identity_obj_early,
+                        emit_status=emit_status,
+                        emit_token=emit_token,
+                    )
+                    if fanout_out is not None:
+                        out = fanout_out["out"]
+                        intent = fanout_out["intent"]
+                        subject = fanout_out.get("subject")
+                        trace.append({"step": "fanout-early", "kind": fanout_out["kind"],
+                                      "subject": fanout_out["subject"],
+                                      "ok": fanout_out["ok"],
+                                      "timeout": fanout_out.get("timeout"),
+                                      "elapsed_ms": fanout_out["elapsed_ms"],
+                                      "pre_router_ms": int((time.monotonic() - _t_pre) * 1000)})
+
+            # ---- 2) Router → specialist (skipped if identity short-circuit handled it) ----
+            if out is None:
+                await _emit(emit_status, {"step": "router", "label": "Routing your question"})
+                routing = await classify(message, history, session_context=session_context)
+                intent = routing["intent"]
+                subject = routing.get("subject")
+                trace.append({
+                    "step": "router", "intent": intent, "confidence": routing["confidence"],
+                    "rationale": routing["rationale"], "subject": subject,
+                    "tool_name": routing.get("tool_name"),
+                })
 
             # ---- Phase 26b — Multi-Agent Fan-Out (proactive intercept) ----
             # Fires AFTER the router so we keep the router's intent + subject

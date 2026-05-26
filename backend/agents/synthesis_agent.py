@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from agents.llm import chat_with_fallback as _llm_chat
 from agents.llm import stream_chat_with_fallback as _llm_stream
@@ -25,6 +25,29 @@ from agents.llm import stream_chat_with_fallback as _llm_stream
 logger = logging.getLogger(__name__)
 
 _MODEL = os.environ.get("PHASE_26B_SYNTHESIS_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+
+
+# Phase 26.3.B — Per-model USD rates (per 1k tokens). Values mirror current
+# OpenAI list pricing as of 2025; Hub AI charges pass-through.
+MODEL_RATES: "Dict[str, Tuple[float, float]]" = {
+    # model              (input_per_1k, output_per_1k)
+    "gpt-4o-mini":       (0.00015,  0.0006),
+    "gpt-4o":            (0.0025,   0.01),
+    "gpt-4o-2024-08-06": (0.0025,   0.01),
+    "claude-haiku-4-5-20251001":  (0.0008, 0.004),
+    "claude-sonnet-4-5-20251001": (0.003,  0.015),
+    "llama-3.3-70b-versatile":    (0.0,    0.0),   # Hub-hosted, no per-token fee
+    "gemma-4-E4B":                (0.0,    0.0),
+    "auto":              (0.00015, 0.0006),         # Hub typically routes to mini
+}
+
+
+def _estimate_usd(model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    """Compute USD cost for a given model + token counts. Falls back to the
+    gpt-4o-mini rate when the model is unknown."""
+    rate_in, rate_out = MODEL_RATES.get(model or "", MODEL_RATES["gpt-4o-mini"])
+    return round((prompt_tokens / 1000.0) * rate_in
+                 + (completion_tokens / 1000.0) * rate_out, 6)
 
 
 async def _stream_chat(messages, temperature=0.3, max_tokens=600):
@@ -257,6 +280,7 @@ async def compose_streaming(bundle: Dict[str, Any], user_message: str,
 
     text_parts: List[str] = []
     model_used = _MODEL
+    usage_obj: Dict[str, Any] = {}
     try:
         async for ev_type, payload in _llm_stream(messages=messages, temperature=0.3, max_tokens=600):
             if ev_type == "token":
@@ -268,15 +292,27 @@ async def compose_streaming(bundle: Dict[str, Any], user_message: str,
                         logger.debug("synthesis emit_token failed", exc_info=True)
             elif ev_type == "done":
                 model_used = (payload or {}).get("model") or _MODEL
+                usage_obj = ((payload or {}).get("data") or {}).get("usage") or {}
     except Exception:
         logger.exception("synthesis streaming failed; falling back to buffered compose")
         return await compose(bundle, user_message, persona)
 
     text = "".join(text_parts).strip()
     blocks_extra = _structured_extras(bundle)
-    logger.info("synthesis (stream) ok: model=%s reply_chars=%d extras=%d kind=%s",
-                model_used, len(text), len(blocks_extra), bundle.get("kind"))
-    return {"text": text, "model": model_used, "blocks_extra": blocks_extra, "empty": False}
+
+    # Phase 26.3.B — compute USD cost from usage tokens.
+    prompt_tokens = int(usage_obj.get("prompt_tokens") or 0)
+    completion_tokens = int(usage_obj.get("completion_tokens") or 0)
+    total_tokens = prompt_tokens + completion_tokens
+    usd = _estimate_usd(model_used, prompt_tokens, completion_tokens)
+
+    logger.info("synthesis (stream) ok: model=%s reply_chars=%d extras=%d kind=%s "
+                "prompt_tok=%d completion_tok=%d usd=%.5f",
+                model_used, len(text), len(blocks_extra), bundle.get("kind"),
+                prompt_tokens, completion_tokens, usd)
+    return {"text": text, "model": model_used, "blocks_extra": blocks_extra, "empty": False,
+            "prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens, "usd": usd}
 
 
 def _structured_extras(bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
