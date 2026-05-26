@@ -958,6 +958,60 @@ body {
 .smifs-bmia-chip--warn { background: rgba(192, 138, 46, 0.08); border: 1px solid rgba(192, 138, 46, 0.32); color: #92400e; }
 .smifs-bmia-empty { font-size: 0.78rem; color: #64748b; font-style: italic; margin: 4px 0 0; padding: 6px 0; }
 
+/* Phase 24b — Low-confidence escalation rail */
+.smifs-rail {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.06) 0%, rgba(245, 158, 11, 0.02) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+.smifs-rail-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.18);
+  color: #d97706;
+}
+.smifs-rail-body { flex: 1 1 auto; min-width: 0; }
+.smifs-rail-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b45309;
+  margin: 0 0 6px 0;
+}
+.smifs-rail-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+.smifs-rail-intent {
+  font-size: 12px;
+  color: #475569;
+  margin: 4px 0;
+}
+.smifs-rail-intent-label { font-weight: 600; color: #334155; }
+.smifs-rail-intent-value { font-style: italic; }
+.smifs-rail-meta {
+  font-size: 10.5px;
+  color: #94a3b8;
+  margin: 6px 0 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
 .smifs-bmia-sparks { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 14px; }
 .smifs-bmia-spark { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .smifs-bmia-spark-label { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; margin: 0; display: flex; align-items: center; gap: 4px; }

@@ -12,6 +12,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 import rag
 import guardrails
+import anti_bluff
 
 from .llm import chat_with_fallback, stream_chat_with_fallback, extract_reply
 
@@ -111,13 +112,13 @@ GROUNDED_INSTR = KNOWLEDGE_PRIORITY_RULES + (
     "vehicle update' or 'as of Fortnightly Offering v8'). Prefer vehicles tagged `Focused` and `Active` "
     "when suggesting the SMIFS house view. Never invent dates or version numbers — only cite what the "
     "preambles explicitly list."
-)
+) + anti_bluff.HARD_RULES_BLOCK
 
 UNGROUNDED_INSTR = KNOWLEDGE_PRIORITY_RULES + (
     "\n\nThe internal SMIFS knowledge base does not contain a confident match for this query. "
     "Acknowledge the limit briefly and offer to connect the client with a human advisor. "
     "You may speak in general financial-literacy terms, but do not attribute specifics to SMIFS."
-)
+) + anti_bluff.HARD_RULES_BLOCK
 
 
 def _hits_to_chunks(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -201,6 +202,15 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not qualifying:
         return []
     def _enrich(h: Dict[str, Any]) -> Dict[str, Any]:
+        # Phase 24d — web_ingest source: derive badge from domain + surface URL.
+        web_badge = None
+        web_url = h.get("source_url")
+        if h.get("source") == "web_ingest" and h.get("source_domain"):
+            try:
+                from .web_ingest import domain_badge as _wb
+                web_badge = _wb(h.get("source_domain"))
+            except Exception:
+                web_badge = (h.get("source_domain") or "").split(".")[0].upper()
         out = {
             "doc_id": h["doc_id"],
             "doc_title": h["doc_title"],
@@ -237,6 +247,10 @@ def _build_citations(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             # for local hits so the field is omitted by the trailing
             # None-filter (keeps the local citation envelope clean).
             "is_full_document_scan": (True if h.get("is_full_document_scan") else None),
+            # Phase 24d — web ingest fields (regulator/investor-ed sites)
+            "url": web_url,
+            "badge": web_badge,
+            "source_domain": h.get("source_domain"),
         }
         return {k: v for k, v in out.items() if v is not None}
 
@@ -391,10 +405,37 @@ async def answer(message: str, history: List[Dict[str, Any]],
     hits, grounded, analysis = await _retrieve(message, session_type=session_type, auth_state=auth_state, locale=locale, db=db)
     citations = _build_citations(hits) if grounded else []
 
+    # ---- Phase 24b — Anti-Bluff Rail (highest-priority gate) ----
+    # If retrieval confidence is "low" / "none" we route directly to the
+    # escalation rail (callback + knowledge gap log) BEFORE the Phase 11
+    # WM short-circuit. This ensures every low-confidence answer goes
+    # through the anti-bluff log + admin tile counters.
+    confidence = anti_bluff.confidence_score(citations)
+    if db is not None and confidence["confidence"] in ("low", "none"):
+        rail = anti_bluff.build_escalation_rail(message, confidence, reason="low_confidence_retrieval")
+        await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                          confidence=confidence, outcome="escalated",
+                                          reason="low_confidence_retrieval")
+        await anti_bluff.log_knowledge_gap(db, session_id=session_id, topic=message,
+                                            confidence_at_decline=confidence["top_score"])
+        return {
+            "reply_text": rail["reply_text"],
+            "citations": citations,
+            "grounded": False,
+            "model": None,
+            "intent_hint": rail["intent_hint"],
+            "fallback_blocks": rail["blocks"],
+        }
+
     # Phase 11 — smarter short-circuit: always escalate brand-specific /
     # verified-client product questions; let generic visitor questions answer
     # from seed when grounding is strong.
-    if db is not None and _should_short_circuit_to_wm(message, session_type, auth_state, hits, analysis):
+    # Phase 24b — When retrieval confidence is "high" or "medium" the LLM can
+    # compose a grounded answer (the anti-bluff guard + post-validator still
+    # catch any ungrounded factual claims downstream, and medium-confidence
+    # answers get a soft advisor-handoff CTA appended).
+    if (db is not None and confidence["confidence"] not in ("high", "medium")
+            and _should_short_circuit_to_wm(message, session_type, auth_state, hits, analysis)):
         import fallback as _fb
         fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
         await guardrails.log_event(
@@ -423,11 +464,40 @@ async def answer(message: str, history: List[Dict[str, Any]],
 
     messages = _build_messages(message, history, grounded, client_context, session_type=session_type, locale=locale)
     chunks = _hits_to_chunks(hits) if grounded else None
+
     result = await chat_with_fallback(
         messages, context_chunks=chunks, session_id=session_id, intent="KNOWLEDGE",
     )
     reply_text = extract_reply(result["data"])
     model_used = result["data"].get("model") or result["model"]
+
+    # ---- Phase 24b — post-compose validator (factual claims without citations) ----
+    if db is not None and reply_text:
+        verdict = anti_bluff.validate_compose(reply_text, citations)
+        if verdict["action"] == "rewrite":
+            rail = anti_bluff.build_escalation_rail(message, confidence, reason="ungrounded_factual_claims")
+            await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                              confidence=confidence, outcome="escalated",
+                                              reason="ungrounded_factual_claims")
+            await anti_bluff.log_knowledge_gap(db, session_id=session_id, topic=message,
+                                                confidence_at_decline=confidence["top_score"])
+            return {
+                "reply_text": rail["reply_text"],
+                "citations": citations,
+                "grounded": False,
+                "model": model_used,
+                "intent_hint": rail["intent_hint"],
+                "fallback_blocks": rail["blocks"],
+            }
+
+    # Soft handoff CTA appended for medium-confidence grounded answers.
+    if confidence["confidence"] == "medium" and reply_text:
+        reply_text = reply_text.rstrip() + "\n\n" + anti_bluff.build_soft_handoff_cta(message)
+        await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                          confidence=confidence, outcome="answered_with_caveat")
+    elif confidence["confidence"] == "high" and reply_text:
+        await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                          confidence=confidence, outcome="answered_grounded")
     if db is not None and reply_text:
         claims = guardrails.detect_claims(reply_text)
         if claims and not guardrails.citation_supports_claims(claims, reply_text, citations):
@@ -470,8 +540,30 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
     citations = _build_citations(hits) if grounded else []
     yield ("citations", citations)
 
+    # ---- Phase 24b — Anti-Bluff Rail (top-priority gate, streaming path) ----
+    confidence = anti_bluff.confidence_score(citations)
+    if db is not None and confidence["confidence"] in ("low", "none"):
+        rail = anti_bluff.build_escalation_rail(message, confidence, reason="low_confidence_retrieval")
+        await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                          confidence=confidence, outcome="escalated",
+                                          reason="low_confidence_retrieval")
+        await anti_bluff.log_knowledge_gap(db, session_id=session_id, topic=message,
+                                            confidence_at_decline=confidence["top_score"])
+        yield ("token", rail["reply_text"])
+        yield ("done", {
+            "reply_text": rail["reply_text"],
+            "citations": citations,
+            "grounded": False,
+            "model": None,
+            "intent_hint": rail["intent_hint"],
+            "fallback_blocks": rail["blocks"],
+        })
+        return
+
     # Phase 11 — smarter short-circuit (streaming path).
-    if db is not None and _should_short_circuit_to_wm(message, session_type, auth_state, hits, analysis):
+    # Phase 24b — Skip WM short-circuit on high/medium-confidence retrieval.
+    if (db is not None and confidence["confidence"] not in ("high", "medium")
+            and _should_short_circuit_to_wm(message, session_type, auth_state, hits, analysis)):
         import fallback as _fb
         fb = _fb.make_wealth_manager_fallback(session_type, auth_state, client_context)
         await guardrails.log_event(
@@ -503,6 +595,7 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
 
     messages = _build_messages(message, history, grounded, client_context, session_type=session_type, locale=locale)
     chunks = _hits_to_chunks(hits) if grounded else None
+
     full_text = ""
     model_used: Optional[str] = None
     try:
@@ -532,6 +625,36 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
                 reply_text=full_text, analysis=analysis,
                 claims=claims, action="unchecked_claim",
             )
+
+    # ---- Phase 24b — post-compose validator (streaming path) ----
+    if db is not None and full_text:
+        verdict = anti_bluff.validate_compose(full_text, citations)
+        if verdict["action"] == "rewrite":
+            rail = anti_bluff.build_escalation_rail(message, confidence, reason="ungrounded_factual_claims")
+            await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                              confidence=confidence, outcome="escalated",
+                                              reason="ungrounded_factual_claims")
+            await anti_bluff.log_knowledge_gap(db, session_id=session_id, topic=message,
+                                                confidence_at_decline=confidence["top_score"])
+            yield ("done", {
+                "reply_text": rail["reply_text"],
+                "citations": citations,
+                "grounded": False,
+                "model": model_used,
+                "intent_hint": rail["intent_hint"],
+                "fallback_blocks": rail["blocks"],
+            })
+            return
+
+    if confidence["confidence"] == "medium" and full_text:
+        cta = anti_bluff.build_soft_handoff_cta(message)
+        full_text = full_text.rstrip() + "\n\n" + cta
+        yield ("token", "\n\n" + cta)
+        await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                          confidence=confidence, outcome="answered_with_caveat")
+    elif confidence["confidence"] == "high" and full_text and db is not None:
+        await anti_bluff.log_bluff_event(db, session_id=session_id, message=message,
+                                          confidence=confidence, outcome="answered_grounded")
 
     # Phase 10 safety net (streaming path).
     synth_blocks, synth_intent = _maybe_synthesize_wm_block(

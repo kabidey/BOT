@@ -25,6 +25,7 @@ import SaleFormBlock from "@/components/blocks/SaleFormBlock";
 import SaleConfirmationBlock from "@/components/blocks/SaleConfirmationBlock";
 import LocaleChoiceBlock, { LOCALE_OPTIONS } from "@/components/blocks/LocaleChoiceBlock";
 import BmiaFundamentalsCard from "@/components/blocks/BmiaFundamentalsCard";
+import LowConfidenceEscalation from "@/components/blocks/LowConfidenceEscalation";
 import { getFingerprintHeaders } from "@/lib/fingerprint";
 
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
@@ -687,6 +688,8 @@ export default function Chat({ embedded = false }) {
         return <EmployeeCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "bmia_fundamentals_card":
         return <BmiaFundamentalsCard key={key} data={block.data || block} />;
+      case "low_confidence_escalation":
+        return <LowConfidenceEscalation key={key} block={block} />;
       case "table":
         return <TableBlock key={key} block={block} msgIdx={msgIdx} />;
       case "chart":

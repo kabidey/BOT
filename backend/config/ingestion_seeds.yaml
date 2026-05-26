@@ -1,0 +1,44 @@
+# Phase 24d — Website Ingestion Crawler seed list.
+# These map 1:1 to backend/agents/web_ingest.DEFAULT_SEEDS — change here AND in
+# the Python module if the admin wants to add new sources at runtime, or move
+# the loader to read this file. For now the YAML is documentation; the
+# Python module is the source of truth.
+
+sources:
+  - site: smifs.com
+    seed_url: https://www.smifs.com/
+    max_depth: 3
+    max_pages: 200
+    allow_pdf: true
+
+  - site: sebi.gov.in
+    seed_url: https://www.sebi.gov.in/
+    max_depth: 3
+    max_pages: 400
+    allow_pdf: true
+
+  - site: rbi.org.in
+    seed_url: https://www.rbi.org.in/
+    max_depth: 3
+    max_pages: 400
+    allow_pdf: true
+
+  - site: amfi.in
+    seed_url: https://www.amfi.in/
+    max_depth: 3
+    max_pages: 300
+    allow_pdf: true
+
+  - site: nseindia.com
+    seed_url: https://www.nseindia.com/learn/
+    max_depth: 3
+    max_pages: 200
+    allow_pdf: true
+    allowed_path_prefix: /learn
+
+  - site: bseindia.com
+    seed_url: https://www.bseindia.com/static/investors/Investor_Education.aspx
+    max_depth: 3
+    max_pages: 150
+    allow_pdf: true
+    allowed_path_prefix: /static/investors

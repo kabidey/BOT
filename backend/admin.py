@@ -50,6 +50,14 @@ class GapResolvePayload(BaseModel):
     resolved: bool = True
 
 
+class IngestCrawlPayload(BaseModel):
+    """Phase 24d — manual crawl trigger payload."""
+    site: str = Field(..., min_length=2, max_length=80)
+    dry_run: bool = False
+    max_pages: Optional[int] = None
+    max_depth: Optional[int] = None
+
+
 def build_admin_router(db) -> APIRouter:
     def _now() -> datetime:
         return datetime.now(timezone.utc)
@@ -1169,6 +1177,63 @@ def build_admin_router(db) -> APIRouter:
             return _bmia_admin.summary()
         except Exception as e:
             return {"endpoints": {}, "error": str(e)[:200]}
+
+    # ---------------- Phase 24b — Anti-Bluff Rail telemetry ----------------
+    @router.get("/bluff/summary")
+    async def bluff_summary_endpoint(days: int = 7):
+        import anti_bluff as _ab
+        return await _ab.bluff_summary(db, days=max(1, min(days, 30)))
+
+    @router.get("/bluff/recent")
+    async def bluff_recent(limit: int = 50):
+        cur = db.bluff_events.find({}, {"_id": 0}).sort("ts", -1).limit(max(1, min(limit, 200)))
+        return {"items": await cur.to_list(length=limit)}
+
+    @router.get("/knowledge_gaps_log")
+    async def knowledge_gaps_log(limit: int = 100):
+        cur = db.knowledge_gaps_log.find({}, {"_id": 0}).sort("ts", -1).limit(max(1, min(limit, 500)))
+        return {"items": await cur.to_list(length=limit)}
+
+    # ---------------- Phase 24d — Website Ingestion Crawler ----------------
+    @router.post("/ingest/crawl")
+    async def ingest_crawl(payload: IngestCrawlPayload = Body(...)):
+        """Trigger a single-site crawl. `site` is either a registered seed
+        domain (e.g. 'sebi.gov.in') or 'all' to fan out to every seed.
+
+        WARNING: synchronous — the response may take up to wall-time-cap
+        (default 30 min). Callers should set generous client timeouts.
+        """
+        from agents import web_ingest as _wi
+        if payload.site.lower() == "all":
+            results = []
+            for s in _wi.DEFAULT_SEEDS:
+                r = await _wi.crawl_site(
+                    db, s["seed_url"],
+                    max_depth=payload.max_depth or s.get("max_depth", 3),
+                    max_pages=payload.max_pages or s.get("max_pages", 200),
+                    allow_pdf=s.get("allow_pdf", True),
+                    allowed_path_prefix=s.get("allowed_path_prefix"),
+                    dry_run=payload.dry_run,
+                )
+                results.append(r)
+            return {"results": results}
+        seed = _wi.get_seed(payload.site)
+        if not seed:
+            raise HTTPException(status_code=400, detail=f"Unknown site '{payload.site}'. "
+                                                          f"Known: {[s['site'] for s in _wi.DEFAULT_SEEDS]}")
+        return await _wi.crawl_site(
+            db, seed["seed_url"],
+            max_depth=payload.max_depth or seed.get("max_depth", 3),
+            max_pages=payload.max_pages or seed.get("max_pages", 200),
+            allow_pdf=seed.get("allow_pdf", True),
+            allowed_path_prefix=seed.get("allowed_path_prefix"),
+            dry_run=payload.dry_run,
+        )
+
+    @router.get("/ingest/status")
+    async def ingest_status_endpoint():
+        from agents import web_ingest as _wi
+        return await _wi.ingest_status(db)
 
     # ---------------- Phase 22 — Fraud Watch (device fingerprint) ----------------
     import hashlib as _hashlib

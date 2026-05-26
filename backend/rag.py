@@ -261,6 +261,8 @@ async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, 
         "version_no": 1, "collateral_no": 1, "kind": 1, "language": 1,
         "provider": 1, "category": 1, "vertical": 1,
         "updated_at_iso": 1, "audience": 1, "version_major": 1,
+        # Phase 24d — web_ingest fields (regulator + investor-education sites)
+        "source_url": 1, "source_domain": 1, "source_title": 1, "source_section": 1,
     })
     rows = await cursor.to_list(length=5000)
     if not rows:
@@ -291,6 +293,11 @@ async def _load_index_from_db(db) -> Tuple[Optional[np.ndarray], List[Dict[str, 
         "vertical": r.get("vertical"),
         "updated_at_iso": r.get("updated_at_iso"),
         "audience": r.get("audience") or "all",
+        # Phase 24d — web_ingest projection (regulator / investor-education sites)
+        "source_url": r.get("source_url"),
+        "source_domain": r.get("source_domain"),
+        "source_title": r.get("source_title"),
+        "source_section": r.get("source_section"),
     } for r in rows]
     return _normalize(vecs), meta
 
