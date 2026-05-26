@@ -837,7 +837,13 @@ async def startup_event():
             logger.info("Startup ingestion complete: %s", res)
         else:
             persisted = await rag.persisted_dim(db)
-            expected = 1536 if active == "hub_ai" else 384
+            # Phase 24a.3 — expected dim depends on the active Hub AI embed model.
+            # text-embedding-3-large = 3072, text-embedding-3-small = 1536, local MiniLM = 384.
+            if active == "hub_ai":
+                model = (os.environ.get("HUB_EMBED_MODEL") or "text-embedding-3-large").lower()
+                expected = 3072 if "3-large" in model else 1536
+            else:
+                expected = 384
             if persisted and persisted != expected:
                 logger.warning("Embedding dim mismatch (persisted=%d, expected=%d) — re-ingesting.",
                                persisted, expected)

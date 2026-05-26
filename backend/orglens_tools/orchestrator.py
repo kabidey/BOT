@@ -302,7 +302,7 @@ async def run(db, session_id: str, user_message: str,
                 temperature=0.2, max_tokens=1400, model=_MAIN_MODEL,
                 session_id=session_id, intent="tools_orchestrator",
                 response_format=({"type": "json_object"} if wants_json_format else None),
-                timeout=90.0,
+                timeout=25.0,
             )
         except Exception as e:
             logger.exception("LLM tool-calling round %d failed", round_idx)

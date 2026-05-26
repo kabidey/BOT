@@ -724,9 +724,15 @@ async def run_turn(db, session_id: Optional[str], message: str,
             # data-shaped intent (CLIENT_*, DIRECTORY_*), try the dynamic
             # tool registry first. Falls through to the legacy branches when
             # the new pipeline can't handle the question or returns ok=False.
+            #
+            # Phase 24a.3 — KNOWLEDGE intent is removed from this allowlist.
+            # KNOWLEDGE answers must be grounded in `doc_chunks` with citation
+            # chips (Phase 16 spec). Phase 20 produces text-only blocks
+            # without RAG citations, so KNOWLEDGE goes straight to the legacy
+            # `_branch_knowledge` (RAG) path below.
             if (os.environ.get("PHASE_20_TOOLS_ENABLED", "false").lower() == "true"
                     and intent in ("CLIENT_LOOKUP", "CLIENT_QUERY", "DIRECTORY_QUERY",
-                                    "KNOWLEDGE", "SMALL_TALK")):
+                                    "SMALL_TALK")):
                 try:
                     from orglens_tools import orchestrator as _p20
                     p20 = await _p20.run(db, sid, message,

@@ -138,19 +138,23 @@ export default function BmiaFundamentalsCard({ data }) {
       ) : null}
 
       {(pros.length || cons.length) ? (
-        <div className="smifs-bmia-prcons">
-          {pros.length ? (
-            <div className="smifs-bmia-prcons-col">
-              <h6>Pros</h6>
+        <div className="smifs-bmia-prcons" data-testid="bmia-prcons">
+          <div className="smifs-bmia-prcons-col" data-testid="bmia-pros">
+            <h6>Pros</h6>
+            {pros.length ? (
               <ul>{pros.map((p, i) => <li key={i} className="smifs-bmia-chip smifs-bmia-chip--ok">{p}</li>)}</ul>
-            </div>
-          ) : null}
-          {cons.length ? (
-            <div className="smifs-bmia-prcons-col">
-              <h6>Cons</h6>
+            ) : (
+              <p className="smifs-bmia-empty" data-testid="bmia-pros-empty">No notable positives flagged.</p>
+            )}
+          </div>
+          <div className="smifs-bmia-prcons-col" data-testid="bmia-cons">
+            <h6>Cons</h6>
+            {cons.length ? (
               <ul>{cons.map((c, i) => <li key={i} className="smifs-bmia-chip smifs-bmia-chip--warn">{c}</li>)}</ul>
-            </div>
-          ) : null}
+            ) : (
+              <p className="smifs-bmia-empty" data-testid="bmia-cons-empty">No notable concerns flagged.</p>
+            )}
+          </div>
         </div>
       ) : null}
 
@@ -161,25 +165,42 @@ export default function BmiaFundamentalsCard({ data }) {
         </div>
       ) : null}
 
-      {(d.profit_loss || d.balance_sheet || d.cash_flow || d.quarterly || d.ratios) ? (
-        <div className="smifs-bmia-statements">
-          <button type="button" className="smifs-bmia-statements-toggle"
-                  onClick={() => setStatementsOpen((v) => !v)}
-                  data-testid="bmia-statements-toggle">
-            {statementsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {statementsOpen ? "Hide full statements" : "View full statements"}
-          </button>
-          {statementsOpen ? (
-            <div className="smifs-bmia-statements-body">
-              <StatementTable title="Profit & Loss"  table={d.profit_loss} />
-              <StatementTable title="Quarterly"      table={d.quarterly} />
-              <StatementTable title="Balance Sheet"  table={d.balance_sheet} />
-              <StatementTable title="Cash Flow"      table={d.cash_flow} />
-              <StatementTable title="Ratios"         table={d.ratios} />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {(() => {
+        // Normalize across the BMIA `slice` variants:
+        //  - 'profile'      → profit_loss_3y
+        //  - 'quarterly'    → quarterly_last_4
+        //  - 'trends'       → profit_loss, cash_flow
+        //  - 'ratios'       → ratios
+        //  - 'full'         → profit_loss_table, balance_sheet_table, cash_flow_table, quarterly_table, ratios_table
+        const tables = [
+          { title: "Profit & Loss (3y)", table: d.profit_loss_3y },
+          { title: "Quarterly (last 4)", table: d.quarterly_last_4 },
+          { title: "Profit & Loss",      table: d.profit_loss || d.profit_loss_table },
+          { title: "Quarterly",          table: d.quarterly || d.quarterly_table },
+          { title: "Balance Sheet",      table: d.balance_sheet || d.balance_sheet_table },
+          { title: "Cash Flow",          table: d.cash_flow || d.cash_flow_table },
+          { title: "Ratios",             table: d.ratios || d.ratios_table },
+        ].filter((t) => t.table && (t.table.periods || []).length > 0
+                       && Object.keys(t.table.rows || {}).length > 0);
+        if (!tables.length) return null;
+        return (
+          <div className="smifs-bmia-statements" data-testid="bmia-statements">
+            <button type="button" className="smifs-bmia-statements-toggle"
+                    onClick={() => setStatementsOpen((v) => !v)}
+                    data-testid="bmia-statements-toggle">
+              {statementsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              {statementsOpen ? "Hide full statements" : "View full statements"}
+            </button>
+            {statementsOpen ? (
+              <div className="smifs-bmia-statements-body" data-testid="bmia-statements-body">
+                {tables.map((t, i) => (
+                  <StatementTable key={i} title={t.title} table={t.table} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        );
+      })()}
 
       <footer className="smifs-bmia-card-foot">
         <Info size={11} strokeWidth={2.4} />
