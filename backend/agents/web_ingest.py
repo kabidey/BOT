@@ -443,6 +443,18 @@ async def crawl_site(db,
         summary["finished_at"] = _now()
         summary["duration_sec"] = round(time.time() - started, 1)
 
+        # Phase 24d.fix2 — always include cost_usd. Rate $0.13 per 1M tokens
+        # for `text-embedding-3-large` (Hub AI public pricing). Dry-runs
+        # report the estimated spend if executed.
+        summary["cost_usd"] = round(summary.get("tokens_estimated", 0) / 1_000_000.0 * 0.13, 6)
+
+        # Phase 24d.fix2 — dry-runs never report a "partial_*" status. The
+        # partial-* states reserve themselves for live crawls that were
+        # actually capped/budget-stopped. For a dry-run, hitting the cap is
+        # the *successful* exit condition, so it's "ok".
+        if dry_run and summary["status"].startswith("partial_"):
+            summary["status"] = "ok"
+
         # Audit log
         try:
             await db.crawl_events.insert_one({**summary})

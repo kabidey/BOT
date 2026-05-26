@@ -20,9 +20,22 @@ ALLOWED_EXTS = {".pdf", ".docx", ".md", ".txt"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
-def require_admin(x_admin_token: str = Header(default="")):
-    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
-        raise HTTPException(status_code=401, detail="Invalid or missing X-Admin-Token")
+def require_admin(x_admin_token: str = Header(default=""),
+                  authorization: str = Header(default="")):
+    """Phase 24b.fix4 — Accept BOTH `X-Admin-Token: <token>` (legacy) AND
+    `Authorization: Bearer <token>` (industry-standard, documented form).
+    Either header validates; the Bearer form is preferred going forward.
+    """
+    bearer = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        bearer = authorization[7:].strip()
+    presented = x_admin_token or bearer
+    if not ADMIN_TOKEN or presented != ADMIN_TOKEN:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing admin token. Send 'Authorization: Bearer <token>' "
+                   "or 'X-Admin-Token: <token>'.",
+        )
     return True
 
 

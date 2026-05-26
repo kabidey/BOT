@@ -241,6 +241,34 @@ async def rag_search(req: RagSearchRequest):
     return await rag.search(req.query, top_k=req.top_k)
 
 
+# ---------------- Phase 24b.fix3 — client-side stream error telemetry ----------------
+class ClientStreamError(BaseModel):
+    session_id: Optional[str] = None
+    turn_id: Optional[str] = None
+    turn_count: Optional[int] = None
+    error_name: Optional[str] = None
+    error_message: Optional[str] = None
+    user_agent: Optional[str] = None
+    last_http_status: Optional[int] = None
+    retried: Optional[bool] = None
+
+
+@api_router.post("/client_errors")
+async def report_client_error(payload: ClientStreamError):
+    """FE posts here whenever the SSE catch in Chat.jsx fires (the
+    'advisory engine unreachable' path). Stored in `client_stream_errors`
+    for offline RCA. Never blocks; always returns 200.
+    """
+    try:
+        await db.client_stream_errors.insert_one({
+            "ts": datetime.now(timezone.utc).isoformat(),
+            **payload.model_dump(exclude_none=True),
+        })
+    except Exception:
+        logger.exception("client_stream_errors insert failed (non-fatal)")
+    return {"ok": True}
+
+
 @api_router.post("/agent/turn", response_model=TurnResponse)
 async def agent_turn(req: TurnRequest, request: Request):
     _enforce_chat_rate_limit(request, req.session_id)

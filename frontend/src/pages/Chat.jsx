@@ -341,6 +341,7 @@ export default function Chat({ embedded = false }) {
       updateStreamingTurn((target) => target.streaming ? { ...target, citations: cits } : target);
     };
 
+    let lastHttpStatus = null;
     try {
       const resp = await fetch(`${API}/agent/turn/stream`, {
         method: "POST",
@@ -351,6 +352,7 @@ export default function Chat({ embedded = false }) {
         body: JSON.stringify({ session_id: sessionId, message: text }),
         signal: controller.signal,
       });
+      lastHttpStatus = resp.status;
       if (!resp.ok) {
         const errText = await resp.text();
         throw new Error(`HTTP ${resp.status}: ${errText.slice(0, 200)}`);
@@ -431,18 +433,57 @@ export default function Chat({ embedded = false }) {
     } catch (e) {
       if (e.name === "AbortError") return;
       const detail = e.message || "Unknown error";
+
+      // Phase 24b.fix3 — structured client-error telemetry.
+      // Fire-and-forget; never block the user path on this.
+      try {
+        const turnCount = messages.filter((m) => m.role === "user").length + 1;
+        await fetch(`${API}/client_errors`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            turn_id: turnId,
+            turn_count: turnCount,
+            error_name: e.name || "Error",
+            error_message: detail.slice(0, 400),
+            user_agent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 200) : null,
+            last_http_status: lastHttpStatus,
+            retried: isRetry,
+          }),
+          keepalive: true,
+        }).catch(() => {});
+      } catch { /* swallow */ }
+
+      // Phase 24b.fix3 — single auto-retry for transient network/HTTP errors
+      // (no retry on 4xx auth/validation errors). This collapses the
+      // intermittent "advisory engine unreachable" reports the tester saw.
+      const isTransient = !isRetry && (
+        !lastHttpStatus ||
+        lastHttpStatus >= 500 ||
+        lastHttpStatus === 0 ||
+        /network|failed to fetch|load failed/i.test(detail)
+      );
+      if (isTransient) {
+        // Remove the failed assistant placeholder; sendStreaming will push a fresh one
+        setMessages((prev) => prev.filter((m) => m.turnId !== turnId));
+        setStreaming(false);
+        setStatusLabel("");
+        abortRef.current = null;
+        await new Promise((r) => setTimeout(r, 600));
+        return sendStreaming(text, { _retry: true });
+      }
+
       setErrorMsg(detail);
       setMessages((prev) => {
         const idx = prev.findIndex((m) => m.turnId === turnId);
-        if (idx === -1) return [...prev, {
-          role: "assistant", error: true,
-          blocks: [{ type: "text", text: "I'm momentarily unable to reach the advisory engine. Please try again shortly." }],
-        }];
-        const copy = prev.slice();
-        copy[idx] = {
+        const fallbackMsg = {
           role: "assistant", error: true,
           blocks: [{ type: "text", text: "I'm momentarily unable to reach the advisory engine. Please try again shortly." }],
         };
+        if (idx === -1) return [...prev, fallbackMsg];
+        const copy = prev.slice();
+        copy[idx] = fallbackMsg;
         return copy;
       });
     } finally {

@@ -420,7 +420,7 @@ async def answer(message: str, history: List[Dict[str, Any]],
                                             confidence_at_decline=confidence["top_score"])
         return {
             "reply_text": rail["reply_text"],
-            "citations": citations,
+            "citations": [],  # Phase 24b.fix1 — rail must render alone, no phantom chips
             "grounded": False,
             "model": None,
             "intent_hint": rail["intent_hint"],
@@ -541,6 +541,7 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
     yield ("citations", citations)
 
     # ---- Phase 24b — Anti-Bluff Rail (top-priority gate, streaming path) ----
+    # Phase 24b.fix1 — citations array MUST be empty on the rail.
     confidence = anti_bluff.confidence_score(citations)
     if db is not None and confidence["confidence"] in ("low", "none"):
         rail = anti_bluff.build_escalation_rail(message, confidence, reason="low_confidence_retrieval")
@@ -549,10 +550,11 @@ async def stream_answer(message: str, history: List[Dict[str, Any]],
                                           reason="low_confidence_retrieval")
         await anti_bluff.log_knowledge_gap(db, session_id=session_id, topic=message,
                                             confidence_at_decline=confidence["top_score"])
+        yield ("citations", [])  # override the earlier emission
         yield ("token", rail["reply_text"])
         yield ("done", {
             "reply_text": rail["reply_text"],
-            "citations": citations,
+            "citations": [],
             "grounded": False,
             "model": None,
             "intent_hint": rail["intent_hint"],
