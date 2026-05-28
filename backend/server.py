@@ -975,6 +975,71 @@ async def admin_errors_summary(request: Request):
     }
 
 
+# ---------------- Phase 27 — Admin-triggered re-embed migration ----------------
+import admin_reembed as _admin_reembed
+
+
+class ReembedRunRequest(BaseModel):
+    dry_run: bool = False
+    batch_size: int = 50
+    max_chunks: Optional[int] = None
+    purge_legacy: bool = False
+
+
+@api_router.post("/admin/reembed/run")
+async def admin_reembed_run(req: ReembedRunRequest, request: Request):
+    """Phase 27 — kick off (or simulate) the doc_chunks re-embed migration.
+
+    Body:
+      dry_run        — if true, returns counts + cost estimate without writing.
+      batch_size     — chunks per Hub AI /embeddings call (1..100, default 50).
+      max_chunks     — optional cap; useful for incremental rollouts.
+      purge_legacy   — if true, after migration delete any chunks that are
+                       still on a non-target dim/model.
+
+    Returns the handle immediately; poll `GET /admin/reembed/status/{job_id}`.
+    """
+    _check_admin_request(request)
+    batch_size = max(1, min(int(req.batch_size or 50), 100))
+    max_chunks = req.max_chunks
+    if max_chunks is not None:
+        max_chunks = max(0, int(max_chunks))
+        if max_chunks == 0:
+            max_chunks = None
+    return await _admin_reembed.kickoff(
+        db,
+        dry_run=bool(req.dry_run),
+        batch_size=batch_size,
+        max_chunks=max_chunks,
+        purge_legacy=bool(req.purge_legacy),
+    )
+
+
+@api_router.get("/admin/reembed/status/{job_id}")
+async def admin_reembed_status(job_id: str, request: Request):
+    """Phase 27 — poll a single re-embed job's progress + status."""
+    _check_admin_request(request)
+    doc = await _admin_reembed.get_status(db, job_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Unknown job_id: {job_id}")
+    return doc
+
+
+@api_router.get("/admin/reembed/jobs")
+async def admin_reembed_jobs(request: Request, limit: int = 20):
+    """Phase 27 — list recent re-embed jobs (DESC by started_at)."""
+    _check_admin_request(request)
+    limit = max(1, min(int(limit or 20), 100))
+    return {"jobs": await _admin_reembed.list_jobs(db, limit=limit)}
+
+
+@api_router.get("/admin/reembed/estimate")
+async def admin_reembed_estimate(request: Request):
+    """Phase 27 — cheap read-only count + cost estimate without starting a job."""
+    _check_admin_request(request)
+    return await _admin_reembed.estimate(db)
+
+
 # --- Phase 11: one-tap WhatsApp / Email handoff ---
 @api_router.post("/handoff", response_model=HandoffResponse)
 async def create_handoff(req: HandoffRequest):

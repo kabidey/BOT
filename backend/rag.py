@@ -316,6 +316,9 @@ async def ensure_index_loaded(db) -> int:
         # Embedding dim 384 = local MiniLM; >= 768 (1536 for OpenAI text-embedding-3-small) = hub_ai.
         if EMBEDDER_KIND is None:
             EMBEDDER_KIND = "local" if mat.shape[1] == 384 else "hub_ai"
+        # Phase 27 — fresh index, fresh dim-guard log state.
+        global _DIM_MISMATCH_LOGGED
+        _DIM_MISMATCH_LOGGED = False
         logger.info("RAG index loaded: %d chunks (embedder=%s, dim=%d)", len(meta), EMBEDDER_KIND, mat.shape[1])
         return len(meta)
 
@@ -416,11 +419,68 @@ async def reload_index_from_db(db) -> int:
     return len(_index_meta)
 
 
+# ---- Phase 27 — defensive dim guard ----
+# Tracks whether we've already warned about a dim mismatch so we don't spam
+# logs on every chat turn. Reset by `clear_dim_mismatch_log()` after a
+# successful re-embed migration.
+_DIM_MISMATCH_LOGGED: bool = False
+
+
+def _dims_compatible(mat, q, where: str) -> bool:
+    """Return True iff `mat @ q` is valid. On mismatch, log CRITICAL once and
+    return False so callers can degrade gracefully (empty hits → upstream
+    falls through to the no-relevant-content / anti-bluff path).
+
+    The in-memory `_index_matrix` is a single ndarray, so all stored chunks
+    share the same dim by construction. The mismatch we defend against is
+    between the *query* embedding dim (set by HUB_EMBED_MODEL env var) and
+    the *index* embedding dim (set by whatever model the chunks were stored
+    with). Repair: re-embed via POST /api/admin/reembed/run so both sides
+    agree at 3072. NEVER raises ValueError to the orchestrator from here.
+    """
+    global _DIM_MISMATCH_LOGGED
+    try:
+        index_dim = int(mat.shape[1])
+        query_dim = int(q.shape[0])
+    except Exception:
+        if not _DIM_MISMATCH_LOGGED:
+            logger.critical("RAG dim-guard (%s): malformed shapes mat=%r q=%r",
+                            where, getattr(mat, "shape", None),
+                            getattr(q, "shape", None))
+            _DIM_MISMATCH_LOGGED = True
+        return False
+    if index_dim != query_dim:
+        if not _DIM_MISMATCH_LOGGED:
+            logger.critical(
+                "RAG dim-guard (%s): index_dim=%d != query_dim=%d. "
+                "Embeddings are stale (active model=%s). Run "
+                "POST /api/admin/reembed/run to migrate. Falling back to "
+                "empty results to avoid ValueError.",
+                where, index_dim, query_dim, HUB_EMBED_MODEL,
+            )
+            _DIM_MISMATCH_LOGGED = True
+        else:
+            logger.warning("RAG dim-guard (%s): mismatch %d vs %d — skipping",
+                           where, index_dim, query_dim)
+        return False
+    return True
+
+
+def clear_dim_mismatch_log() -> None:
+    """Test/admin hook — let the guard log again after a successful migration
+    (called from the reembed job once the index has been rebuilt)."""
+    global _DIM_MISMATCH_LOGGED
+    _DIM_MISMATCH_LOGGED = False
+
+
+
 async def search(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
     """Cosine similarity search. Returns [{text, doc_title, section, doc_id, source, score}]."""
     if _index_matrix is None or not _index_meta:
         return []
     q = await _embed_query_cached(query)
+    if not _dims_compatible(_index_matrix, q, where="search"):
+        return []
     scores = (_index_matrix @ q).astype(float)
     top = np.argsort(-scores)[:top_k]
     out: List[Dict[str, Any]] = []
@@ -494,6 +554,8 @@ async def search_weighted(query: str, top_k: int = 8,
     if _index_matrix is None or not _index_meta:
         return []
     q = await _embed_query_cached(query)
+    if not _dims_compatible(_index_matrix, q, where="search_weighted"):
+        return []
     raw = (_index_matrix @ q).astype(float)
 
     # Build per-row weighted scores.
