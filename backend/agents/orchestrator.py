@@ -929,13 +929,17 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 identity_obj_early = await auth_agent.get_verified_identity(db, sid)
                 if identity_obj_early:
                     logger.info("phase26.3.A timing: identity pre-router dispatch start")
-                    fanout_out = await _maybe_fanout(
-                        db=db, session_id=sid, message=message,
-                        session_context=session_context,
-                        identity_obj=identity_obj_early,
-                        emit_status=emit_status,
-                        emit_token=emit_token,
-                    )
+                    try:
+                        fanout_out = await _maybe_fanout(
+                            db=db, session_id=sid, message=message,
+                            session_context=session_context,
+                            identity_obj=identity_obj_early,
+                            emit_status=emit_status,
+                            emit_token=emit_token,
+                        )
+                    except Exception:
+                        logger.exception("pre-router _maybe_fanout failed (non-fatal); falling through")
+                        fanout_out = None
                     if fanout_out is not None:
                         out = fanout_out["out"]
                         intent = fanout_out["intent"]
@@ -950,7 +954,13 @@ async def run_turn(db, session_id: Optional[str], message: str,
             # ---- 2) Router → specialist (skipped if identity short-circuit handled it) ----
             if out is None:
                 await _emit(emit_status, {"step": "router", "label": "Routing your question"})
-                routing = await classify(message, history, session_context=session_context)
+                try:
+                    routing = await classify(message, history, session_context=session_context)
+                except Exception:
+                    logger.exception("router classify() failed; falling back to SMALL_TALK")
+                    routing = {"intent": "SMALL_TALK", "subject": None,
+                               "confidence": 0.0, "rationale": "router_error_fallback",
+                               "tool_name": None, "tool_args": {}}
                 intent = routing["intent"]
                 subject = routing.get("subject")
                 trace.append({
@@ -964,13 +974,17 @@ async def run_turn(db, session_id: Optional[str], message: str,
             # in the trace, but BEFORE the specialist branches so the fan-out's
             # synthesis output replaces the reactive answer. Eligibility +
             # event detection happen inside `_maybe_fanout`.
-            fanout_out = await _maybe_fanout(
-                db=db, session_id=sid, message=message,
-                session_context=session_context,
-                identity_obj=await auth_agent.get_verified_identity(db, sid),
-                emit_status=emit_status,
-                emit_token=emit_token,
-            )
+            try:
+                fanout_out = await _maybe_fanout(
+                    db=db, session_id=sid, message=message,
+                    session_context=session_context,
+                    identity_obj=await auth_agent.get_verified_identity(db, sid),
+                    emit_status=emit_status,
+                    emit_token=emit_token,
+                )
+            except Exception:
+                logger.exception("post-router _maybe_fanout failed (non-fatal); falling through")
+                fanout_out = None
             if fanout_out is not None:
                 out = fanout_out["out"]
                 intent = fanout_out["intent"]
