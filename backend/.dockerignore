@@ -1,0 +1,20 @@
+# Phase 28 — exclude heavy/irrelevant files from the build context
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.venv
+venv
+env
+.env
+.env.*
+.dockerignore
+Dockerfile
+node_modules
+*.log
+logs/
+.mypy_cache
+.ruff_cache
+scripts/__pycache__

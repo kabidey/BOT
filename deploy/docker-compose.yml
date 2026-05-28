@@ -1,0 +1,38 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: mackertich-mongo
+    restart: unless-stopped
+    command: ["--wiredTigerCacheSizeGB", "1.0"]
+    volumes:
+      - /opt/mackertich/mongo-data:/data/db
+    ports:
+      - "127.0.0.1:27017:27017"   # bind to localhost only — never expose to internet
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    image: mackertich-backend:${BACKEND_TAG:-latest}
+    container_name: mackertich-backend
+    restart: unless-stopped
+    env_file:
+      - /opt/mackertich/.env
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
