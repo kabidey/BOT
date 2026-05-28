@@ -1,3 +1,16 @@
+# DEPLOYMENT POLICY (Effective Phase 28+)
+
+This product is NO LONGER deployed via Emergent production. Production deploys go to the customer-owned VPS:
+
+- Host: 187.127.174.187 (credentials stored in /root/.ssh on the VPS team's secure store; do not commit)
+- Target domain: bot.pesmifs.com (DNS A record must point to the VPS IP)
+- Reason for switch: Emergent production deploy pipeline was unreliable (silent failures, stale image cache, no version visibility, sandboxed env preventing diagnosis)
+- Emergent preview remains the staging environment; promotion to VPS is the production step
+
+Any future preview→production task means: build artifact → ship to 187.127.174.187 → verify on bot.pesmifs.com.
+
+---
+
 # SMIFS · Mackertich ONE Lead Wealth-Engagement Agent — PRD
 
 ## Original problem (Phase 6)
