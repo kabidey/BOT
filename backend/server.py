@@ -8,6 +8,7 @@ import json
 import asyncio
 import logging
 import uuid
+import re
 import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -840,6 +841,137 @@ async def admin_top_asks(request: Request, days: int = 7, limit: int = 10):
         "tickers":  await _top("ticker"),
         "products": await _top("product"),
         "identity": await _top("identity"),
+    }
+
+
+# ---------------- Phase 27 — Errors collection admin readouts ----------------
+def _errors_row_to_canonical(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Map the on-disk `errors` doc to the canonical response shape Phase 27
+    asks for. Tolerates both new and legacy field names so this works even
+    if a future schema change happens.
+
+    On-disk schema (resilience.log_error):
+      error_id, created_at, endpoint, session_id, role_state,
+      exc_type, exc_message, traceback, user_message_excerpt
+    """
+    exc_type = doc.get("exc_type") or ""
+    exc_message = doc.get("exc_message") or ""
+    if exc_type and exc_message:
+        exc = f"{exc_type}: {exc_message}"
+    else:
+        exc = exc_type or exc_message or doc.get("exc") or ""
+    return {
+        "error_id":     doc.get("error_id"),
+        "created_at":   doc.get("created_at"),
+        "endpoint":     doc.get("endpoint"),
+        "session_id":   doc.get("session_id"),
+        "user_message": doc.get("user_message_excerpt") or doc.get("user_message"),
+        "exc":          exc,
+        "exc_type":     exc_type or None,
+        "traceback":    doc.get("traceback"),
+        "request_meta": {
+            "role_state": doc.get("role_state"),
+        },
+    }
+
+
+@api_router.get("/admin/errors/recent")
+async def admin_errors_recent(
+    request: Request,
+    limit: int = 20,
+    endpoint: Optional[str] = None,
+    session_prefix: Optional[str] = None,
+    since_minutes: Optional[int] = None,
+):
+    """Phase 27 — read-only window into the `errors` collection so prod
+    tracebacks are pull-able from outside a sandboxed container.
+
+    Query params:
+      limit            — max rows (1..100, default 20)
+      endpoint         — filter by endpoint path, e.g. `/api/agent/turn/stream`
+      session_prefix   — case-insensitive prefix match on session_id (e.g. `BA0ED6F5`)
+      since_minutes    — only rows created in the last N minutes
+    """
+    _check_admin_request(request)
+    limit = max(1, min(int(limit or 20), 100))
+    q: Dict[str, Any] = {}
+    if endpoint:
+        q["endpoint"] = endpoint
+    if session_prefix:
+        # `created_at` is stored as ISO-8601 string, session_id stored verbatim.
+        # Anchor the regex so we only match true prefixes; escape user input.
+        q["session_id"] = {"$regex": "^" + re.escape(session_prefix), "$options": "i"}
+    if since_minutes is not None:
+        try:
+            mins = max(1, min(int(since_minutes), 60 * 24 * 30))  # 30-day cap
+            cutoff = (datetime.now(timezone.utc) - timedelta(minutes=mins)).isoformat()
+            q["created_at"] = {"$gte": cutoff}
+        except (TypeError, ValueError):
+            pass
+    cursor = db.errors.find(q, {"_id": 0}).sort([("created_at", -1)]).limit(limit)
+    rows: List[Dict[str, Any]] = []
+    async for doc in cursor:
+        rows.append(_errors_row_to_canonical(doc))
+    return {"count": len(rows), "rows": rows}
+
+
+@api_router.get("/admin/errors/summary")
+async def admin_errors_summary(request: Request):
+    """Phase 27 — last-24h grouped counts of errors for the dashboard."""
+    _check_admin_request(request)
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(hours=24)).isoformat()
+    base_match = {"$match": {"created_at": {"$gte": cutoff}}}
+
+    total = await db.errors.count_documents({"created_at": {"$gte": cutoff}})
+
+    async def _agg(pipeline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        async for doc in db.errors.aggregate(pipeline):
+            out.append(doc)
+        return out
+
+    by_endpoint = await _agg([
+        base_match,
+        {"$group": {"_id": "$endpoint", "count": {"$sum": 1},
+                    "last_at": {"$max": "$created_at"}}},
+        {"$sort": {"count": -1, "last_at": -1}},
+        {"$limit": 25},
+    ])
+    by_endpoint = [{"endpoint": d.get("_id"), "count": d.get("count"),
+                    "last_at": d.get("last_at")} for d in by_endpoint]
+
+    by_exc = await _agg([
+        base_match,
+        {"$group": {"_id": "$exc_type", "count": {"$sum": 1},
+                    "last_at": {"$max": "$created_at"},
+                    "sample_message": {"$last": "$exc_message"}}},
+        {"$sort": {"count": -1, "last_at": -1}},
+        {"$limit": 25},
+    ])
+    by_exception_type = [{"exc_type": d.get("_id") or "Unknown",
+                          "count": d.get("count"),
+                          "last_at": d.get("last_at"),
+                          "sample_message": d.get("sample_message")}
+                         for d in by_exc]
+
+    # Hourly buckets — ISO `created_at` strings sort lexicographically by hour
+    # if we strip to 'YYYY-MM-DDTHH'. Use $substr for that.
+    by_hour_raw = await _agg([
+        base_match,
+        {"$group": {"_id": {"$substr": ["$created_at", 0, 13]},
+                    "count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}},
+        {"$limit": 24},
+    ])
+    by_hour = [{"hour": d.get("_id"), "count": d.get("count")} for d in by_hour_raw]
+
+    return {
+        "since": cutoff,
+        "total": total,
+        "by_endpoint": by_endpoint,
+        "by_exception_type": by_exception_type,
+        "by_hour": by_hour,
     }
 
 
