@@ -1,0 +1,10 @@
+[Unit]
+Description=Mackertich nightly mongodump (Phase 28)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/mackertich-mongodump.sh
+StandardOutput=append:/var/log/mackertich/mongodump.log
+StandardError=append:/var/log/mackertich/mongodump.log
