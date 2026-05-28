@@ -557,7 +557,8 @@ async def startup_sync_if_empty(db) -> None:
     logger.info("SMIFS KB index empty — kicking off full sync")
     try:
         result = await sync(db, mode="full")
-        logger.info("SMIFS KB startup sync: %s", {k: result.get(k) for k in ("fetched", "upserted", "skipped", "errors")})
+        summary = {k: result.get(k) for k in ("fetched", "upserted", "skipped", "errors")}
+        logger.info("SMIFS KB startup sync: %s", str(summary))
     except Exception as e:
         logger.exception("SMIFS KB startup sync failed: %s", e)
 
