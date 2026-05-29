@@ -245,6 +245,39 @@ INTENT_TOOLS: List[Dict[str, Any]] = [
             },
         },
     },
+    # ---------------- Phase 31 — BMIA research / paper-trading umbrella ----------------
+    # Single umbrella tool that catches the 5 new BMIA endpoints (fund/decisions,
+    # fund/portfolio/{name}, litmus/positions, litmus/cycles, litmus/summary).
+    # The Phase-20 tools pipeline picks the right sub-tool via function-calling.
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_research_pipeline",
+            "description": (
+                "Use this WHEN the user asks about ANY of: (a) recent BMIA multi-agent "
+                "consensus calls / research recommendations / BUY-SELL-HOLD picks / analyst "
+                "verdicts; (b) a named model portfolio book (long_term, swing, intraday) — "
+                "'show me the long-term portfolio', 'swing book composition', 'intraday "
+                "holdings'; (c) Litmus paper-trading — open positions / MTM P&L / closed "
+                "trade cycles / win rate / aggregate paper-trading stats. Examples: "
+                "'recent BMIA consensus calls', 'top research picks this week', 'what's "
+                "in the long-term portfolio', 'show the swing book', 'open paper trades', "
+                "'litmus win rate', 'paper-trading scorecard', 'closed paper cycles P&L'. "
+                "Do NOT use for individual stock fundamentals (→ bmia_fundamentals_lookup) "
+                "nor for today's market briefing (→ bmia_daily_briefing)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "topic": {"type": "string",
+                              "description": "Short freeform tag of what the user asked "
+                              "for, e.g. 'recent consensus calls', 'long-term portfolio', "
+                              "'litmus win rate'."},
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 TOOL_TO_INTENT: Dict[str, str] = {
@@ -259,6 +292,9 @@ TOOL_TO_INTENT: Dict[str, str] = {
     "bmia_compliance_research": "BMIA_COMPLIANCE",
     "bmia_fundamentals_lookup": "BMIA_FUNDAMENTALS",
     "bmia_daily_briefing": "BMIA_BRIEFING",
+    # Phase 31 — umbrella for the 5 new BMIA endpoints; orchestrator dispatches
+    # this through the Phase 20 tools pipeline.
+    "bmia_research_pipeline": "BMIA_TOOLS_PIPELINE",
 }
 # Phase 8 — all directory_* tools map to a single intent carrying tool_name + args.
 for _t in DIRECTORY_TOOLS:
@@ -269,6 +305,9 @@ for _t in CLIENT_TOOLS:
 
 INTENTS.add("DIRECTORY_QUERY")
 INTENTS.add("CLIENT_QUERY")
+# Phase 31 — BMIA tools-pipeline umbrella intent (fund decisions, fund portfolio,
+# litmus positions / cycles / summary). Dispatched through the Phase-20 pipeline.
+INTENTS.add("BMIA_TOOLS_PIPELINE")
 
 ROUTER_SYSTEM_TOOLS = (
     "You are the intent router for the Mackertich ONE Advisor (Mackertich ONE is the wealth-management vertical of SMIFS Ltd). "

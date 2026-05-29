@@ -844,8 +844,14 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 and os.environ.get("PHASE_20_TOOLS_ENABLED", "false").lower() == "true"):
             try:
                 from orglens_tools import orchestrator as _p20, registry as _p20reg
-                # Only worth attempting if SOME visitor-eligible tool exists.
-                if _p20reg.visible_to("visitor"):
+                # Phase 31 — even if NO OrgLens tool is visitor-visible, the
+                # BMIA tools (public research / fundamentals / market data /
+                # litmus paper-trading / fund decisions) are. Attempt the
+                # tool-pipeline iff at least one of either category exists.
+                from agents import bmia_client as _bmia_check
+                has_orglens = _p20reg.visible_to("visitor")
+                has_bmia = bool(getattr(_bmia_check, "TOOL_SCHEMAS", None))
+                if has_orglens or has_bmia:
                     p20 = await _p20.run(db, sid, message,
                                           session={"session_type": "visitor",
                                                    "auth_state": auth_agent.ANON,
@@ -858,7 +864,13 @@ async def run_turn(db, session_id: Optional[str], message: str,
                     blocks_have_content = (
                         bool(p20.get("ok"))
                         and any(b.get("type") in ("text", "table", "chart", "image",
-                                                    "employee_card", "client_card")
+                                                    "employee_card", "client_card",
+                                                    "bmia_fundamentals_card",
+                                                    "bmia_fund_decisions_card",
+                                                    "bmia_fund_portfolio_card",
+                                                    "bmia_litmus_positions_card",
+                                                    "bmia_litmus_cycles_card",
+                                                    "bmia_litmus_summary_card")
                                 for b in (p20.get("blocks") or []))
                     )
                     if blocks_have_content:
@@ -1011,6 +1023,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
                 "FANOUT_TICKER": "Synthesising market intelligence",
                 "FANOUT_PRODUCT": "Synthesising product brief",
                 "FANOUT_IDENTITY": "Synthesising your portfolio snapshot",
+                "BMIA_TOOLS_PIPELINE": "Consulting the research desk",
             }
             await _emit(emit_status, {"step": "specialist", "intent": intent, "label": label_for.get(intent, "Working")})
             identity_obj = await auth_agent.get_verified_identity(db, sid)
@@ -1028,7 +1041,7 @@ async def run_turn(db, session_id: Optional[str], message: str,
             # `_branch_knowledge` (RAG) path below.
             if (os.environ.get("PHASE_20_TOOLS_ENABLED", "false").lower() == "true"
                     and intent in ("CLIENT_LOOKUP", "CLIENT_QUERY", "DIRECTORY_QUERY",
-                                    "SMALL_TALK")):
+                                    "SMALL_TALK", "BMIA_TOOLS_PIPELINE")):
                 try:
                     from orglens_tools import orchestrator as _p20
                     p20 = await _p20.run(db, sid, message,
@@ -1327,4 +1340,19 @@ def _flatten_text(blocks: List[Dict[str, Any]]) -> str:
         elif b.get("type") == "reporting_chain_card":
             d = b.get("data", {})
             parts.append(f"[Reporting chain: {len(d.get('chain') or [])} levels]")
+        elif b.get("type") == "bmia_fund_decisions_card":
+            d = b.get("data", {})
+            parts.append(f"[BMIA fund decisions: {d.get('count', 0)} recent calls]")
+        elif b.get("type") == "bmia_fund_portfolio_card":
+            d = b.get("data", {})
+            parts.append(f"[BMIA portfolio: {d.get('name')} · available={d.get('available')}]")
+        elif b.get("type") == "bmia_litmus_positions_card":
+            d = b.get("data", {})
+            parts.append(f"[Litmus positions: {d.get('shown', 0)} of {d.get('count', 0)}]")
+        elif b.get("type") == "bmia_litmus_cycles_card":
+            d = b.get("data", {})
+            parts.append(f"[Litmus cycles: {d.get('count', 0)} closed trades]")
+        elif b.get("type") == "bmia_litmus_summary_card":
+            d = b.get("data", {})
+            parts.append(f"[Litmus summary: win_rate={d.get('win_rate')}, pnl={d.get('total_pnl')}]")
     return "\n\n".join(parts).strip()

@@ -1121,6 +1121,60 @@ body {
 .smifs-bmia-card-foot { margin-top: 12px; font-size: 0.7rem; color: #64748b; display: flex; align-items: center; gap: 4px; }
 /* ---------------- /Phase 24c.4 ---------------- */
 
+/* ---------------- Phase 31 — BMIA fund/litmus cards ---------------- */
+.smifs-bmia-asof--warn { background: rgba(217, 119, 6, 0.10); border-color: rgba(217, 119, 6, 0.32); color: #92400e; }
+
+/* Fund decisions list */
+.smifs-bmia-dec-list { list-style: none; padding: 0; margin: 6px 0 12px; display: flex; flex-direction: column; gap: 10px; }
+.smifs-bmia-dec-row { border: 1px solid var(--line, #e2e8f0); border-radius: 10px; padding: 10px 12px; background: #fafbfd; }
+.smifs-bmia-dec-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.smifs-bmia-dec-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.smifs-bmia-dec-sym { font-weight: 700; color: #0f172a; font-size: 0.92rem; letter-spacing: 0.02em; }
+.smifs-bmia-dec-sector { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 8px; }
+.smifs-bmia-dec-ts { font-size: 0.7rem; color: #94a3b8; }
+.smifs-bmia-dec-right { display: flex; align-items: center; gap: 8px; }
+.smifs-bmia-verdict { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; }
+.smifs-bmia-verdict--buy  { background: rgba(9, 140, 98, 0.12);  border: 1px solid rgba(9, 140, 98, 0.32);  color: #066b4a; }
+.smifs-bmia-verdict--sell { background: rgba(185, 55, 74, 0.12); border: 1px solid rgba(185, 55, 74, 0.32); color: #9f1239; }
+.smifs-bmia-verdict--hold { background: rgba(100, 116, 139, 0.12); border: 1px solid rgba(100, 116, 139, 0.32); color: #475569; }
+.smifs-bmia-dec-conf { font-size: 0.72rem; font-weight: 600; color: #0f172a; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 999px; padding: 3px 8px; }
+.smifs-bmia-dec-headline { font-size: 0.85rem; line-height: 1.5; color: #1f2937; margin: 6px 0 4px; }
+.smifs-bmia-dec-metrics { display: flex; gap: 14px; font-size: 0.74rem; color: #475569; flex-wrap: wrap; margin: 2px 0 4px; }
+.smifs-bmia-dec-metrics strong { color: #0f172a; font-weight: 600; }
+.smifs-bmia-dec-expand { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; display: flex; flex-direction: column; gap: 8px; }
+.smifs-bmia-dec-rationale { font-size: 0.82rem; line-height: 1.55; color: #334155; margin: 0; }
+.smifs-bmia-dec-expand h6 { font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b; margin: 4px 0 4px; }
+.smifs-bmia-dec-expand ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+
+/* Litmus positions / cycles tables — reuse smifs-bmia-table; add P&L cell variants */
+.smifs-bmia-pnl-cell { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.smifs-bmia-pnl--up   { color: #0c8a4d; font-weight: 600; }
+.smifs-bmia-pnl--dn   { color: #b9374a; font-weight: 600; }
+.smifs-bmia-pnl--flat { color: #64748b; }
+
+.smifs-bmia-cyc-range { display: block; font-variant-numeric: tabular-nums; font-size: 0.78rem; color: #0f172a; }
+.smifs-bmia-cyc-dates { display: block; font-size: 0.66rem; color: #94a3b8; margin-top: 1px; }
+
+/* Portfolio card */
+.smifs-bmia-portfolio-empty { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: rgba(217, 119, 6, 0.06); border: 1px solid rgba(217, 119, 6, 0.22); border-radius: 10px; margin: 6px 0 10px; }
+.smifs-bmia-portfolio-empty-icon { color: #b45309; flex: 0 0 auto; margin-top: 1px; }
+.smifs-bmia-portfolio-empty-title { font-size: 0.84rem; color: #92400e; margin: 0 0 4px; font-weight: 600; }
+.smifs-bmia-portfolio-empty-hint, .smifs-bmia-portfolio-empty-suggest { font-size: 0.78rem; color: #78350f; margin: 4px 0 0; line-height: 1.5; }
+.smifs-bmia-portfolio-meta { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; }
+.smifs-bmia-portfolio-meta p { margin: 0; font-size: 0.8rem; color: #475569; display: inline-flex; align-items: center; gap: 6px; }
+.smifs-bmia-portfolio-meta strong { color: #0f172a; font-weight: 600; }
+.smifs-bmia-portfolio-notes { font-style: italic; color: #64748b; }
+
+/* Litmus summary KPI grid + gauge */
+.smifs-bmia-kpi-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 8px 0 12px; }
+@media (max-width: 480px) { .smifs-bmia-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.smifs-bmia-kpi { border: 1px solid var(--line, #e2e8f0); border-radius: 10px; padding: 10px 12px; background: #fafbfd; }
+.smifs-bmia-kpi-label { font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b; margin: 0 0 4px; }
+.smifs-bmia-kpi-val { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin: 0; font-variant-numeric: tabular-nums; }
+.smifs-bmia-gauge { display: flex; flex-direction: column; align-items: center; gap: 0; line-height: 1; }
+.smifs-bmia-gauge-val { font-size: 0.92rem; font-weight: 700; color: #0c8a4d; margin: 0; letter-spacing: 0.02em; }
+/* ---------------- /Phase 31 ---------------- */
+
 
 /* ---------- Form block ---------- */
 .smifs-form-card {

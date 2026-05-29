@@ -4,7 +4,7 @@
 > app that consumes the existing FastAPI backend at `https://bot.pesmifs.com`.
 >
 > **Source of truth**: this document tracks the live backend contract as of
-> **Phase 29 (May 2026)**. Any backend change MUST update this file in the
+> **Phase 31 (Feb 2026)**. Any backend change MUST update this file in the
 > same PR. The web frontend at `/app/frontend/` is the visual reference
 > implementation; mobile is a peer client, not a port.
 >
@@ -593,6 +593,144 @@ Stock fundamentals card emitted after the BMIA `fundamentals` tool call
   reduces scroll fatigue on mobile).
 
 Web component: `BmiaFundamentalsCard.jsx`.
+
+### 5.5.1 `bmia_fund_decisions_card` (Phase 31)
+
+Recent multi-agent consensus calls from the BMIA research desk. Emitted
+after the LLM picks `bmia_fund_decisions` in the tools pipeline.
+
+```json
+{ "type": "bmia_fund_decisions_card",
+  "data": {
+    "count": 10,
+    "decisions": [{
+      "symbol": "RELIANCE",
+      "final_verdict": "BUY",          // or `decision`: BUY|HOLD|SELL|ACCEPT
+      "confidence": 0.78,               // 0-1 fraction; FE clamps to 0-100%
+      "headline": "Q3 results beat consensus on EBITDA…",
+      "rationale": "Long-form rationale (full).",
+      "rationale_excerpt": "Long-form rationale truncated to 700 chars…",
+      "rationale_truncated": true,
+      "key_reasons":  ["Margin expansion", "Strong order book"],
+      "watch_outs":   ["FX risk", "Raw-material spike"],
+      "sector": "Energy",
+      "last_close": 2945.10,
+      "rsi14": 58.4,
+      "ts": "2026-02-04T14:11:00Z"
+    }, ...]
+  }
+}
+```
+
+* Render as a list of cards, one per decision. Verdict chip color: BUY/ACCEPT=green, SELL=red, HOLD=slate.
+* Confidence shown as a pill (round to integer %).
+* "Show rationale" toggle reveals `rationale` (or `rationale_excerpt` when truncated), `key_reasons`, `watch_outs`.
+* Web component: `BmiaFundDecisionsCard.jsx`.
+
+### 5.5.2 `bmia_fund_portfolio_card` (Phase 31)
+
+Composition of a named model portfolio book. The BMIA endpoint currently
+returns 404 for unprovisioned books — backend converts this into a
+graceful `available: false` envelope; FE must render the "not yet
+provisioned" state, not an error.
+
+```json
+{ "type": "bmia_fund_portfolio_card",
+  "data": {
+    "name": "long_term",     // or "swing" | "intraday"
+    "available": true,
+    "as_of": "2026-02-04",
+    "holdings": [
+      { "symbol": "TCS", "qty": 50, "entry_price": 3850.00, "ltp": 3942.10, "weight": 0.085, "sector": "IT" }
+    ]
+  }
+}
+```
+
+Or when not provisioned:
+
+```json
+{ "type": "bmia_fund_portfolio_card",
+  "data": {
+    "name": "long_term",
+    "available": false,
+    "reason": "portfolio_not_yet_provisioned",
+    "hint": "This portfolio book has not been published by the BMIA research desk yet…"
+  }
+}
+```
+
+* Status pill: green "Live" when available, amber "Not provisioned" otherwise.
+* When unavailable, render the warning band with `hint` and suggest the user try a different book.
+* Web component: `BmiaFundPortfolioCard.jsx`.
+
+### 5.5.3 `bmia_litmus_positions_card` (Phase 31)
+
+Currently OPEN paper-trading positions with live mark-to-market P&L.
+
+```json
+{ "type": "bmia_litmus_positions_card",
+  "data": {
+    "count": 12,        // total positions matching filter
+    "shown": 12,        // rows actually included
+    "only_open": true,
+    "positions": [
+      { "symbol": "HDFCBANK", "qty": 10, "entry_price": 1620.00,
+        "current_price": 1675.40, "mtm_pnl": 554.00, "mtm_pnl_pct": 3.42,
+        "status": "open", "entry_date": "2026-01-22" }
+    ]
+  }
+}
+```
+
+* Render as a table: Symbol · Qty · Entry · LTP · MTM ₹ · MTM %.
+* P&L cells colored green/red based on sign; up/down chevron on the ₹ column.
+* Web component: `BmiaLitmusPositionsCard.jsx`.
+
+### 5.5.4 `bmia_litmus_cycles_card` (Phase 31)
+
+CLOSED paper-trading cycles with realised P&L per trade.
+
+```json
+{ "type": "bmia_litmus_cycles_card",
+  "data": {
+    "count": 20,
+    "cycles": [
+      { "symbol": "INFY", "entry_price": 1480.00, "exit_price": 1565.00,
+        "holding_days": 6, "pnl_rs": 850.00, "pnl_pct": 5.74,
+        "entry_date": "2026-01-15", "exit_date": "2026-01-21",
+        "entry_decision": "BUY · breakout above 1475",
+        "exit_decision":  "SELL · target hit" }
+    ]
+  }
+}
+```
+
+* Render as a table: Symbol · Entry→Exit (with dates below) · Days · P&L ₹ · P&L %.
+* Header pill shows "shown win rate" computed locally from the rendered slice.
+* Web component: `BmiaLitmusCyclesCard.jsx`.
+
+### 5.5.5 `bmia_litmus_summary_card` (Phase 31)
+
+Aggregate paper-trading scorecard.
+
+```json
+{ "type": "bmia_litmus_summary_card",
+  "data": {
+    "open_positions":      12,
+    "closed_cycles":       148,
+    "total_pnl":           324500.00,
+    "avg_pnl":             2192.57,
+    "win_rate":            0.624,        // 0-1 fraction
+    "avg_holding_days":    4.8
+  }
+}
+```
+
+* 6-cell KPI grid (3 × 2 on desktop, 2 × 3 on mobile): Total P&L, Avg P&L/trade, Win Rate, Avg Holding, Open, Closed.
+* Win rate also rendered as a CSS-only half-circle gauge in the card header.
+* Money formatted with ₹ Cr / ₹ L / ₹k thresholds for readability.
+* Web component: `BmiaLitmusSummaryCard.jsx`.
 
 ### 5.6 `low_confidence_escalation`
 
@@ -1188,7 +1326,7 @@ out from the backend:
 | ------------------ | ------------------------------------------------------------------- |
 | **Hub AI** (`ai.superclue.io`) | LLM completions (gpt-4o, gpt-4o-mini, llama-3.3-70b, gemma-4, claude-haiku) + embeddings (text-embedding-3-large @ 3072d). |
 | **OrgLens** (`orglens.pesmifs.com`) | Identity verification, employee directory, client portfolio, holdings, reporting chain. |
-| **BMIA** (compliance + fundamentals) | NSE fundamentals (`bmia_fundamentals_card`), daily briefing, anti-bluff signals. |
+| **BMIA** (compliance + fundamentals + research) | NSE fundamentals (`bmia_fundamentals_card`), daily briefing, anti-bluff signals. **Phase 31 adds**: multi-agent consensus calls (`/fund/decisions` → `bmia_fund_decisions_card`), model portfolio books (`/fund/portfolio/{name}` → `bmia_fund_portfolio_card`), Litmus paper-trading book (`/litmus/positions` → `bmia_litmus_positions_card`, `/litmus/cycles` → `bmia_litmus_cycles_card`, `/litmus/summary` → `bmia_litmus_summary_card`). |
 | **SMTP relay**     | Outbound emails for form submissions to `brand@smifs.com`.          |
 
 Mobile **does not** authenticate to any of these. The backend's API keys

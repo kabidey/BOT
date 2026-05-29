@@ -271,10 +271,18 @@ async def run(db, session_id: str, user_message: str,
         max_tools=8,
     )
     if not tools:
-        # Fall back to the legacy orchestrator by returning ok=False.
-        trace.append({"step": "registry_select", "tools": [], "reason": "no_visible_tools"})
-        return {"ok": False, "reason": "no_visible_tools", "trace": trace,
-                "classification": classification}
+        # Phase 31 — visitors typically have no OrgLens tools visible, but the
+        # BMIA tools (public research / fundamentals / market data) are still
+        # usable. If at least one BMIA tool is reachable, proceed with an
+        # empty OrgLens tool list — `function_schemas` becomes just the
+        # BMIA bundle below.
+        if _bmia is None or not getattr(_bmia, "TOOL_SCHEMAS", None):
+            trace.append({"step": "registry_select", "tools": [],
+                          "reason": "no_visible_tools"})
+            return {"ok": False, "reason": "no_visible_tools", "trace": trace,
+                    "classification": classification}
+        trace.append({"step": "registry_select", "tools": [],
+                      "note": "orglens_empty_continuing_with_bmia_only"})
 
     function_schemas = _reg.function_schemas(tools)
     # Phase 24c — expose BMIA tools to the LLM alongside OrgLens tools. Every
@@ -388,6 +396,11 @@ async def run(db, session_id: str, user_message: str,
     blocks = _rb.build_blocks(final_text,
                                 output_hint=classification.get("output_hint", "narrative"),
                                 language=classification.get("language", "en"))
+
+    # 4a-pre. Phase 31 — deterministic BMIA card injection. If a tool result
+    # carries a recognisable shape AND the LLM didn't already emit a matching
+    # card block, append the structured card so the UI always renders rich.
+    blocks = _augment_with_bmia_cards(blocks, accumulated_tool_payloads)
 
     # 4a. HARD GATES (response_builder layer) — table-shape + clamp-shape.
     # Returns possibly-rewritten blocks + a flag if the LLM needs a reprompt.
@@ -513,3 +526,73 @@ async def _pseudo_stream(emit_token, text: str,
             await emit_token(" ".join(buf))
         except Exception:
             return
+
+
+
+# ---------------------------------------------------------------------------
+# Phase 31 — Deterministic BMIA card augmentation
+# ---------------------------------------------------------------------------
+_BMIA_CARD_TYPES = {
+    "bmia_fund_decisions_card",
+    "bmia_fund_portfolio_card",
+    "bmia_litmus_positions_card",
+    "bmia_litmus_cycles_card",
+    "bmia_litmus_summary_card",
+}
+
+
+def _augment_with_bmia_cards(blocks: List[Dict[str, Any]],
+                              tool_payloads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Walk parsed tool payloads; for each Phase-31 BMIA result shape,
+    append a structured card block if one isn't already present.
+
+    The LLM is allowed (and encouraged) to emit these card types itself in
+    its JSON output, but we do not rely on it — a deterministic injection
+    here guarantees the rich card UI even if the LLM wrote prose-only.
+
+    Tool payloads have the `_compact_for_llm` shape:
+        {"ok": True, "tool": "<name>", "value": {...}}
+    so the actual response body lives under `.value`.
+    """
+    if not tool_payloads:
+        return blocks
+    have_types = {b.get("type") for b in (blocks or []) if isinstance(b, dict)}
+    additions: List[Dict[str, Any]] = []
+
+    def _add(card_type: str, data: Dict[str, Any]) -> None:
+        if card_type in have_types:
+            return
+        additions.append({"type": card_type, "data": data})
+        have_types.add(card_type)
+
+    for payload in tool_payloads:
+        if not isinstance(payload, dict) or not payload.get("ok"):
+            continue
+        tool = (payload.get("tool") or "")
+        value = payload.get("value")
+        if not isinstance(value, dict):
+            continue
+
+        if tool == "bmia_fund_decisions":
+            decs = value.get("decisions")
+            if isinstance(decs, list):
+                _add("bmia_fund_decisions_card", value)
+            continue
+        if tool == "bmia_fund_portfolio":
+            if "name" in value:
+                _add("bmia_fund_portfolio_card", value)
+            continue
+        if tool == "bmia_litmus_positions":
+            if "positions" in value:
+                _add("bmia_litmus_positions_card", value)
+            continue
+        if tool == "bmia_litmus_cycles":
+            if "cycles" in value:
+                _add("bmia_litmus_cycles_card", value)
+            continue
+        if tool == "bmia_litmus_summary":
+            # Summary is a small flat object; render whatever stats are there.
+            _add("bmia_litmus_summary_card", value)
+            continue
+
+    return list(blocks or []) + additions

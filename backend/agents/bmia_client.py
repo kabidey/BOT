@@ -265,6 +265,79 @@ async def daily_briefing(date: Optional[str] = None,
 
 
 # ============================================================
+# Phase 31 — Fund decisions, portfolio composition, Litmus paper-trading
+# ============================================================
+async def fund_decisions(limit: int = 10) -> Dict[str, Any]:
+    """Recent 6-agent consensus decisions (latest first). Each item carries
+    `symbol`, `decision`/`final_verdict`, `confidence`, `headline`, the
+    long-form `rationale`, `key_reasons`, `watch_outs`, `sector`,
+    `last_close`, `rsi14`, and ISO `ts`."""
+    limit = max(1, min(int(limit or 10), 50))
+    raw = await _call("GET", "/fund/decisions", timeout=10.0)
+    decs = (raw.get("decisions") or [])[:limit]
+    # Trim rationale to keep LLM context manageable (full text is ~1.5 KB).
+    for d in decs:
+        if isinstance(d.get("rationale"), str) and len(d["rationale"]) > 700:
+            d["rationale_excerpt"] = d["rationale"][:700].rstrip() + "…"
+            d["rationale_truncated"] = True
+    return {"count": len(decs), "decisions": decs}
+
+
+async def fund_portfolio(name: str) -> Dict[str, Any]:
+    """Live composition of a named portfolio book. Currently BMIA exposes
+    only certain names server-side; for any unprovisioned name we get a
+    404 with a deterministic shape so the caller can degrade gracefully."""
+    nm = (name or "").strip().lower()
+    if nm not in ("long_term", "swing", "intraday"):
+        raise ValueError("name must be one of: long_term, swing, intraday")
+    try:
+        raw = await _call("GET", f"/fund/portfolio/{nm}", timeout=10.0)
+        return {"name": nm, "available": True, **raw}
+    except Exception as e:
+        msg = str(e).lower()
+        if "404" in msg or "not found" in msg:
+            return {"name": nm, "available": False,
+                    "reason": "portfolio_not_yet_provisioned",
+                    "hint": ("This portfolio book has not been published by the "
+                             "BMIA research desk yet. Try a different book or "
+                             "check back later.")}
+        raise
+
+
+async def litmus_positions(limit: Optional[int] = None,
+                            only_open: bool = True) -> Dict[str, Any]:
+    """Paper-trading book. By default returns only currently open positions
+    (the API mixes open + recently-closed in one stream); flip `only_open`
+    off to see the lifetime tape. `limit` caps the row count returned to
+    the LLM (BMIA can return 300+)."""
+    raw = await _call("GET", "/litmus/positions", timeout=10.0)
+    positions = raw.get("positions") or []
+    if only_open:
+        positions = [p for p in positions if p.get("status") == "open"]
+    total = len(positions)
+    if limit is not None and limit > 0:
+        positions = positions[: int(limit)]
+    return {"count": total, "shown": len(positions),
+            "only_open": only_open, "positions": positions}
+
+
+async def litmus_cycles(limit: int = 20) -> Dict[str, Any]:
+    """Closed paper-trading cycles with realised P&L (latest first)."""
+    limit = max(1, min(int(limit or 20), 100))
+    raw = await _call("GET", "/litmus/cycles", timeout=10.0)
+    cycles = (raw.get("cycles") or [])[:limit]
+    return {"count": len(cycles), "cycles": cycles}
+
+
+async def litmus_summary() -> Dict[str, Any]:
+    """Aggregate paper-trading stats: open_positions, closed_cycles,
+    total_pnl, avg_pnl, win_rate (0-1), avg_holding_days."""
+    return await _call("GET", "/litmus/summary", timeout=8.0)
+
+
+
+
+# ============================================================
 # Tool registry — function-call schemas for the orchestrator
 # ============================================================
 TOOL_SCHEMAS: List[Dict[str, Any]] = [
@@ -369,6 +442,105 @@ TOOL_SCHEMAS: List[Dict[str, Any]] = [
             },
         },
     },
+    # ------- Phase 31 — Fund / Litmus tools -------
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_fund_decisions",
+            "description": (
+                "Recent multi-agent consensus calls on Indian stocks (BUY/HOLD/SELL/ACCEPT, "
+                "confidence, headline, rationale, key reasons, watch-outs). Use ONLY when user "
+                "asks about 'latest research calls', 'recent recommendations', 'consensus picks', "
+                "'top calls', 'what is the fund / research desk saying', 'analyst rating on X', "
+                "'recent BUY/SELL ideas'. Each row has the deciding `run_id` that may anchor "
+                "follow-ups. Do NOT use this for fundamentals of a single stock — use "
+                "`bmia_fundamentals_lookup` for that."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 10,
+                              "description": "How many recent decisions to fetch."}
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_fund_portfolio",
+            "description": (
+                "Live composition of a NAMED model portfolio book. Books supported: "
+                "`long_term` (multi-year conviction holdings), `swing` (~weeks-to-months trades), "
+                "`intraday` (sub-day book). Use ONLY when user asks 'show me the long-term "
+                "portfolio / swing book / intraday book', 'what's in the model portfolio', "
+                "'portfolio composition', 'current holdings of the X book'. Default to "
+                "`long_term` if the user just says 'the portfolio' without qualifying."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "enum": ["long_term", "swing", "intraday"],
+                             "description": "Which book to fetch."}
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_litmus_positions",
+            "description": (
+                "Currently OPEN paper-trading positions in the Litmus book — symbol, qty, entry "
+                "price, current price, mark-to-market unrealised P&L. Use ONLY when user asks "
+                "'what's currently open in paper trading', 'live Litmus book', 'open paper "
+                "positions', 'what is the paper book holding right now', 'show me MTM on paper "
+                "trades'. Do NOT use for closed trades — see `bmia_litmus_cycles`."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 25,
+                              "description": "Cap row count for LLM consumption."}
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_litmus_cycles",
+            "description": (
+                "CLOSED paper-trading cycles (latest first) with realised P&L per trade — "
+                "entry/exit prices, holding days, ₹ P&L, % P&L, entry/exit decision headlines. "
+                "Use ONLY when user asks 'recent paper trades', 'closed trades', 'trade history', "
+                "'P&L per trade', 'how did the last N paper trades go', 'show me wins/losses'. "
+                "For aggregate stats use `bmia_litmus_summary` instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20,
+                              "description": "How many closed cycles to return."}
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "bmia_litmus_summary",
+            "description": (
+                "Aggregate Litmus paper-trading stats: total P&L (₹), average P&L per trade, "
+                "win rate (0-1), average holding period (days), open-position count, closed-cycle "
+                "count. Use ONLY when user asks 'how is paper trading doing overall', 'paper-book "
+                "hit rate', 'win rate', 'overall paper P&L', 'aggregate performance', "
+                "'paper-trading scorecard'. Do NOT call this for individual trade details."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
 
@@ -405,6 +577,18 @@ async def execute(tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
                 sections=params.get("sections"),
             )
             value = data
+        elif tool_name == "bmia_fund_decisions":
+            value = await fund_decisions(limit=int(params.get("limit") or 10))
+        elif tool_name == "bmia_fund_portfolio":
+            value = await fund_portfolio(name=params.get("name") or "long_term")
+        elif tool_name == "bmia_litmus_positions":
+            value = await litmus_positions(
+                limit=int(params.get("limit") or 25), only_open=True,
+            )
+        elif tool_name == "bmia_litmus_cycles":
+            value = await litmus_cycles(limit=int(params.get("limit") or 20))
+        elif tool_name == "bmia_litmus_summary":
+            value = await litmus_summary()
         else:
             return {"ok": False, "tool_name": tool_name, "error": "unknown_bmia_tool"}
         return {"ok": True, "tool_name": tool_name, "value": value,

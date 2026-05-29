@@ -176,6 +176,37 @@ _FALLBACK_BY_KEYWORD: List[tuple] = [
          "Branch performance dashboard",
          "Latest internal circulars"],
     ),
+    # ---- Phase 31 — BMIA fund decisions / model portfolio ----
+    (
+        ("consensus", "recommendation", "research call", "research desk",
+         "analyst rating", "fund decision", "buy sell hold", "buy/sell",
+         "model portfolio", "long-term portfolio", "long term portfolio",
+         "swing book", "intraday book", "research pick", "top picks"),
+        ["What are today's BUY calls?",
+         "Show the long-term portfolio book",
+         "How is the research desk performing?"],
+        ["Compare consensus calls with my holdings",
+         "Add a top BUY to my watchlist",
+         "Talk to my relationship manager"],
+        ["Generate client talking points on top picks",
+         "Pull intraday book composition",
+         "Recent SELL calls and rationale"],
+    ),
+    # ---- Phase 31 — Litmus paper trading ----
+    (
+        ("litmus", "paper trade", "paper trading", "open position",
+         "paper book", "mtm pnl", "win rate", "paper p&l",
+         "paper p and l", "closed cycle", "paper scorecard"),
+        ["Show paper-trading win rate",
+         "What's the open paper book?",
+         "Recent closed paper trades"],
+        ["How does paper trading compare to my portfolio?",
+         "Show recent paper-trading wins",
+         "Talk to my relationship manager"],
+        ["Generate Litmus performance summary",
+         "Pull closed paper trades for review",
+         "Aggregate paper P&L by sector"],
+    ),
 ]
 
 

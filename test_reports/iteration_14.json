@@ -1,0 +1,33 @@
+{
+  "summary": "Phase 31 (BMIA tools-pipeline umbrella) backend acceptance suite: 15/15 tests pass in /app/backend/tests/test_phase31_bmia_tools.py. Coverage: (1) direct bmia_client.execute() for all 5 new tools — bmia_fund_decisions returns ok:True+decisions list; bmia_fund_portfolio(long_term) degrades gracefully on 404 to ok:True+value.available:false+reason; bmia_litmus_positions/cycles/summary all return ok:True with the documented shapes (litmus_summary carries open_positions/closed_cycles/total_pnl/win_rate). (2) router.classify() correctly routes all three umbrella queries ('Show me recent BMIA consensus calls', 'long-term portfolio book', 'litmus paper trading win rate') to intent=BMIA_TOOLS_PIPELINE with tool_name=bmia_research_pipeline via Hub AI native tool-calling — no misroute to BMIA_BRIEFING / BMIA_FUNDAMENTALS observed. (3) orglens_tools.orchestrator._augment_with_bmia_cards correctly injects all 5 card types from the new payload-via-`value`-key shape, is idempotent against pre-existing card types, and ignores ok:False payloads. (4) suggestion_agent._fallback_chips returns Phase-31 BUY-call/portfolio/research-desk chips for visitor + consensus queries and Litmus-referencing chips for employee + paper-trading queries (no generic fallback leak). (5) /api/health is 200; /api/openapi.json is 200 and lists /health among the routes. Per the agent-to-agent note, LLM second-round synthesis was deliberately NOT exercised (Hub AI ReadTimeout at 25s on this preview pod — environmental).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase31_bmia_tools.py",
+    "/app/test_reports/pytest/phase31_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "agents/orchestrator.py — confirmed BMIA_TOOLS_PIPELINE was added to the Phase-20 dynamic-tool allowlist (line ~1044, alongside SMALL_TALK) and to the typing-indicator copy map (line ~1026, 'Consulting the research desk'). The fix is correctly wired.",
+    "agents/router.py — TOOL_TO_INTENT mapping for bmia_research_pipeline → BMIA_TOOLS_PIPELINE is in place (line ~297) and INTENTS.add('BMIA_TOOLS_PIPELINE') at line ~310 is present. The umbrella tool's description is well-scoped and explicitly excludes single-stock fundamentals + daily briefing, which should keep the legacy three BMIA intents (compliance/fundamentals/briefing) unaffected.",
+    "agents/bmia_client.py:286-304 fund_portfolio() correctly normalises 404 into a deterministic available:false envelope BEFORE re-raising for any other error class — good. The 'name must be one of: long_term, swing, intraday' guard at line 292 will surface as ok:False/invalid_params (handled at line 596 in execute()) for any other book name — acceptable. Consider whether the LLM tool schema's `name` enum guard is sufficient (it is — function-calling enforces enums client-side).",
+    "orglens_tools/orchestrator.py:544-598 — the rewrite to read payload.get('value') by tool name is correct and matches the bmia_client.execute() envelope shape {ok, tool_name, value}. NB: the function reads payload['tool'] (not payload['tool_name']) — confirm the upstream caller in this codebase passes payloads keyed by 'tool' (this is the pipeline conventon; both tests pass against the contract so the producer-side is also doing the right thing).",
+    "suggestion_agent.py:179-209 — Phase-31 fallback catalog entries are coherent across visitor/client/employee personas and use distinctive keywords ('consensus', 'litmus', 'paper trade', 'long-term portfolio', etc.) that should not collide with the existing entries above them in the catalog."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase31_bmia_tools.py (new)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "n/a — skipped per request"},
+  "test_credentials": "BMIA_API_KEY + LLMHUB_API_KEY already in /app/backend/.env. No admin/auth credentials needed for this suite.",
+  "seed_data_creation": "None. All tests call live BMIA endpoints (read-only) or pure local Python functions.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Suite lives at /app/backend/tests/test_phase31_bmia_tools.py and is self-contained — re-run with `cd /app/backend && python -m pytest tests/test_phase31_bmia_tools.py -v`. The router-classification tests (3 parametrised) DO call Hub AI for tool-call selection (~1-2s each) — they will fail if LLMHUB_API_KEY is missing or if both routers in ROUTER_TOOL_CHAIN (llama-3.3-70b-versatile, claude-haiku-4-5-20251001) are down. Per agent note, do NOT run end-to-end /api/chat against these queries on the preview pod — the post-tool synthesis call times out at 25s; the pipeline itself is fine."
+}

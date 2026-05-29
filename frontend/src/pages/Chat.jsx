@@ -27,6 +27,11 @@ import SaleFormBlock from "@/components/blocks/SaleFormBlock";
 import SaleConfirmationBlock from "@/components/blocks/SaleConfirmationBlock";
 import LocaleChoiceBlock, { LOCALE_OPTIONS } from "@/components/blocks/LocaleChoiceBlock";
 import BmiaFundamentalsCard from "@/components/blocks/BmiaFundamentalsCard";
+import BmiaFundDecisionsCard from "@/components/blocks/BmiaFundDecisionsCard";
+import BmiaFundPortfolioCard from "@/components/blocks/BmiaFundPortfolioCard";
+import BmiaLitmusPositionsCard from "@/components/blocks/BmiaLitmusPositionsCard";
+import BmiaLitmusCyclesCard from "@/components/blocks/BmiaLitmusCyclesCard";
+import BmiaLitmusSummaryCard from "@/components/blocks/BmiaLitmusSummaryCard";
 import LowConfidenceEscalation from "@/components/blocks/LowConfidenceEscalation";
 import { getFingerprintHeaders } from "@/lib/fingerprint";
 
@@ -734,6 +739,16 @@ export default function Chat({ embedded = false }) {
         return <EmployeeCardBlock key={key} block={block} msgIdx={msgIdx} />;
       case "bmia_fundamentals_card":
         return <BmiaFundamentalsCard key={key} data={block.data || block} showSource={!!widgetCfg?.show_citations_to_user} />;
+      case "bmia_fund_decisions_card":
+        return <BmiaFundDecisionsCard key={key} data={block.data || block} />;
+      case "bmia_fund_portfolio_card":
+        return <BmiaFundPortfolioCard key={key} data={block.data || block} />;
+      case "bmia_litmus_positions_card":
+        return <BmiaLitmusPositionsCard key={key} data={block.data || block} />;
+      case "bmia_litmus_cycles_card":
+        return <BmiaLitmusCyclesCard key={key} data={block.data || block} />;
+      case "bmia_litmus_summary_card":
+        return <BmiaLitmusSummaryCard key={key} data={block.data || block} />;
       case "low_confidence_escalation":
         return <LowConfidenceEscalation key={key} block={block} />;
       case "table":
