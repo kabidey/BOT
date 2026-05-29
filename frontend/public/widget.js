@@ -489,11 +489,29 @@
       .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)); });
   }
 
+  // Phase 32a — retry the config fetch up to 3 times with 500ms/1.5s/3s
+  // backoff. Embedded widgets on partner pages occasionally see transient
+  // network blips during initial paint; one-shot failure used to silently
+  // fall back to defaults (no theme, no welcome copy) which looked broken
+  // even though the bubble worked.
+  function fetchConfigWithRetry() {
+    var delays = [500, 1500, 3000];
+    function attempt(i) {
+      return fetchConfig().catch(function (err) {
+        if (i >= delays.length) return Promise.reject(err);
+        log("config fetch attempt " + (i + 1) + " failed, retrying in " + delays[i] + "ms", err);
+        return new Promise(function (resolve) { setTimeout(resolve, delays[i]); })
+          .then(function () { return attempt(i + 1); });
+      });
+    }
+    return attempt(0);
+  }
+
   function init() {
-    fetchConfig()
+    fetchConfigWithRetry()
       .then(bootstrap)
       .catch(function (err) {
-        log("config fetch failed; using defaults", err);
+        log("config fetch failed after retries; using defaults", err);
         bootstrap({
           brand_name: "Mackertich ONE",
           subtitle: "Wealth Management · SMIFS Ltd",

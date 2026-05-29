@@ -38,6 +38,30 @@ import { getFingerprintHeaders } from "@/lib/fingerprint";
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
 const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
 
+// Phase 32a — Never display raw browser-network errors ("Failed to fetch",
+// "Load failed", "Network Error", "TypeError…") in the user-visible error
+// banner. Map them to short, friendly copy. Anything that looks like a real
+// server-side validation/business detail (length > 8, no native-error tokens)
+// is passed through verbatim so we don't muffle helpful server messages.
+const _NATIVE_FETCH_FAIL_RE =
+  /^(typeerror|networkerror|failed to fetch|load failed|network error|fetch failed|the (network|request) (request )?(was )?(timed out|aborted)|err_network|err_internet_disconnected|err_connection_(refused|reset|aborted|closed|timed_out))/i;
+function friendlyError(raw, opts) {
+  const msg = (raw || "").toString().trim();
+  const status = opts && opts.httpStatus;
+  if (!msg) return "Something went wrong. Tap retry below to try again.";
+  if (_NATIVE_FETCH_FAIL_RE.test(msg)) {
+    return "Connection is slow right now. Please check your network and tap retry.";
+  }
+  if (status && status >= 500) {
+    return "We're having a brief hiccup at our end. Please try again in a moment.";
+  }
+  if (status === 0) {
+    return "Couldn't reach the advisory engine just now. Please check your network and retry.";
+  }
+  // Server-side validation / friendly detail — pass through, but cap length.
+  return msg.length > 180 ? msg.slice(0, 177) + "…" : msg;
+}
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 const STORAGE_KEY_DEFAULT = "smifs_session_id";
@@ -181,7 +205,7 @@ export default function Chat({ embedded = false }) {
       resetIdleTimers();
     } catch (e) {
       const d = e?.response?.data?.detail || e.message;
-      setErrorMsg(`Could not resume: ${d}`);
+      setErrorMsg(`Could not resume: ${friendlyError(d, { httpStatus: e?.response?.status })}`);
     }
   }, [sessionId, resetIdleTimers]);
 
@@ -210,7 +234,7 @@ export default function Chat({ embedded = false }) {
         const { data } = await axios.get(`${API}/health`);
         if (!cancelled) setHealth(data);
       } catch (e) {
-        if (!cancelled) setHealth({ status: "down", llm_reachable: false, detail: e.message });
+        if (!cancelled) setHealth({ status: "down", llm_reachable: false, detail: friendlyError(e.message, { httpStatus: e?.response?.status }) });
       }
     })();
     return () => { cancelled = true; };
@@ -300,7 +324,8 @@ export default function Chat({ embedded = false }) {
   }, []);
 
   /** Manual SSE parser over fetch+ReadableStream — EventSource doesn't support POST. */
-  const sendStreaming = useCallback(async (text) => {
+  const sendStreaming = useCallback(async (text, opts) => {
+    const isRetry = (opts && opts._retry) || 0;
     setErrorMsg("");
     setActiveCitation(null);
     // If the previous assistant message asked for PAN, auto-mask the user's submitted text in local history
@@ -462,14 +487,16 @@ export default function Chat({ embedded = false }) {
         }).catch(() => {});
       } catch { /* swallow */ }
 
-      // Phase 24b.fix3 — single auto-retry for transient network/HTTP errors
-      // (no retry on 4xx auth/validation errors). This collapses the
-      // intermittent "advisory engine unreachable" reports the tester saw.
-      const isTransient = !isRetry && (
+      // Phase 24b.fix3 + Phase 32a — auto-retry transient network/HTTP errors
+      // up to 3 times with progressive backoff (600ms / 1.6s / 3.5s). Skips
+      // retries on 4xx auth/validation errors. Collapses the intermittent
+      // "Failed to fetch" reports we saw on the embedded widget.
+      const retryAttempt = (typeof isRetry === "number") ? isRetry : (isRetry ? 1 : 0);
+      const isTransient = retryAttempt < 3 && (
         !lastHttpStatus ||
         lastHttpStatus >= 500 ||
         lastHttpStatus === 0 ||
-        /network|failed to fetch|load failed/i.test(detail)
+        /network|failed to fetch|load failed|err_network|err_connection/i.test(detail)
       );
       if (isTransient) {
         // Remove the failed assistant placeholder; sendStreaming will push a fresh one
@@ -477,11 +504,12 @@ export default function Chat({ embedded = false }) {
         setStreaming(false);
         setStatusLabel("");
         abortRef.current = null;
-        await new Promise((r) => setTimeout(r, 600));
-        return sendStreaming(text, { _retry: true });
+        const backoff = [600, 1600, 3500][retryAttempt] || 3500;
+        await new Promise((r) => setTimeout(r, backoff));
+        return sendStreaming(text, { _retry: retryAttempt + 1 });
       }
 
-      setErrorMsg(detail);
+      setErrorMsg(friendlyError(detail, { httpStatus: lastHttpStatus }));
       setMessages((prev) => {
         const idx = prev.findIndex((m) => m.turnId === turnId);
         const fallbackMsg = {
@@ -588,7 +616,7 @@ export default function Chat({ embedded = false }) {
         } catch (_) { /* non-fatal */ }
       }
     } catch (e) {
-      setErrorMsg(e?.response?.data?.detail || "Couldn't start the session.");
+      setErrorMsg(friendlyError(e?.response?.data?.detail || e.message, { httpStatus: e?.response?.status }) || "Couldn't start the session.");
     }
   };
 
