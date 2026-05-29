@@ -187,11 +187,21 @@ async def _execute_tool_calls(db, sid: str, session: Dict[str, Any], turn_id: st
         else:
             res = await _adapter.execute(db, tool_name=name, params=args, session=session,
                                            session_id=sid, turn_id=turn_id)
+        # Phase 31 — BMIA payloads can exceed 6 KB (fund_decisions ~40 KB). Truncating
+        # the JSON mid-string breaks downstream parsing and kills the deterministic
+        # card injection. Allow up to 20 KB for BMIA tools (still safe for LLM context)
+        # while keeping the original cap for everything else.
+        char_cap = 20000 if name.startswith(_BMIA_TOOL_PREFIX) else 6000
+        compacted = _compact_for_llm(res)
         return {
             "role": "tool",
             "tool_call_id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
             "name": name,
-            "content": json.dumps(_compact_for_llm(res), default=str)[:6000],
+            "content": json.dumps(compacted, default=str)[:char_cap],
+            # Phase 31 — keep the un-truncated, un-stringified dict for the parent
+            # loop's `accumulated_tool_payloads`, so deterministic card injection
+            # works regardless of content truncation.
+            "_raw_compacted": compacted,
         }
     return await asyncio.gather(*[_one(tc) for tc in tool_calls])
 
@@ -311,16 +321,36 @@ async def run(db, session_id: str, user_message: str,
         # Once we have at least one tool result, we still allow more tool calls but also
         # nudge the model with response_format=json_object so its final answer parses.
         wants_json_format = saw_any_tool_calls  # only after tools have run
+        # Phase 31 — round_idx>=1 is the synthesis pass after tool execution.
+        # Hub AI's gpt-4o frequently hangs >60s when given large BMIA payloads;
+        # gpt-4o-mini handles the same prompt in 2-4s. Tool-selection (round 0)
+        # still uses the better model.
+        round_model = _MAIN_MODEL if round_idx == 0 else _FINAL_JSON_FALLBACK_MODEL
         try:
             res = await _llm.call_with_tools(
                 messages=messages, tools=function_schemas,
-                temperature=0.2, max_tokens=1400, model=_MAIN_MODEL,
+                temperature=0.2, max_tokens=1400, model=round_model,
                 session_id=session_id, intent="tools_orchestrator",
                 response_format=({"type": "json_object"} if wants_json_format else None),
-                timeout=25.0,
+                timeout=60.0,
             )
         except Exception as e:
             logger.exception("LLM tool-calling round %d failed", round_idx)
+            # Phase 31 — if at least one BMIA tool already succeeded this turn,
+            # don't abandon — emit a graceful envelope. The deterministic card
+            # injection (_augment_with_bmia_cards) will render the rich cards
+            # downstream so the user still gets the structured output.
+            bmia_payloads = [p for p in accumulated_tool_payloads
+                              if isinstance(p, dict) and p.get("ok")
+                              and (p.get("tool") or "").startswith("bmia_")]
+            if bmia_payloads:
+                trace.append({"step": "llm_synthesis_skipped",
+                               "reason": f"{type(e).__name__}:{str(e)[:60]}",
+                               "bmia_tools_ok": [p.get("tool") for p in bmia_payloads]})
+                final_text = ("Here's what I found from the BMIA research desk. "
+                              "Details below.")
+                model_used = round_model
+                break
             return {"ok": False, "reason": f"llm_error:{type(e).__name__}:{str(e)[:80]}",
                     "trace": trace, "classification": classification}
         model_used = res.get("model") or model_used
@@ -348,10 +378,20 @@ async def run(db, session_id: str, user_message: str,
                                                    turn_id, tool_calls, prior_signatures)
         # Capture parsed payloads for response_builder hard gates (table-shape + clamp).
         for tm in tool_results:
+            # Phase 31 — prefer the un-truncated raw dict (avoids JSON-parse failures
+            # when BMIA payloads exceeded the content cap).
+            raw = tm.get("_raw_compacted")
+            if isinstance(raw, dict):
+                accumulated_tool_payloads.append(raw)
+                continue
             try:
                 accumulated_tool_payloads.append(json.loads(tm.get("content") or "{}"))
             except Exception:
                 pass
+        # Strip the _raw_compacted side-channel before extending — it's not a valid
+        # OpenAI tool-message field and would confuse Hub AI.
+        for tm in tool_results:
+            tm.pop("_raw_compacted", None)
         messages.extend(tool_results)
     else:
         # Hit the cap — force a final JSON synthesis pass without tools.
@@ -373,7 +413,14 @@ async def run(db, session_id: str, user_message: str,
                     "trace": trace, "classification": classification}
 
     # If the LLM returned tool-free text that isn't JSON, do ONE more pass forcing JSON synthesis.
-    if final_text and not _rb._extract_json(final_text):
+    # Phase 31 — skip the reformat pass if we already have BMIA tool payloads, since
+    # _augment_with_bmia_cards will deterministically inject the structured cards;
+    # the surrounding text doesn't need to be in strict JSON for the FE to render.
+    has_bmia_payloads = any(
+        isinstance(p, dict) and p.get("ok") and (p.get("tool") or "").startswith("bmia_")
+        for p in accumulated_tool_payloads
+    )
+    if final_text and not _rb._extract_json(final_text) and not has_bmia_payloads:
         messages.append({"role": "system",
                           "content": "Reformat your last reply as a JSON object: {\"blocks\":[...],\"summary\":\"...\"} per the schema. Return ONLY the JSON."})
         try:
@@ -412,6 +459,17 @@ async def run(db, session_id: str, user_message: str,
         tool_payloads=accumulated_tool_payloads,
         language=language,
     )
+    # Phase 31 — if BMIA cards are already in the block list, the response IS
+    # structured (rich cards satisfy the user intent for table/card output_hint).
+    # Skip the costly hard-gate LLM retry — Hub AI is slow with large schema lists.
+    has_bmia_card = any(
+        isinstance(b, dict) and (b.get("type") or "").startswith("bmia_")
+        and (b.get("type") or "").endswith("_card")
+        for b in blocks
+    )
+    if needs_reprompt and has_bmia_card:
+        trace.append({"step": "hard_gate_skip_bmia_present", "reason": gate_reason})
+        needs_reprompt = False
     if needs_reprompt:
         trace.append({"step": "hard_gate_reprompt", "reason": gate_reason})
         # ONE retry: re-prompt the LLM with the explicit shape instruction.
@@ -432,6 +490,8 @@ async def run(db, session_id: str, user_message: str,
             choice3 = (res3.get("data") or {}).get("choices", [{}])[0]
             retry_text = (choice3.get("message") or {}).get("content") or ""
             retry_blocks = _rb.build_blocks(retry_text, output_hint=output_hint, language=language)
+            # Phase 31 — re-apply BMIA card injection (build_blocks discarded it).
+            retry_blocks = _augment_with_bmia_cards(retry_blocks, accumulated_tool_payloads)
             retry_blocks, still_needs, _r2 = _rb.enforce_hard_gates(
                 retry_blocks, output_hint=output_hint,
                 tool_payloads=accumulated_tool_payloads, language=language,
@@ -445,6 +505,8 @@ async def run(db, session_id: str, user_message: str,
                     retry_blocks, output_hint=output_hint,
                     tool_payloads=accumulated_tool_payloads, language=language,
                 )
+                # Phase 31 — programmatic_fallback may have rebuilt blocks; re-inject BMIA cards.
+                blocks = _augment_with_bmia_cards(blocks, accumulated_tool_payloads)
                 trace.append({"step": "hard_gate_programmatic_fallback",
                               "reason": gate_reason})
                 try:
@@ -463,6 +525,8 @@ async def run(db, session_id: str, user_message: str,
                 blocks, output_hint=output_hint,
                 tool_payloads=accumulated_tool_payloads, language=language,
             )
+            # Phase 31 — re-inject BMIA cards after the fallback rebuild.
+            blocks = _augment_with_bmia_cards(blocks, accumulated_tool_payloads)
 
     # 5. Image hook — generate a PNG for the two approved use cases.
     blocks = await _rb.maybe_generate_image_blocks(
