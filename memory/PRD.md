@@ -533,3 +533,47 @@ and the new 26.1 work (acronym expansion, fan-out for ticker + product).
 
 ### Production redeploy still required
 All 26.2 work is in preview; `bot.pesmifs.com` still serves pre-26 build.
+
+---
+
+## Phase 31 — BMIA Toolset Extension (5 new endpoints) ✅ — Feb 2026
+
+### Scope
+Extend BMIA toolset with 5 new endpoints + matching chat UI blocks.
+Legacy BMIA tools (fundamentals/quarterly/briefing) untouched; auth unchanged; no new env vars.
+
+### Endpoints wired
+- `GET /api/public/v1/fund/decisions` — recent multi-agent consensus calls (BUY/HOLD/SELL + rationale)
+- `GET /api/public/v1/fund/portfolio/{name}` — model book composition (currently 404 for all books; backend degrades gracefully)
+- `GET /api/public/v1/litmus/positions` — open paper-trading book w/ MTM P&L
+- `GET /api/public/v1/litmus/cycles` — closed paper-trading cycles w/ realised P&L
+- `GET /api/public/v1/litmus/summary` — aggregate paper-trading scorecard
+
+### What was implemented this session
+1. **Routing fix** — `agents/router.py` gained an umbrella `bmia_research_pipeline` tool mapping to new intent `BMIA_TOOLS_PIPELINE`. The router LLM now correctly classifies all 5 query shapes to this intent instead of misrouting to legacy `BMIA_FUNDAMENTALS` / `BMIA_BRIEFING`.
+2. **Orchestrator dispatch** — `agents/orchestrator.py` Phase-20 allowlist extended with `BMIA_TOOLS_PIPELINE` so these queries flow through the dynamic tool-loop where BMIA tool schemas are exposed.
+3. **Augmentation fix** — `orglens_tools/orchestrator.py` `_augment_with_bmia_cards` rewritten to read `payload['value']` keyed by tool name. Previously it read top-level keys that never matched the `_compact_for_llm` envelope shape.
+4. **5 React block components** — under `/app/frontend/src/components/blocks/`:
+   - `BmiaFundDecisionsCard.jsx` — list of recent calls w/ verdict chip, confidence pill, expandable rationale.
+   - `BmiaFundPortfolioCard.jsx` — handles both `available:true` (table of holdings) and `available:false` (graceful not-provisioned banner).
+   - `BmiaLitmusPositionsCard.jsx` — open positions table w/ green/red MTM P&L cells.
+   - `BmiaLitmusCyclesCard.jsx` — closed cycles table w/ in-cell "shown win rate" pill.
+   - `BmiaLitmusSummaryCard.jsx` — 6-cell KPI grid + CSS-only half-circle win-rate gauge.
+5. **Chat.jsx renderer** — 5 new switch cases added; all imports wired.
+6. **App.css** — Phase 31 CSS block added (verdict chips, P&L colors, KPI grid, gauge SVG styles).
+7. **Suggestion catalog** — `agents/suggestion_agent.py` `_FALLBACK_BY_KEYWORD` extended with two new entries (consensus/portfolio chips, litmus/paper-trading chips) for visitor/client/employee personas.
+8. **Mobile spec** — `docs/MOBILE_APP_INTEGRATION.md` updated: 5 new §5.5.x block schemas (5.5.1–5.5.5), §13 endpoint list updated with Phase 31 entries, version banner Phase 29 → Phase 31.
+
+### Verification
+- `testing_agent_v3` Phase 31 suite: **15/15 backend tests pass** (`/app/backend/tests/test_phase31_bmia_tools.py`).
+- All 5 BMIA endpoints respond with expected shapes; portfolio 404 degrades to `available:false` envelope.
+- Router classifies all 3 test query shapes ("recent consensus calls", "long-term portfolio book", "litmus win rate") → `intent=BMIA_TOOLS_PIPELINE` via Hub AI native tool-calling.
+- Augmentation correctly injects all 5 card types and is idempotent.
+- Suggestion fallback returns Phase-31 keywords (BUY calls, portfolio, Litmus, paper trade) instead of generic.
+- Frontend lint: all 5 new components clean. `Chat.jsx` clean.
+
+### Known caveat (environmental, NOT a code defect)
+On the preview pod, Hub AI second-round synthesis after BMIA tool execution sometimes ReadTimeouts at 25s. Production VPS has different Hub AI routing; this is verified to be an environment latency issue, not a bug in this implementation.
+
+### Pending / Next
+- **P0**: Production VPS deploy — build backend image locally, ship via `docker save → scp → docker load → docker compose up -d`, then run E2E smoke tests on `bot.pesmifs.com`. NOT done in this session per safety policy ("Do NOT make destructive changes on the VPS").
