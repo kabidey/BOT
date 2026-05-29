@@ -252,6 +252,10 @@ class ClientStreamError(BaseModel):
     user_agent: Optional[str] = None
     last_http_status: Optional[int] = None
     retried: Optional[bool] = None
+    # Phase 32b — optional "axios:GET:/api/foo" tag so we can correlate user-
+    # visible error banners with the exact endpoint that 4xx'd, without
+    # needing browser DevTools. Used by the global axios interceptor.
+    error_context: Optional[str] = None
 
 
 @api_router.post("/client_errors")

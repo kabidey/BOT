@@ -38,25 +38,97 @@ import { getFingerprintHeaders } from "@/lib/fingerprint";
 const PAN_RE = /\b([A-Za-z]{5}[0-9]{4}[A-Za-z])\b/g;
 const maskPanInText = (s) => (s || "").replace(PAN_RE, (m) => `XXXXX${m.slice(5, 9)}X`);
 
+// Phase 32b — Global axios response interceptor for diagnostic telemetry.
+// Every 4xx/5xx (with an actual response) is posted fire-and-forget to
+// /api/client_errors so we can correlate user-visible banners with the
+// exact failing endpoint in /api/admin/errors/recent. Pure observation —
+// the original error still propagates to the calling code's catch handler
+// unchanged. Installed once at module load (idempotent guard).
+if (typeof window !== "undefined" && !window.__smifsAxiosInterceptor) {
+  window.__smifsAxiosInterceptor = true;
+  const BE = process.env.REACT_APP_BACKEND_URL || "";
+  axios.interceptors.response.use(
+    (r) => r,
+    (err) => {
+      try {
+        const cfg = err?.config || {};
+        const status = err?.response?.status;
+        // Only report network / HTTP failures from our own backend. Skip
+        // CORS rejections / cross-origin spam, and skip the rehydrate 404
+        // which is an expected stale-session-id sweep (silent on purpose).
+        const url = (cfg.url || "").toString();
+        const isOurBackend = !url || url.startsWith(BE) || url.startsWith("/api/") || url.startsWith(`${BE}/api`);
+        const isRehydrate404 = status === 404 && /\/sessions\/[^/]+$/.test(url) && (cfg.method || "get").toLowerCase() === "get";
+        if (isOurBackend && !isRehydrate404 && (status === undefined || status >= 400)) {
+          fetch(`${BE}/api/client_errors`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: null,
+              turn_id: null,
+              turn_count: null,
+              error_name: err?.name || "AxiosError",
+              error_message: (err?.message || "").slice(0, 400),
+              user_agent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 200) : null,
+              last_http_status: status ?? 0,
+              retried: false,
+              // Custom hint so we can grep these in the errors view:
+              error_context: `axios:${(cfg.method || "GET").toUpperCase()}:${url.replace(BE, "")}`.slice(0, 200),
+            }),
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (_) { /* never let telemetry break the error path */ }
+      return Promise.reject(err);
+    }
+  );
+}
+
 // Phase 32a — Never display raw browser-network errors ("Failed to fetch",
 // "Load failed", "Network Error", "TypeError…") in the user-visible error
 // banner. Map them to short, friendly copy. Anything that looks like a real
 // server-side validation/business detail (length > 8, no native-error tokens)
 // is passed through verbatim so we don't muffle helpful server messages.
+//
+// Phase 32b — Also catch axios's `"Request failed with status code N"`
+// shape (the screenshot the user shared was this exact string). Plus:
+// generic timeouts, request-aborted (user-initiated → suppress entirely),
+// and a safe default for anything else that smells like a network gripe.
 const _NATIVE_FETCH_FAIL_RE =
   /^(typeerror|networkerror|failed to fetch|load failed|network error|fetch failed|the (network|request) (request )?(was )?(timed out|aborted)|err_network|err_internet_disconnected|err_connection_(refused|reset|aborted|closed|timed_out))/i;
+const _AXIOS_STATUS_RE = /^request failed with status code (\d{3})\b/i;
+const _TIMEOUT_RE = /(timeout|timed out|exceeded)/i;
+const _ABORT_RE = /(canceled|cancelled|aborted)/i;
 function friendlyError(raw, opts) {
   const msg = (raw || "").toString().trim();
-  const status = opts && opts.httpStatus;
-  if (!msg) return "Something went wrong. Tap retry below to try again.";
+  const opt = opts || {};
+  let status = opt.httpStatus;
+  if (!msg) return "Something went wrong. Please try again in a moment.";
+  // User-initiated abort: suppress the banner entirely (return empty string).
+  if (_ABORT_RE.test(msg)) return "";
+  // Native fetch network failure → check-your-network copy.
   if (_NATIVE_FETCH_FAIL_RE.test(msg)) {
     return "Connection is slow right now. Please check your network and tap retry.";
   }
-  if (status && status >= 500) {
-    return "We're having a brief hiccup at our end. Please try again in a moment.";
+  // Axios "Request failed with status code N" — extract status if caller didn't supply one.
+  const axiosMatch = msg.match(_AXIOS_STATUS_RE);
+  if (axiosMatch) {
+    status = status || Number(axiosMatch[1]);
   }
-  if (status === 0) {
-    return "Couldn't reach the advisory engine just now. Please check your network and retry.";
+  if (_TIMEOUT_RE.test(msg)) {
+    return "Taking longer than expected. Please try again in a moment.";
+  }
+  if (status) {
+    if (status >= 500) return "We're having a brief hiccup at our end. Please try again in a moment.";
+    if (status === 404) return "That resource isn't available right now. Please try again.";
+    if (status === 401 || status === 403) return "Your session needs to refresh. Please try again.";
+    if (status === 429) return "We're getting a lot of activity right now. Please wait a moment and retry.";
+    if (status === 0)   return "Couldn't reach the advisory engine just now. Please check your network and retry.";
+    if (status >= 400)  return "Something didn't go through. Please try again in a moment.";
+  }
+  // If the message still LOOKS like a generic fetch/axios technical string, replace it.
+  if (/(request|response|http|status code|xhr|axios|fetch)/i.test(msg)) {
+    return "Something went wrong. Please try again in a moment.";
   }
   // Server-side validation / friendly detail — pass through, but cap length.
   return msg.length > 180 ? msg.slice(0, 177) + "…" : msg;
@@ -83,6 +155,11 @@ export default function Chat({ embedded = false }) {
   const [streaming, setStreaming] = useState(false);
   const [statusLabel, setStatusLabel] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  // Phase 32b — remember the last user message + which axios/fetch call
+  // produced the error, so the "Tap to retry" chip can re-fire the same
+  // request rather than asking the user to retype.
+  const [lastUserText, setLastUserText] = useState("");
+  const [errorRetry, setErrorRetry] = useState(null);  // () => Promise<void> | null
   const [health, setHealth] = useState(null);
   const [activeCitation, setActiveCitation] = useState(null); // { msgIdx, citIdx }
   const [client, setClient] = useState(null); // {name, code, type} when verified
@@ -327,6 +404,8 @@ export default function Chat({ embedded = false }) {
   const sendStreaming = useCallback(async (text, opts) => {
     const isRetry = (opts && opts._retry) || 0;
     setErrorMsg("");
+    setErrorRetry(null);
+    if (!isRetry) setLastUserText(text);  // remember for "Tap to retry"
     setActiveCitation(null);
     // If the previous assistant message asked for PAN, auto-mask the user's submitted text in local history
     const lastBotMsg = [...messages].reverse().find((m) => m.role === "assistant" && !m.streaming);
@@ -510,6 +589,13 @@ export default function Chat({ embedded = false }) {
       }
 
       setErrorMsg(friendlyError(detail, { httpStatus: lastHttpStatus }));
+      // Phase 32b — make the banner recoverable. Snapshot `text` (the message
+      // the user actually sent this turn) and offer it to the retry chip below.
+      setErrorRetry(() => () => {
+        setErrorMsg("");
+        setErrorRetry(null);
+        sendStreaming(text);
+      });
       setMessages((prev) => {
         const idx = prev.findIndex((m) => m.turnId === turnId);
         const fallbackMsg = {
@@ -617,6 +703,12 @@ export default function Chat({ embedded = false }) {
       }
     } catch (e) {
       setErrorMsg(friendlyError(e?.response?.data?.detail || e.message, { httpStatus: e?.response?.status }) || "Couldn't start the session.");
+      // Phase 32b — recoverable: let the user retap the same role to retry.
+      setErrorRetry(() => () => {
+        setErrorMsg("");
+        setErrorRetry(null);
+        handleSelectRole(role);
+      });
     }
   };
 
@@ -1097,7 +1189,18 @@ export default function Chat({ embedded = false }) {
 
         {errorMsg && (
           <div className="smifs-error" data-testid="error-banner">
-            <AlertCircle size={14} /> {errorMsg}
+            <AlertCircle size={14} />
+            <span className="smifs-error-text">{errorMsg}</span>
+            {errorRetry ? (
+              <button
+                type="button"
+                className="smifs-error-retry"
+                onClick={() => { try { errorRetry(); } catch (_) {} }}
+                data-testid="error-retry-btn"
+              >
+                Tap to retry
+              </button>
+            ) : null}
           </div>
         )}
 

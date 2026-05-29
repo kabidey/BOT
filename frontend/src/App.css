@@ -310,6 +310,36 @@ body {
   background: rgba(224, 122, 110, 0.06);
   border-radius: 10px;
 }
+.smifs-error-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.4;
+}
+/* Phase 32b — Tap-to-retry chip inside the error banner. */
+.smifs-error-retry {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(246, 200, 193, 0.55);
+  background: rgba(246, 200, 193, 0.10);
+  color: #f6c8c1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+.smifs-error-retry:hover {
+  background: rgba(246, 200, 193, 0.22);
+}
+.smifs-error-retry:active {
+  transform: scale(0.96);
+}
+.smifs-error-retry:focus-visible {
+  outline: 2px solid rgba(246, 200, 193, 0.7);
+  outline-offset: 2px;
+}
 
 .smifs-composer {
   display: flex;
