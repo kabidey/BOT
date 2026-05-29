@@ -229,9 +229,16 @@ def _compact_for_llm(res: Dict[str, Any]) -> Dict[str, Any]:
 
 async def run(db, session_id: str, user_message: str,
               session: Dict[str, Any], identity_obj: Optional[Dict[str, Any]],
-              session_context: Dict[str, Any]) -> Dict[str, Any]:
+              session_context: Dict[str, Any],
+              emit_token: Optional[Any] = None) -> Dict[str, Any]:
     """Returns a parent-orchestrator-compatible dict:
         {"ok", "blocks", "model", "intent", "trace": [...]}
+
+    Phase 29a — when `emit_token` is provided, the final synthesised answer
+    is chunked and streamed to the SSE consumer so the user sees progressive
+    output instead of a flash. Tool-calling rounds still run buffered (the
+    Hub AI function-call API is not stream-friendly), but the final
+    user-facing text is chunk-emitted in word groups with sub-frame sleeps.
     """
     turn_id = str(uuid.uuid4())
     role = _adapter._role_of({
@@ -450,6 +457,16 @@ async def run(db, session_id: str, user_message: str,
         blocks=blocks, user_message=user_message, classification=classification,
     )
 
+    # 6. Phase 29a — pseudo-stream the final user-visible text via emit_token.
+    # The Hub AI function-calling API isn't stream-friendly, so the tool loop
+    # ran buffered. To restore the progressive-output UX, walk the first text
+    # block and chunk-emit it in word groups with sub-frame sleeps.
+    if emit_token is not None and blocks:
+        for blk in blocks:
+            if isinstance(blk, dict) and blk.get("type") == "text" and (blk.get("text") or "").strip():
+                await _pseudo_stream(emit_token, blk["text"])
+                break  # only stream the leading narrative; tables/cards render whole
+
     return {
         "ok": True,
         "blocks": blocks,
@@ -458,3 +475,41 @@ async def run(db, session_id: str, user_message: str,
         "trace": trace,
         "classification": classification,
     }
+
+
+async def _pseudo_stream(emit_token, text: str,
+                         chunk_words: int = 3, sleep_s: float = 0.025) -> None:
+    """Phase 29a — emit a finalised text answer in word-group chunks so the
+    SSE consumer sees a progressive build instead of a flash.
+
+    Why not real streaming: Hub AI's function-calling API (`tools=[...]`)
+    doesn't stream cleanly across all chained models, and we need to inspect
+    tool_calls vs content per-round. Pseudo-streaming the *final* text is the
+    minimum-risk path that delivers the actual UX goal (visible progressive
+    growth) without altering tool-loop semantics. Sleep budget: ~25 ms × N
+    chunks = sub-second perceived padding for a typical 150-word answer.
+
+    Defensive: silently ignores emit_token failures (don't poison the turn
+    if the SSE consumer disconnects mid-stream).
+    """
+    if not text:
+        return
+    words = text.split(" ")
+    buf: List[str] = []
+    for w in words:
+        buf.append(w)
+        if len(buf) >= chunk_words:
+            try:
+                await emit_token(" ".join(buf) + " ")
+            except Exception:
+                return
+            buf = []
+            try:
+                await asyncio.sleep(sleep_s)
+            except Exception:
+                return
+    if buf:
+        try:
+            await emit_token(" ".join(buf))
+        except Exception:
+            return

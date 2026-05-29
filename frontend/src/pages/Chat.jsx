@@ -6,6 +6,7 @@ import TextBlock from "@/components/blocks/TextBlock";
 import VehicleCtaBlock from "@/components/blocks/VehicleCtaBlock";
 import FormBlock from "@/components/blocks/FormBlock";
 import DynamicFormBlock from "@/components/blocks/DynamicFormBlock";
+import SuggestedActionsBlock from "@/components/blocks/SuggestedActionsBlock";
 import MarketCardBlock from "@/components/blocks/MarketCardBlock";
 import ClientCardBlock from "@/components/blocks/ClientCardBlock";
 import EmployeeCardBlock from "@/components/blocks/EmployeeCardBlock";
@@ -754,6 +755,20 @@ export default function Chat({ embedded = false }) {
         );
       case "directory_card":
         return <DirectoryCardBlock key={key} block={block} />;
+      case "suggested_actions": {
+        // Phase 29b — only show chips on the LATEST assistant message and
+        // only when we're not already mid-stream of the next turn.
+        const isLastMsg = msgIdx === messages.length - 1;
+        if (!isLastMsg) return null;
+        return (
+          <SuggestedActionsBlock
+            key={key}
+            block={block}
+            disabled={streaming}
+            onSelect={(label) => send(label)}
+          />
+        );
+      }
       case "directory_list":
         return <DirectoryListBlock key={key} block={block} />;
       case "org_stats_card":

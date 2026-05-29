@@ -13,6 +13,7 @@ Per-turn flow:
   4. Persist assistant turn
 """
 from __future__ import annotations
+import asyncio
 import logging
 import os
 import time
@@ -852,7 +853,8 @@ async def run_turn(db, session_id: Optional[str], message: str,
                                           identity_obj=None,
                                           session_context={"session_type": "visitor",
                                                             "auth_state": auth_agent.ANON,
-                                                            "locale": (auth_row.get("locale") or "en")})
+                                                            "locale": (auth_row.get("locale") or "en")},
+                                          emit_token=emit_token)
                     blocks_have_content = (
                         bool(p20.get("ok"))
                         and any(b.get("type") in ("text", "table", "chart", "image",
@@ -1032,7 +1034,8 @@ async def run_turn(db, session_id: Optional[str], message: str,
                     p20 = await _p20.run(db, sid, message,
                                           session=auth_row,
                                           identity_obj=identity_obj,
-                                          session_context=session_context)
+                                          session_context=session_context,
+                                          emit_token=emit_token)
                     if p20.get("ok"):
                         # ---- KNOWLEDGE fallback to legacy RAG ----
                         # Phase 20 has no tool for vehicle/NCD/MF prospectus
@@ -1206,6 +1209,42 @@ async def run_turn(db, session_id: Optional[str], message: str,
         out = await _maybe_attach_dynamic_form(db, sid, message, out, _sc, _ar)
     except Exception:
         logger.exception("dynamic_form trigger detection failed (non-fatal)")
+
+    # Phase 29b — suggestion chips (3 follow-ups) appended as the final block.
+    # Skip rules: anti-bluff rail, dynamic_form, farewells, auth flows.
+    # Hard total budget: 800 ms; failure/timeout = no chips (better none than late).
+    try:
+        from . import suggestion_agent as _sa
+        if not _sa.should_skip(intent, out.get("blocks"), message):
+            persona = "visitor"
+            _sc2 = locals().get("session_context") or {}
+            st = (_sc2.get("session_type") or "").lower()
+            if st in ("client", "employee", "visitor"):
+                persona = st
+            elif intent and intent.startswith("AUTH_") and intent == "AUTH_VERIFIED":
+                # On the first verified turn we don't yet know the role from sc;
+                # fall back to whichever identity object is on `out`.
+                ident = out.get("identity") or {}
+                if ident.get("role") in ("client", "employee"):
+                    persona = ident["role"]
+            assistant_reply_text = _flatten_text(out.get("blocks") or [])
+            chips = await asyncio.wait_for(
+                _sa.generate(
+                    user_message=message,
+                    assistant_reply=assistant_reply_text,
+                    persona=persona,
+                    intent=intent,
+                    session_id=sid,
+                ),
+                timeout=_sa.TOTAL_BUDGET_S,
+            )
+            block = _sa.block_from_chips(chips)
+            if block:
+                out.setdefault("blocks", []).append(block)
+    except asyncio.TimeoutError:
+        logger.info("suggestion_agent total budget exceeded (skipping chips)")
+    except Exception:
+        logger.exception("suggestion_agent failed (non-fatal)")
 
     payload = {
         "session_id": sid,
